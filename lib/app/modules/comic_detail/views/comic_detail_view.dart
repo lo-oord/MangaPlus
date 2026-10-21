@@ -797,17 +797,24 @@ class _ChapterListState extends State<_ChapterList> {
     final downloaded = widget.controller.isChapterDownloaded(chapter.chapterId);
     final read = widget.controller.isChapterRead(chapter.chapterId);
     final progress = widget.controller.downloadingChapters[chapter.chapterId];
-    final stateIcon = downloaded
+    final downloading = progress != null;
+    final stateIcon = downloading
+        ? Icons.downloading_rounded
+        : downloaded
         ? Icons.download_done_rounded
         : read
             ? Icons.visibility_rounded
             : Icons.fiber_new_rounded;
-    final stateColor = downloaded
+    final stateColor = downloading
+        ? AppColors.primary
+        : downloaded
         ? const Color(0xff36a66a)
         : read
             ? AppColors.primary
             : const Color(0xffe09a34);
-    final stateLabel = downloaded
+    final stateLabel = downloading
+        ? 'جارٍ التنزيل'.tr
+        : downloaded
         ? 'تم التنزيل'.tr
         : read
             ? 'مقروء'.tr
@@ -826,7 +833,7 @@ class _ChapterListState extends State<_ChapterList> {
         ),
       ),
       child: ListTile(
-        contentPadding: const EdgeInsetsDirectional.fromSTEB(13, 4, 5, 4),
+        contentPadding: const EdgeInsetsDirectional.fromSTEB(13, 6, 5, 6),
         onTap: () {
           if (widget.controller.isSelectionMode.value) {
             widget.controller.toggleChapterSelection(chapter);
@@ -844,10 +851,10 @@ class _ChapterListState extends State<_ChapterList> {
             : Tooltip(
                 message: stateLabel,
                 child: CircleAvatar(
-                  radius: 19,
+                  radius: 20,
                   backgroundColor: stateColor.withValues(alpha: 0.15),
                   child: Icon(stateIcon, size: 20, color: stateColor),
-                ),
+                  ),
               ),
         title: Text(
           chapter.title,
@@ -858,15 +865,43 @@ class _ChapterListState extends State<_ChapterList> {
             fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
           ),
         ),
-        subtitle: chapter.releaseTime.isEmpty
-            ? null
-            : Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  chapter.releaseTime,
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 5),
+          child: Wrap(
+            spacing: 7,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: stateColor.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(stateIcon, size: 12, color: stateColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      stateLabel,
+                      style: TextStyle(
+                        color: stateColor,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
               ),
+              if (chapter.releaseTime.isNotEmpty)
+                Text(
+                  chapter.releaseTime,
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                ),
+            ],
+          ),
+        ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
