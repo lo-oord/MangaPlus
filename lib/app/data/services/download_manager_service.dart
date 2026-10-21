@@ -208,6 +208,8 @@ class DownloadManagerService extends GetxService {
         await _downloadChapter(task, id, chapter['title'] ?? 'الفصل');
         task = _task(original.id);
         if (task == null) return;
+        if (task.status == DownloadTaskStatus.paused ||
+            task.status == DownloadTaskStatus.cancelled) return;
         final completed = [...task.completedChapterIds, id].toSet().toList();
         final failed = [...task.failedChapterIds]..remove(id);
         await _replace(task.copyWith(
@@ -298,6 +300,7 @@ class DownloadManagerService extends GetxService {
     String chapterTitle,
     List<String> paths,
   ) async {
+    final localCover = await _ensureLocalCover(task);
     final raw = _storage.read<List<dynamic>>('downloadedChapters') ?? [];
     raw.removeWhere((item) => item is Map && item['chapterId'] == chapterId);
     raw.add(DownloadedChapter(
@@ -305,11 +308,30 @@ class DownloadManagerService extends GetxService {
       chapterId: chapterId,
       comicTitle: task.comicTitle,
       chapterTitle: chapterTitle,
-      coverImage: task.coverImage,
+      coverImage: localCover,
       localImagePaths: paths,
       downloadedAt: DateTime.now(),
     ).toJson());
     await _storage.write('downloadedChapters', raw);
+  }
+
+  Future<String> _ensureLocalCover(DownloadTask task) async {
+    final cover = task.coverImage.trim();
+    if (cover.isEmpty || cover.startsWith('/')) return cover;
+    try {
+      final base = await getApplicationDocumentsDirectory();
+      final dir = Directory('${base.path}/chapters/${_key(task.comicId)}');
+      await dir.create(recursive: true);
+      final response = await http.get(Uri.parse(cover)).timeout(
+            const Duration(seconds: 15),
+          );
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final file = File('${dir.path}/cover.jpg');
+        await file.writeAsBytes(response.bodyBytes, flush: true);
+        return file.path;
+      }
+    } catch (_) {}
+    return cover;
   }
 
   Future<void> _cleanupTemp(DownloadTask task) async {

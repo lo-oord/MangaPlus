@@ -246,6 +246,22 @@ class ComicDetailController extends GetxController {
     );
   }
 
+  Future<void> deleteDownloadedChapter(String chapterId) async {
+    final raw = _storage.read<List<dynamic>>('downloadedChapters') ?? [];
+    final matches = raw.whereType<Map>().where(
+      (item) => '${item['chapterId'] ?? ''}' == chapterId,
+    ).toList(growable: false);
+    for (final item in matches) {
+      for (final path in List<String>.from(item['localImagePaths'] ?? const [])) {
+        final file = File(path);
+        if (await file.exists()) await file.delete();
+      }
+    }
+    raw.removeWhere((item) => item is Map && '${item['chapterId'] ?? ''}' == chapterId);
+    await _storage.write('downloadedChapters', raw);
+    historyRevision.value++;
+  }
+
   void toggleChapterSelection(Chapter chapter) {
     isSelectionMode.value = true;
     if (selectedChapterIds.contains(chapter.chapterId)) {

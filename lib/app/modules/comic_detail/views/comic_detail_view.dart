@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -81,7 +82,14 @@ class ComicDetailView extends GetView<ComicDetailController> {
         background: Stack(
           fit: StackFit.expand,
           children: [
-            if (comic.coverImage.isNotEmpty)
+            if (comic.coverImage.isNotEmpty &&
+                comic.coverImage.startsWith('/') &&
+                File(comic.coverImage).existsSync())
+              Image.file(
+                File(comic.coverImage),
+                fit: BoxFit.cover,
+              )
+            else if (comic.coverImage.isNotEmpty)
               CachedNetworkImage(
                 imageUrl: comic.coverImage,
                 httpHeaders: const {
@@ -371,6 +379,8 @@ class _CoverThumbnail extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: imageUrl.isEmpty
             ? const Center(child: MangaPlusLogo(size: 52))
+            : imageUrl.startsWith('/') && File(imageUrl).existsSync()
+                ? Image.file(File(imageUrl), fit: BoxFit.cover)
             : CachedNetworkImage(
                 imageUrl: imageUrl,
                 fit: BoxFit.cover,
@@ -795,6 +805,7 @@ class _ChapterListState extends State<_ChapterList> {
   Widget _buildChapterTile(BuildContext context, Chapter chapter) {
     final selected = widget.controller.selectedChapterIds.contains(chapter.chapterId);
     final downloaded = widget.controller.isChapterDownloaded(chapter.chapterId);
+    final localOnly = widget.controller.comicDetailData.value.source == 'local';
     final read = widget.controller.isChapterRead(chapter.chapterId);
     final progress = widget.controller.downloadingChapters[chapter.chapterId];
     final downloading = progress != null;
@@ -927,9 +938,27 @@ class _ChapterListState extends State<_ChapterList> {
               )
             else
               IconButton(
-                tooltip: downloaded ? 'تم التنزيل'.tr : 'تنزيل الفصل'.tr,
-                onPressed: downloaded
+                tooltip: downloaded
+                    ? (localOnly ? 'حذف الفصل المحلي'.tr : 'تم التنزيل'.tr)
+                    : 'تنزيل الفصل'.tr,
+                onPressed: downloaded && !localOnly
                     ? null
+                    : downloaded && localOnly
+                        ? () => Get.defaultDialog(
+                              title: 'حذف الفصل المحلي'.tr,
+                              content: Text('سيتم حذف ملفات هذا الفصل من الجهاز فقط.'.tr),
+                              confirm: TextButton(
+                                onPressed: () {
+                                  Get.back();
+                                  widget.controller.deleteDownloadedChapter(chapter.chapterId);
+                                },
+                                child: Text('حذف'.tr),
+                              ),
+                              cancel: TextButton(
+                                onPressed: Get.back,
+                                child: Text('إلغاء'.tr),
+                              ),
+                            )
                     : () {
                         widget.controller.downloadChapter(
                           chapter,
@@ -939,8 +968,16 @@ class _ChapterListState extends State<_ChapterList> {
                         );
                       },
                 icon: Icon(
-                  downloaded ? Icons.download_done_rounded : Icons.download_rounded,
-                  color: downloaded ? const Color(0xff36a66a) : AppColors.primary,
+                  downloaded && localOnly
+                      ? Icons.delete_outline_rounded
+                      : downloaded
+                          ? Icons.download_done_rounded
+                          : Icons.download_rounded,
+                  color: downloaded && localOnly
+                      ? Colors.redAccent
+                      : downloaded
+                          ? const Color(0xff36a66a)
+                          : AppColors.primary,
                 ),
               ),
           ],

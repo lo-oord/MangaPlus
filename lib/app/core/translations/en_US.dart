@@ -311,4 +311,7 @@ const Map<String, String> enUS = {
   'سيؤدي ذلك إلى حذف جميع الفصول المحلية لهذه الأعمال فقط.': 'This deletes only the local chapters of these manga.',
   'تم حذف المانجا من التخزين المحلي': 'Manga removed from local storage',
 
+  'حذف الفصل المحلي': 'Delete local chapter',
+  'سيتم حذف ملفات هذا الفصل من الجهاز فقط.': 'Only this chapter files will be deleted from the device.',
+
 };

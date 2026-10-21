@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 
@@ -10,6 +11,7 @@ class CustomCardNormal extends StatelessWidget {
   final String imageUrl;
   final String? type;
   final String releaseDate;
+  final String? comicId;
 
   const CustomCardNormal({
     super.key,
@@ -18,6 +20,7 @@ class CustomCardNormal extends StatelessWidget {
     required this.imageUrl,
     this.type,
     this.releaseDate = '',
+    this.comicId,
   });
 
   String _relativeDate() {
@@ -140,6 +143,27 @@ class CustomCardNormal extends StatelessWidget {
                 fontWeight: FontWeight.w500,
               ),
             ),
+            if (comicId != null &&
+                (GetStorage().read<Map<dynamic, dynamic>>('bookmarks') ?? {})
+                    .containsKey(comicId))
+              Positioned(
+                top: 7,
+                right: 7,
+                child: Container(
+                  width: 29,
+                  height: 29,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.52),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.favorite_rounded,
+                    color: Color(0xffef5350),
+                    size: 17,
+                  ),
+                ),
+              ),
           ),
         ],
       ],

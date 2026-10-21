@@ -136,6 +136,7 @@ class HomeView extends GetView<HomeController> {
                           arguments: comic.comicId,
                         ),
                         child: CustomCardNormal(
+                          comicId: comic.comicId,
                           title: comic.title,
                           chapter: comic.chapter,
                           imageUrl: comic.image,
@@ -536,6 +537,7 @@ class KomikCardsSection extends GetView<HomeController> {
                 Get.toNamed(Routes.COMIC_DETAIL, arguments: comic.comicId);
               },
               child: CustomCardNormal(
+                comicId: comic.comicId,
                 title: comic.title,
                 chapter: comic.chapter,
                 imageUrl: comic.image,

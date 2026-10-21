@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
@@ -109,10 +110,14 @@ class LocalLibraryView extends GetView<LocalLibraryController> {
                   height: 96,
                   child: group.coverImage.isEmpty
                       ? const MangaPlusLogo(size: 42)
-                      : Image.network(group.coverImage,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              const MangaPlusLogo(size: 42)),
+                      : group.coverImage.startsWith('/')
+                          ? Image.file(File(group.coverImage), fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  const MangaPlusLogo(size: 42))
+                          : Image.network(group.coverImage,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  const MangaPlusLogo(size: 42)),
                 ),
               ),
               const SizedBox(width: 12),
