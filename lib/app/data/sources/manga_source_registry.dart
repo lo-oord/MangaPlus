@@ -3,6 +3,8 @@ import 'azora_source.dart';
 import 'mangatime_source.dart';
 import 'manga_online_source.dart';
 import 'lava_scans_source.dart';
+import 'mangatek_source.dart';
+import 'mangacloud_source.dart';
 import 'team_x_source.dart';
 import 'source_base.dart';
 
@@ -15,6 +17,8 @@ class MangaSourceRegistry {
   static final MangaTimeSource mangaTime = MangaTimeSource();
   static final MangaOnlineSource mangaOnline = MangaOnlineSource();
   static final LavaScansSource lavaScans = LavaScansSource();
+  static final MangaTekSource mangaTek = MangaTekSource();
+  static final MangaCloudSource mangaCloud = MangaCloudSource();
 
   /// Team X is intentionally excluded from the multi-source home feed contract;
   /// the home screen calls it directly through [ComicService.fetchComics].
@@ -25,6 +29,8 @@ class MangaSourceRegistry {
         mangaTime,
         mangaOnline,
         lavaScans,
+        mangaTek,
+        mangaCloud,
       ];
 
   static ContentSource? forUrl(String url) {

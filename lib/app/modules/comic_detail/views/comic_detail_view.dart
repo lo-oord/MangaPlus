@@ -579,6 +579,8 @@ class _SourceBadge extends StatelessWidget {
     if (value.contains('time')) return 'https://mangatime.org/favicon.ico';
     if (value.contains('online')) return 'https://onma.top/favicon.ico';
     if (value.contains('lava')) return 'https://lavascans.com/favicon.ico';
+    if (value.contains('mangatek')) return 'https://mangatek.com/favicon.ico';
+    if (value.contains('mangacloud')) return 'https://mangacloud.online/favicon.ico';
     if (value.contains('team')) return 'https://olympustaff.com/favicon.ico';
     return 'https://mangaplus.com/favicon.ico';
   }
