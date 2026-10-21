@@ -16,6 +16,8 @@ import '../modules/history/bindings/history_binding.dart';
 import '../modules/history/views/history_view.dart';
 import '../modules/home/bindings/home_binding.dart';
 import '../modules/home/views/home_view.dart';
+import '../modules/local_library/bindings/local_library_binding.dart';
+import '../modules/local_library/views/local_library_view.dart';
 import '../modules/main/bindings/main_binding.dart';
 import '../modules/main/views/main_view.dart';
 import '../modules/profile/bindings/profile_binding.dart';
@@ -70,6 +72,11 @@ class AppPages {
       name: _Paths.DOWNLOAD,
       page: () => const DownloadView(),
       binding: DownloadBinding(),
+    ),
+    GetPage(
+      name: _Paths.LOCAL_LIBRARY,
+      page: () => const LocalLibraryView(),
+      binding: LocalLibraryBinding(),
     ),
     GetPage(
       name: _Paths.SEARCH,

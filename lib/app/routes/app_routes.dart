@@ -15,6 +15,7 @@ abstract class Routes {
   static const PROFILE = _Paths.PROFILE;
   static const HISTORY = _Paths.HISTORY;
   static const DOWNLOAD = _Paths.DOWNLOAD;
+  static const LOCAL_LIBRARY = _Paths.LOCAL_LIBRARY;
   static const BOOKMARK = _Paths.BOOKMARK;
   static const SPLASH = _Paths.SPLASH;
 }
@@ -31,6 +32,7 @@ abstract class _Paths {
   static const PROFILE = '/profile';
   static const HISTORY = '/history';
   static const DOWNLOAD = '/download';
+  static const LOCAL_LIBRARY = '/local-library';
   static const BOOKMARK = '/bookmark';
   static const SPLASH = '/splash';
 }

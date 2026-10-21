@@ -13,6 +13,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/core/theme/theme.dart';
 import 'package:mangaplus/app/core/theme/theme_mode_preference.dart';
 import 'package:mangaplus/app/data/services/notification_presentation.dart';
+import 'package:mangaplus/app/data/services/download_manager_service.dart';
 import 'package:mangaplus/app/core/translations/app_translations.dart';
 
 import 'package:mangaplus/firebase_options.dart';
@@ -114,6 +115,10 @@ void main() async {
     DeviceOrientation.portraitUp,
   ]);
   await GetStorage.init();
+  await Get.putAsync<DownloadManagerService>(
+    () async => DownloadManagerService().init(),
+    permanent: true,
+  );
   final storage = GetStorage();
   final savedLanguage = storage.read('language') as String? ?? 'ar_SA';
   final savedTheme = storage.read<String>('themeMode');

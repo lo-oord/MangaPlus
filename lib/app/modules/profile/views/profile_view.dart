@@ -117,8 +117,14 @@ class ProfileView extends GetView<ProfileController> {
               Divider(height: 1, color: AppColors.divider),
               _navigationRow(
                 Icons.download_outlined,
-                'التنزيلات'.tr,
+                'التحميلات'.tr,
                 () => Get.toNamed(Routes.DOWNLOAD),
+              ),
+              Divider(height: 1, color: AppColors.divider),
+              _navigationRow(
+                Icons.storage_rounded,
+                'التخزين المحلي'.tr,
+                () => Get.toNamed(Routes.LOCAL_LIBRARY),
               ),
             ],
           ),

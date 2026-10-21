@@ -10,6 +10,7 @@ import 'package:mangaplus/app/data/models/downloaded_chapter.dart';
 import 'package:mangaplus/app/data/models/history.dart';
 import 'package:mangaplus/app/data/services/app_data_service.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
+import 'package:mangaplus/app/data/services/download_manager_service.dart';
 import 'package:mangaplus/app/data/sources/team_x_source.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:path_provider/path_provider.dart';
@@ -54,7 +55,14 @@ class ComicDetailController extends GetxController {
     super.onInit();
     _syncDownloadingChapters();
     _storage.listenKey('downloadingChapters', (_) => _syncDownloadingChapters());
-    final comicId = Get.arguments?.toString();
+    final arguments = Get.arguments;
+    final comicId = arguments is Map
+        ? '${arguments['comicId'] ?? ''}'
+        : arguments?.toString();
+    if (arguments is Map && arguments['localOnly'] == true) {
+      _loadLocalComic(arguments);
+      return;
+    }
     if (comicId != null && comicId.isNotEmpty) {
       fetchComicDetail(comicId);
     } else {
@@ -64,6 +72,40 @@ class ComicDetailController extends GetxController {
         type: AppNoticeType.error,
       );
     }
+  }
+
+  void _loadLocalComic(Map<dynamic, dynamic> arguments) {
+    final comicId = '${arguments['comicId'] ?? ''}';
+    final raw = _storage.read<List<dynamic>>('downloadedChapters') ?? const [];
+    final saved = raw.whereType<Map>().where(
+      (item) => '${item['comicId'] ?? ''}' == comicId,
+    ).toList(growable: false);
+    final chapters = saved.map((item) => Chapter(
+          chapterId: '${item['chapterId'] ?? ''}',
+          title: '${item['chapterTitle'] ?? ''}',
+          link: '${item['chapterId'] ?? ''}',
+          releaseTime: '',
+        )).where((chapter) => chapter.chapterId.isNotEmpty).toList(growable: false);
+    final first = saved.isEmpty ? <String, dynamic>{} : saved.first;
+    comicDetailData.value = ComicDetailData(
+      source: 'local',
+      comicDetail: ComicDetail(
+        comicId: comicId,
+        coverImage: '${first['coverImage'] ?? arguments['coverImage'] ?? ''}',
+        title: '${first['comicTitle'] ?? arguments['comicTitle'] ?? 'مانجا'}',
+        nativeTitle: '',
+        genres: const [],
+        releaseYear: '',
+        author: '',
+        status: 'محفوظ محليًا',
+        type: 'manga',
+        totalChapters: '${chapters.length}',
+        updatedOn: '',
+        rating: '',
+        synopsis: 'الفصول المحفوظة على هذا الجهاز'.tr,
+        chapters: chapters,
+      ),
+    );
   }
 
   void _syncDownloadingChapters() {
@@ -245,34 +287,25 @@ class ComicDetailController extends GetxController {
 
   Future<void> downloadSelectedChapters(ComicDetail comic) async {
     final selection = selectedChapterIds.toSet();
-    if (selection.isEmpty || isBulkDownloading.value) return;
-    isBulkDownloading.value = true;
-    var downloadedCount = 0;
-    try {
-      for (final chapter in comic.chapters.where(
-        (chapter) => selection.contains(chapter.chapterId),
-      )) {
-        if (isChapterDownloaded(chapter.chapterId)) continue;
-        if (await downloadChapter(
-          chapter,
-          comic.comicId,
-          comic.title,
-          comic.coverImage,
-          showFeedback: false,
-        )) {
-          downloadedCount++;
-        }
-      }
-    } finally {
-      isBulkDownloading.value = false;
-      clearChapterSelection();
-    }
+    if (selection.isEmpty) return;
+    final chapters = comic.chapters
+        .where((chapter) => selection.contains(chapter.chapterId))
+        .toList(growable: false);
+    final manager = Get.find<DownloadManagerService>();
+    final taskId = await manager.enqueue(
+      comicId: comic.comicId,
+      comicTitle: comic.title,
+      coverImage: comic.coverImage,
+      chapters: chapters,
+      grouped: true,
+    );
+    clearChapterSelection();
     AppFeedback.show(
-      title: downloadedCount > 0 ? 'نجاح'.tr : 'معلومة'.tr,
-      message: downloadedCount > 0
-          ? 'تم تنزيل @value فصول بنجاح'.trParams({'value': '$downloadedCount'})
-          : 'لا توجد فصول جديدة للتنزيل'.tr,
-      type: downloadedCount > 0 ? AppNoticeType.success : AppNoticeType.info,
+      title: taskId == null ? 'معلومة'.tr : 'نجاح'.tr,
+      message: taskId == null
+          ? 'لا توجد فصول جديدة للتنزيل'.tr
+          : 'تمت إضافة المهمة إلى قائمة التحميلات'.tr,
+      type: taskId == null ? AppNoticeType.info : AppNoticeType.success,
     );
   }
 
@@ -283,96 +316,23 @@ class ComicDetailController extends GetxController {
     String coverImage, {
     bool showFeedback = true,
   }) async {
-    final source = TeamXSource();
-    try {
-      if (isChapterDownloaded(chapter.chapterId)) {
-        if (showFeedback) {
-          AppFeedback.show(
-            title: 'معلومة'.tr,
-            message: 'الفصل محمّل بالفعل'.tr,
-            type: AppNoticeType.info,
-          );
-        }
-        return false;
-      }
-      downloadingChapters[chapter.chapterId] = 0.0;
-      await _storage.write('downloadingChapters', downloadingChapters);
-
-      final chapterData = await _comicService.fetchChapter(chapter.chapterId);
-      final images = chapterData.chapter.images;
-      if (images.isEmpty) {
-        if (showFeedback) {
-          AppFeedback.show(
-            title: 'معلومة'.tr,
-            message: 'لا توجد صور متاحة'.tr,
-            type: AppNoticeType.info,
-          );
-        }
-        return false;
-      }
-
-      final dir = await getApplicationDocumentsDirectory();
-      final safeId = chapter.chapterId.hashCode.toUnsigned(32).toRadixString(16);
-      final chapterDir = Directory('${dir.path}/chapters/$safeId');
-      await chapterDir.create(recursive: true);
-      final localImagePaths = <String>[];
-      for (var index = 0; index < images.length; index++) {
-        final uri = Uri.parse(images[index]);
-        final chapterUrl = source.resolveChapterUrl(chapter.chapterId);
-        final headers = chapterUrl.isNotEmpty
-            ? source.imageRequestHeaders
-            : const <String, String>{};
-        final response = await http.get(uri, headers: headers).timeout(
-              const Duration(seconds: 35),
-            );
-        if (response.statusCode < 200 || response.statusCode >= 300) {
-          throw HttpException('Image download failed (${response.statusCode})');
-        }
-        final extension = response.headers['content-type']?.contains('png') == true
-            ? 'png'
-            : 'jpg';
-        final file = File('${chapterDir.path}/page_${index + 1}.$extension');
-        await file.writeAsBytes(response.bodyBytes, flush: true);
-        localImagePaths.add(file.path);
-        downloadingChapters[chapter.chapterId] = (index + 1) / images.length;
-        downloadingChapters.refresh();
-        await _storage.write('downloadingChapters', downloadingChapters);
-      }
-
-      final record = DownloadedChapter(
-        comicId: comicId,
-        chapterId: chapter.chapterId,
-        comicTitle: comicTitle,
-        chapterTitle: chapter.title,
-        coverImage: coverImage,
-        localImagePaths: localImagePaths,
-        downloadedAt: DateTime.now(),
+    final taskId = await Get.find<DownloadManagerService>().enqueue(
+      comicId: comicId,
+      comicTitle: comicTitle,
+      coverImage: coverImage,
+      chapters: [chapter],
+      grouped: false,
+    );
+    if (showFeedback) {
+      AppFeedback.show(
+        title: taskId == null ? 'معلومة'.tr : 'نجاح'.tr,
+        message: taskId == null
+            ? 'الفصل محمّل بالفعل'.tr
+            : 'تمت إضافة الفصل إلى قائمة التحميلات'.tr,
+        type: taskId == null ? AppNoticeType.info : AppNoticeType.success,
       );
-      final downloadedChapters =
-          _storage.read<List<dynamic>>('downloadedChapters') ?? [];
-      downloadedChapters.add(record.toJson());
-      await _storage.write('downloadedChapters', downloadedChapters);
-      if (showFeedback) {
-        AppFeedback.show(
-          title: 'نجاح'.tr,
-          message: 'تم تنزيل الفصل بنجاح'.tr,
-          type: AppNoticeType.success,
-        );
-      }
-      return true;
-    } catch (error) {
-      debugPrint('Chapter download failed: $error');
-      if (showFeedback) {
-        AppFeedback.show(
-          title: 'خطأ'.tr,
-          message: 'تعذر تنزيل الفصل'.tr,
-          type: AppNoticeType.error,
-        );
-      }
-      return false;
-    } finally {
-      downloadingChapters.remove(chapter.chapterId);
-      await _storage.write('downloadingChapters', downloadingChapters);
     }
+    return taskId != null;
   }
+
 }
