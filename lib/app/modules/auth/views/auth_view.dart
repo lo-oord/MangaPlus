@@ -29,28 +29,29 @@ class AuthView extends GetView<AuthController> {
           const Center(child: MangaPlusLogo(size: 82)),
           const SizedBox(height: 18),
           Obx(() => Text(
-                controller.isRegister.value ? 'أنشئ حسابك' : 'مرحبًا بعودتك',
+                controller.isCompletingGoogle.value ? 'أكمل ملفك الشخصي' : (controller.isRegister.value ? 'أنشئ حسابك' : 'مرحبًا بعودتك'),
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.textPrimary, fontSize: 25, fontWeight: FontWeight.w800),
               )),
           const SizedBox(height: 7),
           Obx(() => Text(
-                controller.isRegister.value ? 'زامن قراءتك ومفضلتك بين أجهزتك.' : 'سجّل الدخول لمتابعة قراءتك.',
+                controller.isCompletingGoogle.value ? 'بقيت معلومات بسيطة لبدء مزامنة قراءتك.' : (controller.isRegister.value ? 'زامن قراءتك ومفضلتك بين أجهزتك.' : 'سجّل الدخول لمتابعة قراءتك.'),
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
               )),
           const SizedBox(height: 25),
-          Obx(() => controller.isRegister.value ? _registrationFields() : const SizedBox.shrink()),
-          _field(controller.email, 'البريد الإلكتروني', Icons.email_outlined, keyboard: TextInputType.emailAddress),
-          const SizedBox(height: 13),
-          _passwordField(controller.password, 'كلمة المرور', controller.obscurePassword),
-          Obx(() => controller.isRegister.value ? const SizedBox.shrink() : Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: _showResetPasswordDialog,
-                  child: const Text('نسيت كلمة المرور؟'),
-                ),
-              )),
+          Obx(() => controller.isCompletingGoogle.value
+              ? _googleCompletionFields()
+              : Column(children: [
+                  if (controller.isRegister.value) _registrationFields(),
+                  _field(controller.email, 'البريد الإلكتروني', Icons.email_outlined, keyboard: TextInputType.emailAddress),
+                  const SizedBox(height: 13),
+                  _passwordField(controller.password, 'كلمة المرور', controller.obscurePassword),
+                  if (!controller.isRegister.value) Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(onPressed: _showResetPasswordDialog, child: const Text('نسيت كلمة المرور؟')),
+                  ),
+                ])),
           const SizedBox(height: 12),
           Obx(() => FilledButton(
                 onPressed: controller.isBusy.value ? null : controller.submit,
@@ -60,12 +61,12 @@ class AuthView extends GetView<AuthController> {
                 ),
                 child: controller.isBusy.value
                     ? const SizedBox(height: 21, width: 21, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : Text(controller.isRegister.value ? 'إنشاء الحساب' : 'تسجيل الدخول', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    : Text(controller.isCompletingGoogle.value ? 'إكمال الملف' : (controller.isRegister.value ? 'إنشاء الحساب' : 'تسجيل الدخول'), style: const TextStyle(fontWeight: FontWeight.w700)),
               )),
-          const SizedBox(height: 14),
-          _orDivider(),
-          const SizedBox(height: 14),
-          Obx(() => ElevatedButton.icon(
+          Obx(() => controller.isCompletingGoogle.value ? const SizedBox.shrink() : const SizedBox(height: 14)),
+          Obx(() => controller.isCompletingGoogle.value ? const SizedBox.shrink() : _orDivider()),
+          Obx(() => controller.isCompletingGoogle.value ? const SizedBox.shrink() : const SizedBox(height: 14)),
+          Obx(() => controller.isCompletingGoogle.value ? const SizedBox.shrink() : ElevatedButton.icon(
                 onPressed: controller.isBusy.value ? null : controller.signInGoogle,
                 icon: const _GoogleMark(),
                 label: const Text('المتابعة باستخدام Google', style: TextStyle(color: Color(0xff202124), fontWeight: FontWeight.w700)),
@@ -78,10 +79,10 @@ class AuthView extends GetView<AuthController> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: Colors.grey.shade300)),
                 ),
               )),
-          const SizedBox(height: 9),
-          TextButton(onPressed: controller.isBusy.value ? null : controller.continueAsGuest, child: const Text('المتابعة كضيف')),
-          const SizedBox(height: 5),
-          Obx(() => TextButton(
+          Obx(() => controller.isCompletingGoogle.value ? const SizedBox.shrink() : const SizedBox(height: 9)),
+          Obx(() => controller.isCompletingGoogle.value ? const SizedBox.shrink() : TextButton(onPressed: controller.isBusy.value ? null : controller.continueAsGuest, child: const Text('المتابعة كضيف'))),
+          Obx(() => controller.isCompletingGoogle.value ? const SizedBox.shrink() : const SizedBox(height: 5)),
+          Obx(() => controller.isCompletingGoogle.value ? const SizedBox.shrink() : TextButton(
                 onPressed: controller.isBusy.value ? null : () => controller.setRegisterMode(!controller.isRegister.value),
                 child: Text(controller.isRegister.value ? 'لديك حساب؟ سجّل الدخول' : 'ليس لديك حساب؟ أنشئ حسابًا'),
               )),
@@ -118,6 +119,27 @@ class AuthView extends GetView<AuthController> {
             TextButton(onPressed: controller.verificationCooldown.value > 0 ? null : controller.resendVerification, child: Text(controller.verificationCooldown.value > 0 ? 'إعادة الإرسال بعد ${controller.verificationCooldown.value} ثانية' : 'إعادة إرسال رسالة التحقق')),
           ],
         ),
+      );
+
+  Widget _googleCompletionFields() => Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(13),
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(15)),
+            child: Row(children: [
+              const _GoogleMark(),
+              const SizedBox(width: 10),
+              Expanded(child: Text('تم تسجيل الدخول بواسطة Google. أكمل البيانات التالية فقط.', style: TextStyle(color: AppColors.textSecondary, height: 1.35))),
+            ]),
+          ),
+          const SizedBox(height: 16),
+          _usernameField(),
+          const SizedBox(height: 13),
+          _countryField(),
+          const SizedBox(height: 13),
+          _birthDateField(),
+          const SizedBox(height: 13),
+        ],
       );
 
   Widget _field(TextEditingController textController, String label, IconData icon, {TextInputType? keyboard}) => TextField(

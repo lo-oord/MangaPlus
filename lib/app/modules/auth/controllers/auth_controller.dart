@@ -17,6 +17,7 @@ class AuthController extends GetxController {
   final username = TextEditingController();
   final bio = TextEditingController();
   final isRegister = false.obs;
+  final isCompletingGoogle = false.obs;
   final isBusy = false.obs;
   final obscurePassword = true.obs;
   final obscureConfirmPassword = true.obs;
@@ -91,6 +92,7 @@ class AuthController extends GetxController {
   }
 
   void setRegisterMode(bool value) {
+    isCompletingGoogle.value = false;
     isRegister.value = value;
     _onUsernameChanged();
   }
@@ -101,7 +103,16 @@ class AuthController extends GetxController {
     if (!valid) return;
     isBusy.value = true;
     try {
-      if (isRegister.value) {
+      if (isCompletingGoogle.value) {
+        final country = selectedCountry.value!;
+        profile.value = await service.completeGoogleProfile(
+          username: username.text,
+          countryCode: country.code,
+          countryName: country.name,
+          birthDate: birthDate.value!,
+        );
+        Get.back(result: profile.value);
+      } else if (isRegister.value) {
         final country = selectedCountry.value!;
         if (profile.value != null && service.currentUser?.providerData.any((provider) => provider.providerId == 'google.com') == true) {
           profile.value = await service.completeGoogleProfile(
@@ -148,7 +159,8 @@ class AuthController extends GetxController {
       if (result == null) return;
       if (result.username.isEmpty || result.countryCode.isEmpty) {
         profile.value = result;
-        isRegister.value = true;
+        isCompletingGoogle.value = true;
+        isRegister.value = false;
         displayName.text = result.displayName;
         _message('أكمل بياناتك', 'أضف اسم المستخدم والدولة وتاريخ الميلاد لإكمال الحساب.');
       } else {
@@ -232,7 +244,7 @@ class AuthController extends GetxController {
   }
 
   bool _validate() {
-    final completingGoogle = isRegister.value &&
+    final completingGoogle = isCompletingGoogle.value &&
         profile.value != null &&
         service.currentUser?.providerData.any((provider) => provider.providerId == 'google.com') == true;
     if (completingGoogle) {
