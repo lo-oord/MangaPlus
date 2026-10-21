@@ -34,12 +34,13 @@ String localizeContentStatus(String value) {
     case 'completed':
     case 'complete':
     case 'finished':
+    case 'season ended':
     case 'مكتمل':
     case 'مكتملة':
+    case 'موسم منتهي':
       return 'مكتمل'.tr;
     case 'متوقف':
     case 'متروك':
-    case 'موسم منتهي':
       return 'متوقف مؤقتًا'.tr;
     case 'hiatus':
     case 'paused':
@@ -63,6 +64,7 @@ String localizeContentGenre(String value) {
     'action': 'أكشن',
     'adventure': 'مغامرة',
     'comedy': 'كوميديا',
+    'كوميدي': 'كوميديا',
     'drama': 'دراما',
     'fantasy': 'فانتازيا',
     'horror': 'رعب',
@@ -73,6 +75,8 @@ String localizeContentGenre(String value) {
     'slice of life': 'حياة يومية',
     'sports': 'رياضة',
     'supernatural': 'ما وراء الطبيعة',
+    'system': 'نظام',
+    'نظام': 'نظام',
     'thriller': 'تشويق',
     'historical': 'تاريخي',
     'martial arts': 'فنون قتالية',

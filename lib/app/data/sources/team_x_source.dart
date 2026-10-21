@@ -29,6 +29,7 @@ class TeamXSource extends ContentSource {
   static const int _latestFeedPageSize = 40;
   static const int _dateLookupConcurrency = 8;
   static final Map<String, List<Map<String, dynamic>>> _chapterCache = {};
+  static final Map<String, Map<String, dynamic>> _seriesBriefCache = {};
   final http.Client _client;
   final Map<String, Map<String, dynamic>> _latestChapterMetadataCache = {};
 
@@ -49,13 +50,92 @@ class TeamXSource extends ContentSource {
     if (normalized.isEmpty) return const [];
     final uri = Uri.parse('$_site/search').replace(queryParameters: {'keyword': normalized});
     final document = await _document(uri.toString());
-    return document.querySelectorAll('div.tx-grid a.tx-card').map((anchor) {
+    final items = document.querySelectorAll('div.tx-grid a.tx-card').map((anchor) {
       final title = mangaHtmlText(anchor.querySelector('h3'));
       final url = mangaAbsoluteUrl(_site, anchor.attributes['href']);
       final image = mangaImageUrl(anchor.querySelector('img'), _site)
           .replaceFirst('thumbnail_', '');
-      return _seriesItem(title, url, image);
+      final item = _seriesItem(title, url, image);
+      final chapterCount = mangaChapterNumber(
+        mangaHtmlText(anchor.querySelector('.tx-badge')),
+      );
+      final type = mangaHtmlText(anchor.querySelector('.tx-type'));
+      if (chapterCount != null) item['total_chapters'] = chapterCount;
+      if (type.isNotEmpty) item['type'] = type;
+      return item;
     }).where(_validItem).toList();
+    return _withSeriesBriefs(items);
+  }
+
+  Future<List<Map<String, dynamic>>> searchSuggestions({int limit = 6}) async {
+    final safeLimit = limit.clamp(1, 8).toInt();
+    final items = (await latest(page: 1)).take(safeLimit).toList();
+    return _withSeriesBriefs(items);
+  }
+
+  Future<List<Map<String, dynamic>>> _withSeriesBriefs(
+    List<Map<String, dynamic>> items,
+  ) async {
+    final enriched = <Map<String, dynamic>>[];
+    for (var start = 0; start < items.length; start += _dateLookupConcurrency) {
+      final end = start + _dateLookupConcurrency < items.length
+          ? start + _dateLookupConcurrency
+          : items.length;
+      enriched.addAll(await Future.wait(items.sublist(start, end).map((item) async {
+        final seriesUrl = _seriesUrl('${item['url'] ?? ''}');
+        if (seriesUrl.isEmpty) return item;
+        final cached = _seriesBriefCache[seriesUrl];
+        if (cached != null) return {...item, ...cached};
+        try {
+          final brief = _seriesBrief(await _document(seriesUrl));
+          _seriesBriefCache[seriesUrl] = brief;
+          if (_seriesBriefCache.length > 400) {
+            for (final key in _seriesBriefCache.keys.take(200).toList()) {
+              _seriesBriefCache.remove(key);
+            }
+          }
+          return {...item, ...brief};
+        } catch (_) {
+          return item;
+        }
+      })));
+    }
+    return enriched;
+  }
+
+  Map<String, dynamic> _seriesBrief(Document document) {
+    final genres = document
+        .querySelectorAll('a[href*="genre="]')
+        .map(mangaHtmlText)
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    final status = _fieldValue(document, 'الحالة');
+    final type = _fieldValue(document, 'النوع');
+    final rating = SourceValues.rating(
+      mangaHtmlText(document.querySelector('#average_rating')),
+    );
+    final totalChapters = _chapterCount(document);
+    return {
+      if (genres.isNotEmpty) 'genres': genres,
+      if (status.isNotEmpty) 'status': status,
+      if (type.isNotEmpty) 'type': type,
+      if (rating.isNotEmpty) 'rating': rating,
+      if (totalChapters != null) 'total_chapters': totalChapters,
+    };
+  }
+
+  num? _chapterCount(Document document) {
+    for (final element in document.querySelectorAll(
+      '.nav-tabs a, .tabs a, .nav-item a, .chapter-controls',
+    )) {
+      final text = mangaHtmlText(element);
+      if (text.contains('فصول') || text.toLowerCase().contains('chapter')) {
+        final count = mangaChapterNumber(text);
+        if (count != null) return count;
+      }
+    }
+    return null;
   }
 
   @override
@@ -160,12 +240,10 @@ class TeamXSource extends ContentSource {
     num? targetNumber,
   ) async {
     final firstPage = await _document(seriesUrl);
-    final rating = SourceValues.rating(
-      mangaHtmlText(firstPage.querySelector('#average_rating')),
+    final seriesMetadata = _seriesBriefCache.putIfAbsent(
+      seriesUrl,
+      () => _seriesBrief(firstPage),
     );
-    final seriesMetadata = <String, dynamic>{
-      if (rating.isNotEmpty) 'rating': rating,
-    };
     if (targetNumber != null) {
       final exact = _chapterCard(firstPage, targetNumber);
       if (exact != null) return {..._chapterMetadata(exact), ...seriesMetadata};

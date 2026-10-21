@@ -16,11 +16,15 @@ class ComicService {
     final id = '${item['url'] ?? ''}'.trim();
     final number = item['latest_chapter_number'];
     final chapterName = '${item['latest_chapter_name'] ?? ''}'.trim();
-    final chapter = chapterName.isNotEmpty
-        ? chapterName
-        : number == null
-            ? ''
-            : '${'الفصل'.tr} $number';
+    final rawNumber = number?.toString().trim() ?? '';
+    final nameNumber =
+        RegExp(r'\d+(?:\.\d+)?').firstMatch(chapterName)?.group(0);
+    final chapterNumber = rawNumber.isNotEmpty && rawNumber != 'null'
+        ? rawNumber
+        : nameNumber;
+    final chapter = chapterNumber == null
+        ? ''
+        : '${'الفصل'.tr} $chapterNumber';
     return ComicsList(
       comicId: id,
       title: title,
@@ -31,6 +35,10 @@ class ComicService {
       rating: '${item['rating'] ?? ''}',
       status: '${item['status'] ?? ''}',
       latestChapterDate: '${item['latest_chapter_date'] ?? ''}',
+      genres: item['genres'] is List
+          ? (item['genres'] as List).map((value) => value.toString()).toList()
+          : const [],
+      totalChapters: '${item['total_chapters'] ?? ''}',
     );
   }
 
@@ -50,6 +58,9 @@ class ComicService {
 
   Future<ComicData> searchComics(String query) async =>
       _comicData(await _source.search(query));
+
+  Future<ComicData> fetchSearchSuggestions({int limit = 8}) async =>
+      _comicData(await _source.searchSuggestions(limit: limit));
 
   Future<ComicDetailData> fetchComicDetail(String comicId) async {
     final raw = await _source.details(comicId);

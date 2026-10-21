@@ -9,10 +9,31 @@ class SearchController extends GetxController {
   final ComicService _comicService = ComicService();
   final TextEditingController textController = TextEditingController();
   final RxList<ComicsList> comicsList = <ComicsList>[].obs;
+  final RxList<ComicsList> suggestions = <ComicsList>[].obs;
   final RxBool isLoading = false.obs;
+  final RxBool isLoadingSuggestions = false.obs;
   final RxBool hasError = false.obs;
   final RxString query = ''.obs;
   Timer? _debounce;
+
+  @override
+  void onInit() {
+    super.onInit();
+    loadSuggestions();
+  }
+
+  Future<void> loadSuggestions() async {
+    if (isLoadingSuggestions.value || suggestions.isNotEmpty) return;
+    isLoadingSuggestions.value = true;
+    try {
+      final data = await _comicService.fetchSearchSuggestions(limit: 6);
+      suggestions.assignAll(data.comicsList);
+    } catch (error) {
+      debugPrint('Search suggestions unavailable: $error');
+    } finally {
+      isLoadingSuggestions.value = false;
+    }
+  }
 
   void searchComics(String searchQuery) {
     final normalized = searchQuery.trim();

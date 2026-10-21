@@ -264,4 +264,10 @@ const Map<String, String> enUS = {
   'جديد': 'New',
   'قراءة الفصل الأخير': 'Read latest chapter',
   'تعذر تحميل الصورة': 'Unable to load image',
+  'اقتراحات': 'Suggestions',
+  'النتائج': 'Results',
+  'لا توجد اقتراحات': 'No suggestions available',
+  'غير محدد': 'Not specified',
+  'عدد الفصول: @value': 'Chapters: @value',
+  'نظام': 'System',
 };
