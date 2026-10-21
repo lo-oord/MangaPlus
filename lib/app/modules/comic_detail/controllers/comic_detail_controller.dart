@@ -9,6 +9,7 @@ import 'package:mangaplus/app/data/models/comic_detail.dart';
 import 'package:mangaplus/app/data/models/downloaded_chapter.dart';
 import 'package:mangaplus/app/data/models/history.dart';
 import 'package:mangaplus/app/data/services/app_data_service.dart';
+import 'package:mangaplus/app/data/services/account_gate_service.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
 import 'package:mangaplus/app/data/services/download_manager_service.dart';
 import 'package:mangaplus/app/data/sources/team_x_source.dart';
@@ -19,6 +20,7 @@ class ComicDetailController extends GetxController {
   final ComicService _comicService = ComicService();
   final GetStorage _storage = GetStorage();
   final AppDataService _appDataService = Get.find<AppDataService>();
+  final AccountGateService _accountGate = AccountGateService();
 
   final comicDetailData = ComicDetailData(
     comicDetail: ComicDetail(
@@ -184,6 +186,7 @@ class ComicDetailController extends GetxController {
   }
 
   Future<void> toggleBookmark(ComicDetail comic) async {
+    if (!await _accountGate.requireAccount()) return;
     if (isBookmarked(comic.comicId)) {
       await _appDataService.deleteBookmark(comic.comicId);
       bookmarkRevision.value++;

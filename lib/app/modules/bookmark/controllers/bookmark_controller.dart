@@ -3,12 +3,14 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/data/models/bookmark.dart';
 import 'package:mangaplus/app/data/services/app_data_service.dart';
+import 'package:mangaplus/app/data/services/account_gate_service.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 
 class BookmarkController extends GetxController {
   final AppDataService _appDataService = AppDataService();
   final GetStorage _storage = GetStorage();
+  final AccountGateService _accountGate = AccountGateService();
   final RxBool isLoading = true.obs;
   final RxList<BookmarkItem> bookmarks = <BookmarkItem>[].obs;
 
@@ -29,6 +31,7 @@ class BookmarkController extends GetxController {
   }
 
   Future<BookmarkItem> addBookmark(BookmarkItem bookmark) async {
+    if (!await _accountGate.requireAccount()) return bookmark;
     await _appDataService.addBookmark(bookmark);
     final index = bookmarks.indexWhere((item) => item.comicId == bookmark.comicId);
     if (index < 0) {
@@ -40,6 +43,7 @@ class BookmarkController extends GetxController {
   }
 
   Future<bool> deleteBookmark(String comicId) async {
+    if (!await _accountGate.requireAccount()) return false;
     try {
       await _appDataService.deleteBookmark(comicId);
       bookmarks.removeWhere((item) => item.comicId == comicId);

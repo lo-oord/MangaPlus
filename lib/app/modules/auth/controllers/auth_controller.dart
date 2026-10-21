@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/data/models/user_profile.dart';
@@ -273,7 +274,10 @@ class AuthController extends GetxController {
   }
 
   bool _usernameReady() {
-    if (usernameAvailability.value == UsernameAvailability.available) return true;
+    if (usernameAvailability.value == UsernameAvailability.available ||
+        usernameAvailability.value == UsernameAvailability.error) {
+      return true;
+    }
     final message = usernameAvailability.value == UsernameAvailability.taken
         ? 'اسم المستخدم مأخوذ بالفعل.'
         : usernameAvailability.value == UsernameAvailability.checking
