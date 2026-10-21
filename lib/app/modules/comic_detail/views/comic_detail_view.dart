@@ -199,7 +199,8 @@ class ComicDetailView extends GetView<ComicDetailController> {
         : comic.chapters.firstWhereOrNull(
             (chapter) => chapter.chapterId == history.chapterId,
           );
-    final targetChapter = historyChapter ?? comic.chapters.firstOrNull;
+    final targetChapter = historyChapter ??
+        (comic.chapters.isEmpty ? null : comic.chapters.first);
     final hasHistory = historyChapter != null;
     final bookmarked = controller.isBookmarked(comic.comicId);
 
