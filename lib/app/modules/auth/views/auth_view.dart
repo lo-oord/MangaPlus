@@ -221,13 +221,16 @@ class AuthView extends GetView<AuthController> {
           FilledButton(
             onPressed: busy ? null : () async {
               setState(() => busy = true);
-              final error = await controller.resetPasswordForEmail(emailController.text);
-              if (error != null) {
-                setState(() => busy = false);
-                Get.snackbar('تعذر الإرسال', error, snackPosition: SnackPosition.BOTTOM);
-              } else {
-                Get.back();
-                Get.snackbar('تم إرسال الرسالة', 'تحقق من بريدك الإلكتروني لإعادة تعيين كلمة المرور.', snackPosition: SnackPosition.BOTTOM);
+              try {
+                final error = await controller.resetPasswordForEmail(emailController.text);
+                if (error != null) {
+                  Get.snackbar('تعذر الإرسال', error, snackPosition: SnackPosition.BOTTOM);
+                } else {
+                  if (context.mounted) Navigator.of(context).pop();
+                  Get.snackbar('تم إرسال الرسالة', 'تحقق من بريدك الإلكتروني لإعادة تعيين كلمة المرور.', snackPosition: SnackPosition.BOTTOM);
+                }
+              } finally {
+                if (context.mounted) setState(() => busy = false);
               }
             },
             child: busy ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('إرسال'),

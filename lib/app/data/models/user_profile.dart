@@ -75,6 +75,7 @@ class UserProfile {
     String? username,
     String? bio,
     UserPrivacy? privacy,
+    bool? emailVerified,
   }) => UserProfile(
         uid: uid,
         email: email,
@@ -87,7 +88,7 @@ class UserProfile {
         bio: bio ?? this.bio,
         photoUrl: photoUrl,
         isGuest: isGuest,
-        emailVerified: emailVerified,
+        emailVerified: emailVerified ?? this.emailVerified,
         isVerified: isVerified,
         privacy: privacy ?? this.privacy,
       );

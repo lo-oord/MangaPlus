@@ -163,7 +163,7 @@ class AuthService {
     await user.reload();
     final profile = await loadProfile(user.uid);
     if (profile == null) throw const AuthException('بيانات الحساب غير مكتملة.');
-    return profile;
+    return profile.copyWith(emailVerified: _auth.currentUser?.emailVerified == true);
   }
 
   Future<UserProfile> updateProfile({
