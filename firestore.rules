@@ -6,7 +6,8 @@ service cloud.firestore {
       allow create: if request.auth != null
         && request.auth.uid == uid
         && request.resource.data.uid == uid
-        && request.resource.data.isVerified == false;
+        && request.resource.data.isVerified == false
+        && request.resource.data.isOfficialDeveloper == false;
       allow update: if request.auth != null
         && request.auth.uid == uid
         && request.resource.data.uid == resource.data.uid
@@ -17,6 +18,9 @@ service cloud.firestore {
         && ((!resource.data.keys().hasAll(['isVerified'])
               && request.resource.data.isVerified == false)
             || request.resource.data.isVerified == resource.data.isVerified)
+        && ((!resource.data.keys().hasAll(['isOfficialDeveloper'])
+              && request.resource.data.isOfficialDeveloper == false)
+            || request.resource.data.isOfficialDeveloper == resource.data.isOfficialDeveloper)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'displayName', 'bio', 'gender', 'privacy', 'photoUrl', 'countryCode', 'countryName'
         ]);

@@ -23,6 +23,7 @@ class ProfileController extends GetxController {
       _storage.read<String>('themeMode'),
     );
     isDarkMode.value = savedTheme == ThemeMode.dark;
+    Get.changeThemeMode(savedTheme);
     _auth = Get.isRegistered<AuthService>() ? Get.find<AuthService>() : null;
     _loadAccount();
     super.onInit();
@@ -102,8 +103,8 @@ class ProfileController extends GetxController {
 
   Future<void> changeTheme(bool darkMode) async {
     final mode = darkMode ? ThemeMode.dark : ThemeMode.light;
-    Get.changeThemeMode(mode);
-    isDarkMode.value = darkMode;
     await _storage.write('themeMode', ThemeModePreference.toStorage(mode));
+    isDarkMode.value = darkMode;
+    Get.changeThemeMode(mode);
   }
 }

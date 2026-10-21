@@ -16,6 +16,7 @@ class UserProfile {
     this.isGuest = false,
     this.emailVerified = false,
     this.isVerified = false,
+    this.isOfficialDeveloper = false,
     this.privacy = const UserPrivacy(),
   });
 
@@ -33,6 +34,7 @@ class UserProfile {
   final bool isGuest;
   final bool emailVerified;
   final bool isVerified;
+  final bool isOfficialDeveloper;
   final UserPrivacy privacy;
 
   factory UserProfile.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -52,6 +54,7 @@ class UserProfile {
       isGuest: data['isGuest'] == true,
       emailVerified: data['emailVerified'] == true,
       isVerified: data['isVerified'] == true,
+      isOfficialDeveloper: data['isOfficialDeveloper'] == true,
       privacy: UserPrivacy.fromMap(data['privacy']),
     );
   }
@@ -71,6 +74,7 @@ class UserProfile {
         'isGuest': isGuest,
         'emailVerified': emailVerified,
         'isVerified': isVerified,
+        'isOfficialDeveloper': isOfficialDeveloper,
         'privacy': privacy.toMap(),
       };
 
@@ -95,6 +99,7 @@ class UserProfile {
         isGuest: isGuest,
         emailVerified: emailVerified ?? this.emailVerified,
         isVerified: isVerified,
+        isOfficialDeveloper: isOfficialDeveloper,
         privacy: privacy ?? this.privacy,
       );
 

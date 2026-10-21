@@ -190,13 +190,20 @@ class ProfileView extends GetView<ProfileController> {
           Stack(
             clipBehavior: Clip.none,
             children: [
-              CircleAvatar(
-                radius: 25,
-                backgroundColor: AppColors.primary.withValues(alpha: 0.14),
-                child: Icon(user == null ? Icons.person_outline_rounded : Icons.person_rounded, color: AppColors.primary),
+              Container(
+                padding: EdgeInsets.all(account?.isVerified == true ? 3 : 0),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: account?.isVerified == true ? Border.all(color: const Color(0xffD4A72C), width: 2.5) : null,
+                ),
+                child: CircleAvatar(
+                  radius: 22,
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.14),
+                  backgroundImage: account?.photoUrl.isNotEmpty == true ? NetworkImage(account!.photoUrl) : null,
+                  child: account?.photoUrl.isNotEmpty == true ? null : Icon(user == null ? Icons.person_outline_rounded : Icons.person_rounded, color: AppColors.primary),
+                ),
               ),
-              if (account?.isVerified == true)
-                Positioned(right: -2, bottom: -2, child: _verifiedBadge()),
+              if (account?.isVerified == true) Positioned(right: -3, bottom: -3, child: _verifiedBadge()),
             ],
           ),
           const SizedBox(width: 13),
@@ -206,15 +213,23 @@ class ProfileView extends GetView<ProfileController> {
               children: [
                 Row(
                   children: [
-                    Flexible(child: Text(account?.displayName ?? (user == null ? 'حسابك وبياناتك' : (user.isAnonymous ? 'قارئ MangaPlus' : (user.email ?? 'حساب MangaPlus'))), overflow: TextOverflow.ellipsis, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800))),
+                    Flexible(child: Text(account?.displayName ?? (user == null ? 'حسابك وبياناتك' : (user.isAnonymous ? 'قارئ MangaPlus' : (user.email ?? 'حساب MangaPlus'))), overflow: TextOverflow.ellipsis, style: TextStyle(color: account?.isVerified == true ? const Color(0xffD4A72C) : AppColors.textPrimary, fontWeight: FontWeight.w800))),
                     if (account?.isVerified == true) ...[
                       const SizedBox(width: 5),
                       _verifiedBadge(),
                     ],
+                    if (account?.isOfficialDeveloper == true) ...[
+                      const SizedBox(width: 6),
+                      _officialBadge(),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text(account?.username.isNotEmpty == true ? '@${account!.username}' : (user == null ? 'سجّل الدخول لمزامنة القراءة والمفضلة' : 'إدارة الحساب والمزامنة'), style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                Text(account?.username.isNotEmpty == true ? '@${account!.username}' : (user == null ? 'سجّل الدخول لمزامنة القراءة والمفضلة' : 'إدارة الحساب والمزامنة'), style: TextStyle(color: account?.isVerified == true ? const Color(0xffD4A72C) : AppColors.textSecondary, fontSize: 12, fontWeight: account?.isVerified == true ? FontWeight.w700 : FontWeight.normal)),
+                if (account?.isOfficialDeveloper == true) ...[
+                  const SizedBox(height: 4),
+                  _officialBadge(),
+                ],
                 if (account != null && !account.isGuest) ...[
                   const SizedBox(height: 5),
                   InkWell(
@@ -242,7 +257,13 @@ class ProfileView extends GetView<ProfileController> {
     );
   }
 
-  Widget _verifiedBadge() => const Icon(Icons.verified_rounded, size: 17, color: Color(0xff3e8cf5));
+  Widget _verifiedBadge() => const Icon(Icons.verified_rounded, size: 17, color: Color(0xffD4A72C));
+
+  Widget _officialBadge() => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(color: const Color(0xffD4A72C).withValues(alpha: 0.16), borderRadius: BorderRadius.circular(7), border: Border.all(color: const Color(0xffD4A72C).withValues(alpha: 0.55))),
+        child: const Text('حساب رسمي للمطور', style: TextStyle(color: Color(0xffD4A72C), fontSize: 10, fontWeight: FontWeight.w800)),
+      );
 
   String _genderLabel(String gender) => gender == 'female' ? '♀️ أنثى' : '♂️ ذكر';
 

@@ -63,7 +63,7 @@ class AuthController extends GetxController {
   }
 
   void _onUsernameChanged() {
-    if (!isRegister.value) {
+    if (!isRegister.value && !isCompletingGoogle.value) {
       usernameAvailability.value = UsernameAvailability.idle;
       return;
     }
@@ -206,6 +206,7 @@ class AuthController extends GetxController {
         isRegister.value = false;
         displayName.text = result.displayName;
         selectedGender.value = result.gender.isEmpty ? null : result.gender;
+        _onUsernameChanged();
         _message('أكمل بياناتك', 'أضف اسم المستخدم والدولة وتاريخ الميلاد لإكمال الحساب.');
       } else {
         profile.value = result;
