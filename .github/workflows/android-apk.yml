@@ -1,0 +1,56 @@
+name: Android APK (temporary signing)
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.1'
+          channel: stable
+          cache: true
+      - name: Create temporary signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          STORE_PASS="$(openssl rand -hex 24)"
+          KEY_PASS="$(openssl rand -hex 24)"
+          echo "KEYSTORE_PASSWORD=$STORE_PASS" >> "$GITHUB_ENV"
+          echo "KEY_PASSWORD=$KEY_PASS" >> "$GITHUB_ENV"
+          keytool -genkeypair -v \
+            -keystore "$RUNNER_TEMP/android-test.jks" \
+            -storetype JKS \
+            -storepass "$STORE_PASS" \
+            -keypass "$KEY_PASS" \
+            -alias androidtest \
+            -keyalg RSA -keysize 2048 -validity 30 \
+            -dname "CN=Temporary Test,O=GitHub Actions,C=US"
+          echo "KEYSTORE_PATH=$RUNNER_TEMP/android-test.jks" >> "$GITHUB_ENV"
+          echo "KEY_ALIAS=androidtest" >> "$GITHUB_ENV"
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Build one signed release APK
+        run: flutter build apk --release --build-name=1.0.0 --build-number=${{ github.run_number }}
+      - name: Publish APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MangaPlus-android-test-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 7
