@@ -15,7 +15,6 @@ class GenreController extends GetxController {
   Future<void> fetchGenres() async {
     try {
       isLoading(true);
-      print('kaka${_genreService.fetchGenres()}');
       genreData.value = await _genreService.fetchGenres();
     } catch (e) {
       AppFeedback.show(title: 'خطأ'.tr, message: 'تعذر تحميل التصنيفات. تحقق من اتصال الإنترنت وحاول مجددًا.'.tr, type: AppNoticeType.error);

@@ -1,19 +1,23 @@
 import 'package:get/get.dart';
-import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:mangaplus/app/data/models/comic.dart';
 import 'package:mangaplus/app/data/services/genre_service.dart';
+import 'package:mangaplus/app/widgets/app_feedback.dart';
 
 class GenreDetailController extends GetxController {
   final GenreService _genreService = GenreService();
 
-  var comicsList = RxList<ComicsList>([]);
-  var isLoading = true.obs;
-  var isLoadingMore = false.obs;
-  var currentPage = 1.obs;
-  var hasMoreData = true.obs;
+  final comicsList = RxList<ComicsList>([]);
+  final isLoading = true.obs;
+  final isLoadingMore = false.obs;
+  final hasError = false.obs;
+  final currentPage = 1.obs;
+  final hasMoreData = true.obs;
+  final genreFilter = ''.obs;
+  final genreTitle = ''.obs;
 
   Future<void> fetchGenreDetail(String genre, {int page = 1}) async {
     try {
+      hasError(false);
       if (page == 1) {
         isLoading(true);
       } else {
@@ -25,10 +29,16 @@ class GenreDetailController extends GetxController {
       } else {
         comicsList.addAll(data.comicsList);
       }
-      currentPage.value = page;
+      currentPage.value = data.page ?? page;
       hasMoreData.value = data.pagination?.nextPage != null;
-    } catch (e) {
-      AppFeedback.show(title: 'خطأ'.tr, message: 'تعذر تحميل قصص هذا التصنيف. حاول مجددًا.'.tr, type: AppNoticeType.error);
+    } catch (error) {
+      debugPrint('Team X genre request failed: $error');
+      hasError(true);
+      AppFeedback.show(
+        title: 'خطأ'.tr,
+        message: 'تعذر تحميل قصص هذا التصنيف. تحقق من اتصال الإنترنت وحاول مجددًا.'.tr,
+        type: AppNoticeType.error,
+      );
     } finally {
       if (page == 1) {
         isLoading(false);
@@ -44,10 +54,19 @@ class GenreDetailController extends GetxController {
     }
   }
 
+  void retry() => fetchGenreDetail(genreFilter.value);
+
   @override
   void onInit() {
-    final genre = Get.arguments.toString();
-    fetchGenreDetail(genre);
+    final arguments = Get.arguments;
+    if (arguments is Map) {
+      genreFilter.value = '${arguments['value'] ?? ''}';
+      genreTitle.value = '${arguments['name'] ?? genreFilter.value}';
+    } else {
+      genreFilter.value = arguments?.toString() ?? '';
+      genreTitle.value = genreFilter.value;
+    }
+    fetchGenreDetail(genreFilter.value);
     super.onInit();
   }
 }

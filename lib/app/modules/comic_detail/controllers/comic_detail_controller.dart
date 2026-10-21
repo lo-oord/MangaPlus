@@ -1,18 +1,24 @@
 import 'dart:io';
+
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
+import 'package:http/http.dart' as http;
 import 'package:mangaplus/app/data/models/comic_detail.dart';
+import 'package:mangaplus/app/data/models/bookmark.dart';
+import 'package:mangaplus/app/data/models/history.dart';
 import 'package:mangaplus/app/data/models/downloaded_chapter.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:http/http.dart' as http;
-import 'package:get_storage/get_storage.dart';
+import 'package:mangaplus/app/data/sources/team_x_source.dart';
+import 'package:mangaplus/app/data/services/app_data_service.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
+import 'package:path_provider/path_provider.dart';
 
 class ComicDetailController extends GetxController {
   final ComicService _comicService = ComicService();
   final GetStorage _storage = GetStorage();
+  final AppDataService _appDataService = Get.find<AppDataService>();
 
-  var comicDetailData = ComicDetailData(
+  final comicDetailData = ComicDetailData(
     comicDetail: ComicDetail(
       comicId: '',
       coverImage: '',
@@ -32,81 +38,131 @@ class ComicDetailController extends GetxController {
     source: '',
   ).obs;
 
-  var isLoading = false.obs;
-  var downloadingChapters = <String, double>{}.obs;
+  final isLoading = false.obs;
+  final downloadingChapters = <String, double>{}.obs;
+  final filteredChapters = <Chapter>[].obs;
 
   @override
   void onInit() {
     super.onInit();
-    // Pulihkan status download dari GetStorage
     _syncDownloadingChapters();
-    // Pantau perubahan GetStorage secara real-time
-    _storage.listenKey('downloadingChapters', (value) {
-      print('GetStorage downloadingChapters updated: $value');
-      _syncDownloadingChapters();
-    });
-
-    // Ambil comicId dari argumen dan panggil fetchComicDetail
-    final comicId = Get.arguments as String?;
-    if (comicId != null) {
+    _storage.listenKey('downloadingChapters', (_) => _syncDownloadingChapters());
+    final comicId = Get.arguments?.toString();
+    if (comicId != null && comicId.isNotEmpty) {
       fetchComicDetail(comicId);
     } else {
-      print('Error: No comicId provided');
-      AppFeedback.show(title: 'خطأ'.tr, message: 'لم يتم تقديم معرّف الكوميكس'.tr, type: AppNoticeType.error);
+      AppFeedback.show(
+        title: 'خطأ'.tr,
+        message: 'لم يتم تقديم معرّف المانجا'.tr,
+        type: AppNoticeType.error,
+      );
     }
   }
 
   void _syncDownloadingChapters() {
     final downloading =
         _storage.read<Map<String, dynamic>>('downloadingChapters') ?? {};
-    downloadingChapters.assignAll(downloading
-        .map((key, value) => MapEntry(key, (value as num).toDouble())));
-    print('Synced downloadingChapters: $downloadingChapters');
+    downloadingChapters.assignAll(downloading.map(
+      (key, value) => MapEntry(key, (value as num).toDouble()),
+    ));
   }
 
   Future<void> fetchComicDetail(String comicId) async {
     try {
       isLoading(true);
       comicDetailData.value = await _comicService.fetchComicDetail(comicId);
-      print('Fetched comic: ${comicDetailData.value.comicDetail.title}');
-    } catch (e) {
-      print('Error fetching comic detail: $e');
-      AppFeedback.show(title: 'خطأ'.tr, message: 'تعذر تحميل البيانات. تحقق من اتصال الإنترنت وحاول مجددًا.'.tr, type: AppNoticeType.error);
+    } catch (error) {
+      debugPrint('Team X details failed: $error');
+      AppFeedback.show(
+        title: 'خطأ'.tr,
+        message: 'تعذر تحميل البيانات من Team X. تحقق من اتصال الإنترنت وحاول مجددًا.'.tr,
+        type: AppNoticeType.error,
+      );
     } finally {
       isLoading(false);
     }
   }
-
-  final filteredChapters = <Chapter>[].obs;
 
   void filterChapters(String query) {
     if (query.isEmpty) {
       filteredChapters.clear();
       return;
     }
-    final comic = comicDetailData.value.comicDetail;
-    filteredChapters.assignAll(comic.chapters
-        .where((chapter) =>
-            chapter.title.toLowerCase().contains(query.toLowerCase()))
-        .toList());
+    final chapters = comicDetailData.value.comicDetail.chapters;
+    filteredChapters.assignAll(chapters.where((chapter) =>
+        chapter.title.toLowerCase().contains(query.toLowerCase())));
   }
 
-  Future<void> downloadChapter(Chapter chapter, String comicId,
-      String comicTitle, String coverImage) async {
+  bool isBookmarked(String comicId) =>
+      (_storage.read<Map<String, dynamic>>('bookmarks') ?? {})
+          .containsKey(comicId);
+
+  final bookmarkRevision = 0.obs;
+
+  Future<void> toggleBookmark(ComicDetail comic) async {
+    if (isBookmarked(comic.comicId)) {
+      await _appDataService.deleteBookmark(comic.comicId);
+      bookmarkRevision.value++;
+      AppFeedback.show(
+        title: 'المفضلة'.tr,
+        message: 'أُزيل من الإشارات المرجعية'.tr,
+        type: AppNoticeType.info,
+      );
+    } else {
+      await _appDataService.addBookmark(BookmarkItem(
+        comicId: comic.comicId,
+        title: comic.title,
+        coverImage: comic.coverImage,
+        type: comic.type,
+      ));
+      bookmarkRevision.value++;
+      AppFeedback.show(
+        title: 'المفضلة'.tr,
+        message: 'أُضيف إلى الإشارات المرجعية'.tr,
+        type: AppNoticeType.success,
+      );
+    }
+  }
+
+  Future<void> addToHistory(
+    ComicDetail comic,
+    String chapterId,
+    String chapterTitle,
+  ) async {
+    await _appDataService.addHistory(HistoryItem(
+      comicId: comic.comicId,
+      title: comic.title,
+      coverImage: comic.coverImage,
+      chapterId: chapterId,
+      chapterTitle: chapterTitle,
+      lastRead: DateTime.now(),
+      type: comic.type,
+    ));
+  }
+
+  Future<void> downloadChapter(
+    Chapter chapter,
+    String comicId,
+    String comicTitle,
+    String coverImage,
+  ) async {
+    final source = TeamXSource();
     try {
       downloadingChapters[chapter.chapterId] = 0.0;
       await _storage.write('downloadingChapters', downloadingChapters);
-      await _storage.save();
-      print('Starting download for chapter: ${chapter.chapterId}');
-
-      if (!_storage.hasData('downloadedChapters')) {
-        await _storage.write('downloadedChapters', []);
-        print('Initialized downloadedChapters in GetStorage');
+      final downloadedChapters =
+          _storage.read<List<dynamic>>('downloadedChapters') ?? [];
+      if (downloadedChapters.any((item) => item['chapterId'] == chapter.chapterId)) {
+        AppFeedback.show(
+          title: 'معلومة'.tr,
+          message: 'الفصل محمّل بالفعل'.tr,
+          type: AppNoticeType.info,
+        );
+        return;
       }
 
       final chapterData = await _comicService.fetchChapter(chapter.chapterId);
       final images = chapterData.chapter.images;
-      print('Fetched chapter data with ${images.length} images');
       if (images.isEmpty) {
         AppFeedback.show(
           title: 'معلومة'.tr,
@@ -117,27 +173,33 @@ class ComicDetailController extends GetxController {
       }
 
       final dir = await getApplicationDocumentsDirectory();
-      final chapterDir =
-          Directory('${dir.path}/chapters/$comicId/${chapter.chapterId}');
+      final safeId = chapter.chapterId.hashCode.toUnsigned(32).toRadixString(16);
+      final chapterDir = Directory('${dir.path}/chapters/$safeId');
       await chapterDir.create(recursive: true);
-      print('Created directory: ${chapterDir.path}');
-
       final localImagePaths = <String>[];
-      for (var i = 0; i < images.length; i++) {
-        final imageUrl = images[i];
-        final response = await http.get(Uri.parse(imageUrl));
-        final filePath = '${chapterDir.path}/image_$i.jpg';
-        final file = File(filePath);
-        await file.writeAsBytes(response.bodyBytes);
-        localImagePaths.add(filePath);
-        downloadingChapters[chapter.chapterId] = (i + 1) / images.length;
+      for (var index = 0; index < images.length; index++) {
+        final uri = Uri.parse(images[index]);
+        final headers = source.resolveChapterUrl(chapter.chapterId).isNotEmpty
+            ? source.imageRequestHeaders
+            : const <String, String>{};
+        final response = await http.get(uri, headers: headers).timeout(
+              const Duration(seconds: 35),
+            );
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          throw HttpException('Image download failed (${response.statusCode})');
+        }
+        final extension = response.headers['content-type']?.contains('png') == true
+            ? 'png'
+            : 'jpg';
+        final file = File('${chapterDir.path}/page_${index + 1}.$extension');
+        await file.writeAsBytes(response.bodyBytes, flush: true);
+        localImagePaths.add(file.path);
+        downloadingChapters[chapter.chapterId] = (index + 1) / images.length;
         downloadingChapters.refresh();
         await _storage.write('downloadingChapters', downloadingChapters);
-        await _storage.save();
-        print('Downloaded image $i: $filePath');
       }
 
-      final downloadedChapter = DownloadedChapter(
+      final record = DownloadedChapter(
         comicId: comicId,
         chapterId: chapter.chapterId,
         comicTitle: comicTitle,
@@ -146,47 +208,29 @@ class ComicDetailController extends GetxController {
         localImagePaths: localImagePaths,
         downloadedAt: DateTime.now(),
       );
-
-      final downloadedChapters =
-          _storage.read<List<dynamic>>('downloadedChapters') ?? [];
-      if (!downloadedChapters
-          .any((json) => json['chapterId'] == chapter.chapterId)) {
-        downloadedChapters.add(downloadedChapter.toJson());
-        try {
-          await _storage.write('downloadedChapters', downloadedChapters);
-          await _storage.save();
-          print('Saved to storage: ${downloadedChapter.toJson()}');
-          final savedData = _storage.read<List<dynamic>>('downloadedChapters');
-          print('Verified storage after save: $savedData');
-        } catch (e) {
-          print('Error saving to GetStorage: $e');
-          AppFeedback.show(
-            title: 'خطأ'.tr,
-            message: 'تعذر حفظ البيانات على الجهاز.'.tr,
-            type: AppNoticeType.error,
-          );
-          return;
-        }
-      } else {
-        print(
-            'Chapter ${chapter.chapterId} already exists in storage, skipping');
-      }
-
-      AppFeedback.show(title: 'نجاح'.tr, message: 'تم تنزيل الفصل بنجاح'.tr, type: AppNoticeType.success);
-    } catch (e) {
-      print('Error downloading chapter: $e');
-      AppFeedback.show(title: 'خطأ'.tr, message: 'تعذر تنزيل الفصل. تحقق من مساحة التخزين وحاول مجددًا.'.tr, type: AppNoticeType.error);
+      downloadedChapters.add(record.toJson());
+      await _storage.write('downloadedChapters', downloadedChapters);
+      AppFeedback.show(
+        title: 'نجاح'.tr,
+        message: 'تم تنزيل الفصل بنجاح'.tr,
+        type: AppNoticeType.success,
+      );
+    } catch (error) {
+      debugPrint('Team X download failed: $error');
+      AppFeedback.show(
+        title: 'خطأ'.tr,
+        message: 'تعذر تنزيل الفصل من Team X. تحقق من الاتصال ومساحة التخزين.'.tr,
+        type: AppNoticeType.error,
+      );
     } finally {
       downloadingChapters.remove(chapter.chapterId);
       await _storage.write('downloadingChapters', downloadingChapters);
-      await _storage.save();
-      print('Cleared downloadingChapters: $downloadingChapters');
     }
   }
 
   bool isChapterDownloaded(String chapterId) {
-    final downloadedChapters =
+    final downloaded =
         _storage.read<List<dynamic>>('downloadedChapters') ?? [];
-    return downloadedChapters.any((json) => json['chapterId'] == chapterId);
+    return downloaded.any((item) => item['chapterId'] == chapterId);
   }
 }

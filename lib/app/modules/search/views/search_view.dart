@@ -28,17 +28,20 @@ class SearchView extends GetView<search_controller.SearchController> {
               controller: controller.textController,
               style: TextStyle(color: AppColors.textPrimary),
               decoration: InputDecoration(
-                hintText: 'ابحث عن الكوميكس (مثال: ناروتو)'.tr,
+                hintText: 'ابحث في Team X'.tr,
                 hintStyle: TextStyle(color: AppColors.textSecondary),
                 filled: true,
                 fillColor: AppColors.searchBar,
                 prefixIcon: Icon(Icons.search_rounded, color: AppColors.icon),
-                suffixIcon: Obx(() => controller.query.value.isNotEmpty
-                    ? IconButton(
-                        icon: Icon(Icons.clear, color: AppColors.icon),
-                        onPressed: controller.clearSearch,
-                      )
-                    : const SizedBox.shrink()),
+                suffixIcon: Obx(
+                  () => controller.query.value.isNotEmpty
+                      ? IconButton(
+                          tooltip: 'مسح البحث'.tr,
+                          icon: Icon(Icons.clear, color: AppColors.icon),
+                          onPressed: controller.clearSearch,
+                        )
+                      : const SizedBox.shrink(),
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                   borderSide: BorderSide.none,
@@ -50,19 +53,27 @@ class SearchView extends GetView<search_controller.SearchController> {
           ),
           Expanded(
             child: Obx(() {
+              if (controller.query.value.isEmpty) {
+                return BrandState(
+                  title: 'ابحث في كتالوج Team X'.tr,
+                  description: 'اكتب اسم المانجا أو المانهوا للعثور عليها.'.tr,
+                );
+              }
               if (controller.isLoading.value) {
                 return BrandState(title: 'جارٍ البحث'.tr, loading: true);
               }
-              if (controller.query.value.isEmpty) {
+              if (controller.hasError.value) {
                 return BrandState(
-                  title: 'أدخل عبارة بحث للعثور على الكوميكس'.tr,
-                  description: 'سيُضاف مصدر المانجا في مرحلة لاحقة.'.tr,
+                  title: 'تعذر تحميل نتائج البحث من Team X'.tr,
+                  description: 'تحقق من اتصال الإنترنت ثم حاول مجددًا.'.tr,
+                  actionLabel: 'إعادة المحاولة'.tr,
+                  onAction: () => controller.searchComics(controller.query.value),
                 );
               }
               if (controller.comicsList.isEmpty) {
                 return BrandState(
-                  title: 'لم يتم العثور على كوميكس لهذه العبارة'.tr,
-                  description: 'سيُضاف مصدر المانجا في مرحلة لاحقة.'.tr,
+                  title: 'لم يتم العثور على نتائج'.tr,
+                  description: 'جرّب كتابة الاسم الأصلي أو جزء أقصر من الاسم.'.tr,
                 );
               }
               return Padding(

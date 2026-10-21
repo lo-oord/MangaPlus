@@ -1,18 +1,14 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:readmore/readmore.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/translations/content_localization.dart';
-import 'package:mangaplus/app/data/models/bookmark.dart';
 import 'package:mangaplus/app/data/models/comic_detail.dart';
-import 'package:mangaplus/app/data/models/history.dart';
-import 'package:mangaplus/app/modules/bookmark/controllers/bookmark_controller.dart';
 import 'package:mangaplus/app/modules/comic_detail/controllers/comic_detail_controller.dart';
-import 'package:mangaplus/app/modules/history/controllers/history_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
-import 'package:readmore/readmore.dart';
-import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
-import 'package:shimmer/shimmer.dart';
+import 'package:mangaplus/app/widgets/brand_state.dart';
 
 class ComicDetailView extends GetView<ComicDetailController> {
   const ComicDetailView({super.key});
@@ -23,779 +19,434 @@ class ComicDetailView extends GetView<ComicDetailController> {
       backgroundColor: AppColors.background,
       body: Obx(() {
         if (controller.isLoading.value) {
-          return Stack(
-            children: [
-              const ComicDetailSkeletonLoader(),
-              _buildCloseButton(context),
-            ],
-          );
+          return BrandState(title: 'جارٍ تحميل التفاصيل'.tr, loading: true);
         }
-
         final comic = controller.comicDetailData.value.comicDetail;
         if (comic.title.isEmpty) {
           return BrandState(
             title: 'تفاصيل القصة غير متاحة'.tr,
-            description: 'سيُضاف مصدر المانجا في مرحلة لاحقة.'.tr,
-            actionLabel: 'عودة'.tr,
-            onAction: Get.back,
+            description: 'تعذر تحميل التفاصيل من Team X. تحقق من الاتصال وحاول مجددًا.'.tr,
+            actionLabel: 'إعادة المحاولة'.tr,
+            onAction: () => controller.fetchComicDetail('${Get.arguments ?? ''}'),
           );
         }
-        return _buildContent(context, comic, controller);
-      }),
-    );
-  }
-
-  Widget _buildContent(BuildContext context, ComicDetail comic,
-      ComicDetailController controller) {
-    return Stack(
-      children: [
-        SingleChildScrollView(
-          child: Column(
-            children: [
-              _buildHeroImage(comic.coverImage),
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20),
+        return CustomScrollView(
+          slivers: [
+            SliverAppBar(
+              pinned: true,
+              expandedHeight: 360,
+              backgroundColor: AppColors.background,
+              foregroundColor: AppColors.textPrimary,
+              actions: [
+                IconButton(
+                  tooltip: 'إضافة إلى الإشارات المرجعية'.tr,
+                  onPressed: () => controller.toggleBookmark(comic),
+                  icon: Obx(
+                    () {
+                      controller.bookmarkRevision.value;
+                      return Icon(
+                        controller.isBookmarked(comic.comicId)
+                            ? Icons.bookmark_rounded
+                            : Icons.bookmark_border_rounded,
+                        color: AppColors.primary,
+                      );
+                    },
+                  ),
+                ),
+              ],
+              flexibleSpace: FlexibleSpaceBar(
+                background: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (comic.coverImage.isNotEmpty)
+                      CachedNetworkImage(
+                        imageUrl: comic.coverImage,
+                        httpHeaders: const {
+                          'Referer': 'https://olympustaff.com/',
+                          'User-Agent':
+                              'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+                        },
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) => Container(color: AppColors.card),
+                        errorWidget: (_, __, ___) => const Center(
+                          child: MangaPlusLogo(size: 100),
+                        ),
+                      )
+                    else
+                      const Center(child: MangaPlusLogo(size: 100)),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.08),
+                            AppColors.background.withValues(alpha: 0.88),
+                            AppColors.background,
+                          ],
+                          stops: const [0, 0.7, 1],
+                        ),
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              comic.title,
+                              textAlign: TextAlign.center,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 26,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Wrap(
+                              alignment: WrapAlignment.center,
+                              spacing: 8,
+                              runSpacing: 6,
+                              children: [
+                                _InfoPill(
+                                  icon: Icons.menu_book_rounded,
+                                  text: '${comic.totalChapters} ${'الفصول'.tr}',
+                                ),
+                                if (comic.status.isNotEmpty)
+                                  _InfoPill(
+                                    icon: Icons.radio_button_checked_rounded,
+                                    text: localizeContentStatus(comic.status),
+                                  ),
+                                _InfoPill(
+                                  icon: Icons.verified_rounded,
+                                  text: 'Team X',
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 14, 18, 36),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildTitleSection(comic),
-                    const SizedBox(height: 10),
-                    _buildGenreChips(context, comic.genres),
-                    const SizedBox(height: 10),
-                    _buildSynopsis(comic),
-                    const SizedBox(height: 10),
-                    _buildInfoSection(comic),
-                    const SizedBox(height: 10),
-                    _buildChapterNavigationButtons(context, comic),
-                    const SizedBox(height: 10),
-                    _buildChaptersList(context, comic, comic.chapters),
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        _buildCloseButton(context),
-        _buildBookmarkButton(context, comic),
-      ],
-    );
-  }
-
-  Widget _buildHeroImage(String imageUrl) {
-    return SizedBox(
-      width: double.infinity,
-      height: 500,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: Image.network(
-              imageUrl,
-              fit: BoxFit.cover,
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return Container(
-                  color: AppColors.searchBar,
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      value: loadingProgress.expectedTotalBytes != null
-                          ? loadingProgress.cumulativeBytesLoaded /
-                              loadingProgress.expectedTotalBytes!
-                          : null,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                );
-              },
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  color: AppColors.searchBar,
-                  child: Center(
-                    child: Icon(
-                      Icons.broken_image_rounded,
-                      color: AppColors.textSecondary.withValues(alpha: 0.66),
-                      size: 64,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.transparent,
-                    AppColors.background.withValues(alpha: 0.8),
-                    AppColors.background,
-                  ],
-                  stops: const [0.0, 0.4, 0.75, 1.0],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTitleSection(ComicDetail comic) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                comic.title,
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 30,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              if (comic.nativeTitle.isNotEmpty && comic.nativeTitle != 'No Native Title')
-                Text(
-                  comic.nativeTitle,
-                  style: TextStyle(
-                    color: AppColors.textSecondary.withValues(alpha: 0.5),
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGenreChips(BuildContext context, List<String> genres) {
-    return SizedBox(
-      height: 36,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        itemCount: genres.length,
-        itemBuilder: (context, index) {
-          final genre = genres[index];
-          return Row(
-            children: [
-              SizedBox(width: index == 0 ? 0 : 8),
-              ActionChip(
-                backgroundColor: AppColors.searchBar,
-                side: BorderSide.none,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                label: Text(
-                  localizeContentGenre(genre),
-                  style: TextStyle(
-                    color: AppColors.textSecondary.withValues(alpha: 0.66),
-                    fontSize: 12,
-                  ),
-                ),
-                onPressed: () {
-                  Get.toNamed(Routes.GENRE_DETAIL, arguments: genre);
-                },
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildSynopsis(ComicDetail comic) {
-    return Column(
-      children: [
-        ReadMoreText(
-          comic.synopsis,
-          trimLines: 3,
-          trimMode: TrimMode.Line,
-          trimCollapsedText: '... المزيد'.tr,
-          trimExpandedText: ' أقل'.tr,
-          moreStyle: TextStyle(color: AppColors.primary),
-          lessStyle: TextStyle(color: AppColors.primary),
-          style: TextStyle(
-            color: AppColors.textSecondary.withValues(alpha: 0.8),
-            height: 1.5,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoSection(ComicDetail comic) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildInfoItem('المؤلف'.tr, comic.author),
-        _buildInfoItem('سنة الإصدار'.tr, comic.releaseYear),
-        _buildInfoItem('الحالة'.tr, localizeContentStatus(comic.status)),
-        _buildInfoItem('النوع'.tr, localizeContentType(comic.type)),
-        _buildInfoItem('التقييم'.tr, comic.rating),
-        _buildInfoItem('آخر تحديث'.tr, comic.updatedOn),
-      ],
-    );
-  }
-
-  Widget _buildInfoItem(String label, String value) {
-    return Column(
-      children: [
-        const SizedBox(height: 8),
-        Text(
-          '$label: $value',
-          style: TextStyle(
-            color: AppColors.textSecondary.withValues(alpha: 0.66),
-            fontSize: 14,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildChaptersList(
-      BuildContext context, ComicDetail comic, List<Chapter> chapters) {
-    final TextEditingController searchController = TextEditingController();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'الفصول'.tr,
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: searchController,
-          style: TextStyle(color: AppColors.textPrimary),
-          decoration: InputDecoration(
-            hintText: 'ابحث عن فصل...'.tr,
-            hintStyle: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.66)),
-            border: InputBorder.none,
-            icon: Icon(Icons.search, color: AppColors.textSecondary.withValues(alpha: 0.66)),
-          ),
-          onChanged: (value) {
-            controller.filterChapters(value);
-          },
-        ),
-        const SizedBox(height: 10),
-        Obx(() {
-          final filteredChapters = controller.filteredChapters.isNotEmpty
-              ? controller.filteredChapters
-              : chapters;
-
-          return ListView.separated(
-            padding: EdgeInsets.zero,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            separatorBuilder: (context, index) => const SizedBox(height: 8),
-            itemCount: filteredChapters.length,
-            itemBuilder: (context, index) {
-              final chapter = filteredChapters[index];
-              return Card(
-                margin: EdgeInsets.zero,
-                elevation: 0,
-                color: AppColors.searchBar,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () {
-                    _navigateToChapter(
-                        context, comic, chapter.chapterId, chapter.title);
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 12, horizontal: 16),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                chapter.title
-                                    .replaceAll(RegExp(r'\s+'), ' ')
-                                    .trim(),
-                                style: TextStyle(
-                                  color: AppColors.textPrimary,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                chapter.releaseTime,
-                                style: TextStyle(
-                                  color: AppColors.textSecondary.withValues(alpha: 0.66),
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Obx(() {
-                          final progress =
-                              controller.downloadingChapters[chapter.chapterId];
-                          if (progress != null) {
-                            return Tooltip(
-                              message: 'جارٍ التنزيل'.tr,
-                              child: Padding(
-                                padding: const EdgeInsets.only(right: 9),
-                                child: SizedBox(
-                                  width: 38,
-                                  height: 38,
-                                  child: Stack(
-                                    alignment: Alignment.center,
-                                    children: [
-                                      CircularProgressIndicator(
-                                        value: progress,
-                                        strokeWidth: 3,
-                                        color: AppColors.primary,
-                                        backgroundColor: AppColors.divider,
-                                      ),
-                                      Text(
-                                        '${(progress * 100).round()}%',
-                                        style: TextStyle(
-                                          color: AppColors.textPrimary,
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
+                    if (comic.genres.isNotEmpty) ...[
+                      _SectionTitle('التصنيفات'.tr),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: comic.genres
+                            .map((genre) => ActionChip(
+                                  backgroundColor: AppColors.searchBar,
+                                  side: BorderSide.none,
+                                  label: Text(localizeContentGenre(genre)),
+                                  onPressed: () => Get.toNamed(
+                                    Routes.GENRE_DETAIL,
+                                    arguments: genre,
                                   ),
-                                ),
-                              ),
-                            );
-                          }
-                          return IconButton(
-                            icon: Icon(
-                              controller.isChapterDownloaded(chapter.chapterId)
-                                  ? Icons.download_done
-                                  : Icons.download,
-                              color: AppColors.textSecondary.withValues(alpha: 0.66),
-                            ),
-                            onPressed: () {
-                              if (!controller
-                                  .isChapterDownloaded(chapter.chapterId)) {
-                                controller.downloadChapter(
-                                  chapter,
-                                  comic.comicId,
-                                  comic.title,
-                                  comic.coverImage,
-                                );
-                              } else {
-                                AppFeedback.show(title: 'معلومة'.tr, message: 'الفصل محمّل بالفعل'.tr);
-                              }
-                            },
-                          );
-                        }),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          color: AppColors.textSecondary.withValues(alpha: 0.66),
+                                ))
+                            .toList(),
+                      ),
+                      const SizedBox(height: 18),
+                    ],
+                    if (comic.synopsis.trim().isNotEmpty) ...[
+                      _SectionTitle('القصة'.tr),
+                      const SizedBox(height: 8),
+                      ReadMoreText(
+                        comic.synopsis,
+                        trimLines: 4,
+                        trimMode: TrimMode.Line,
+                        trimCollapsedText: '... المزيد'.tr,
+                        trimExpandedText: ' أقل'.tr,
+                        moreStyle: TextStyle(color: AppColors.primary),
+                        lessStyle: TextStyle(color: AppColors.primary),
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          height: 1.55,
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                    _SectionTitle('معلومات المانجا'.tr),
+                    const SizedBox(height: 8),
+                    _MetadataCard(comic: comic),
+                    const SizedBox(height: 22),
+                    _ChapterList(comic: comic, controller: controller),
+                  ],
                 ),
-              );
-            },
-          );
-        }),
-      ],
-    );
-  }
-
-  Widget _buildChapterNavigationButtons(
-      BuildContext context, ComicDetail comic) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
               ),
             ),
-            onPressed: () {
-              if (comic.chapters.isNotEmpty) {
-                _navigateToChapter(
-                  context,
-                  comic,
-                  comic.chapters.last.chapterId,
-                  comic.chapters.last.title,
-                );
-              }
-            },
-            child: Text(
-              'أول فصل'.tr,
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            onPressed: () {
-              if (comic.chapters.isNotEmpty) {
-                _navigateToChapter(
-                  context,
-                  comic,
-                  comic.chapters.first.chapterId,
-                  comic.chapters.first.title,
-                );
-              }
-            },
-            child: Text(
-              'آخر فصل'.tr,
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-      ],
+          ],
+        );
+      }),
     );
-  }
-
-  Widget _buildCloseButton(BuildContext context) {
-    return Positioned(
-      top: 45,
-      left: 20,
-      child: Container(
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.black38,
-        ),
-        child: IconButton(
-          onPressed: () => Get.back(),
-          icon: Icon(
-            Icons.close_rounded,
-            color: AppColors.textPrimary,
-            size: 20,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBookmarkButton(BuildContext context, ComicDetail comic) {
-    final bookmarkController = Get.find<BookmarkController>();
-    return Positioned(
-      top: 45,
-      right: 20,
-      child: Container(
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.black38,
-        ),
-        child: Obx(() {
-          final isBookmarked = bookmarkController.bookmarks
-              .any((bookmark) => bookmark.comicId == comic.comicId);
-          return IconButton(
-            onPressed: () async {
-              if (isBookmarked) {
-                final removed = await bookmarkController.deleteBookmark(comic.comicId);
-                if (removed) {
-                  AppFeedback.show(
-                    title: 'إزالة الإشارة المرجعية'.tr,
-                    message: '${comic.title} ${'أُزيل من الإشارات المرجعية'.tr}',
-                    type: AppNoticeType.info,
-                  );
-                }
-              } else {
-                final bookmark = BookmarkItem(
-                  comicId: comic.comicId,
-                  title: comic.title,
-                  coverImage: comic.coverImage,
-                  type: comic.type,
-                );
-                try {
-                  await bookmarkController.addBookmark(bookmark);
-                  AppFeedback.show(
-                    title: 'إضافة إلى الإشارات المرجعية'.tr,
-                    message: '${comic.title} ${'أُضيف إلى الإشارات المرجعية'.tr}',
-                    type: AppNoticeType.success,
-                  );
-                } catch (_) {}
-              }
-            },
-            icon: Icon(
-              isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-              color: isBookmarked ? AppColors.primary : AppColors.textPrimary,
-              size: 20,
-            ),
-          );
-        }),
-      ),
-    );
-  }
-
-  void _navigateToChapter(BuildContext context, ComicDetail comic,
-      String chapterId, String chapterTitle) {
-    HistoryItem historyItem = HistoryItem(
-      comicId: comic.comicId,
-      chapterId: chapterId,
-      chapterTitle: chapterTitle,
-      coverImage: comic.coverImage,
-      title: comic.title,
-      lastRead: DateTime.now(),
-      type: comic.type,
-    );
-    Get.find<HistoryController>().addHistory(historyItem);
-    Get.toNamed(Routes.CHAPTER, arguments: {
-      'chapterId': chapterId,
-      'comicId': comic.comicId,
-      'comicTitle': comic.title,
-    });
   }
 }
 
-class ComicDetailSkeletonLoader extends StatelessWidget {
-  const ComicDetailSkeletonLoader({super.key});
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.title);
+  final String title;
+
+  @override
+  Widget build(BuildContext context) => Text(
+        title,
+        style: TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 19,
+          fontWeight: FontWeight.w800,
+        ),
+      );
+}
+
+class _InfoPill extends StatelessWidget {
+  const _InfoPill({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        decoration: BoxDecoration(
+          color: AppColors.card.withValues(alpha: 0.94),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: AppColors.primary),
+            const SizedBox(width: 5),
+            Text(
+              text,
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _MetadataCard extends StatelessWidget {
+  const _MetadataCard({required this.comic});
+  final ComicDetail comic;
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Shimmer.fromColors(
-        direction: ShimmerDirection.ltr,
-        baseColor: AppColors.searchBar,
-        highlightColor: AppColors.searchBar,
-        child: Column(
-          children: [
-            _buildCoverImageSkeleton(),
-            Container(
-              margin:
-                  const EdgeInsets.symmetric(horizontal: 20).copyWith(top: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildTitleSkeleton(),
-                  const SizedBox(height: 10),
-                  _buildGenreChipsSkeleton(),
-                  const SizedBox(height: 10),
-                  _buildSynopsisSkeleton(),
-                  const SizedBox(height: 10),
-                  _buildInfoSectionSkeleton(),
-                  const SizedBox(height: 10),
-                  _buildChapterButtonsSkeleton(),
-                  const SizedBox(height: 10),
-                  _buildChaptersListSkeleton(),
-                  const SizedBox(height: 40),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCoverImageSkeleton() {
+    final rows = <(String, String)>[
+      ('المؤلف'.tr, comic.author),
+      ('سنة الإصدار'.tr, comic.releaseYear),
+      ('الحالة'.tr, localizeContentStatus(comic.status)),
+      ('النوع'.tr, localizeContentType(comic.type)),
+      ('التقييم'.tr, comic.rating),
+      ('آخر تحديث'.tr, comic.updatedOn),
+    ].where((row) => row.$2.trim().isNotEmpty).toList();
     return Container(
-      width: double.infinity,
-      height: 480,
-      color: AppColors.searchBar,
-    );
-  }
-
-  Widget _buildTitleSkeleton() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 300,
-          height: 30,
-          decoration: BoxDecoration(
-            color: AppColors.searchBar,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          width: 150,
-          height: 15,
-          decoration: BoxDecoration(
-            color: AppColors.searchBar,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGenreChipsSkeleton() {
-    return SizedBox(
-      height: 36,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: 5,
-        itemBuilder: (context, index) {
-          return Row(
-            children: [
-              SizedBox(width: index == 0 ? 0 : 8),
-              Container(
-                width: 70,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: AppColors.searchBar,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ],
-          );
-        },
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        children: rows
+            .map((row) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(row.$1,
+                            style: TextStyle(color: AppColors.textSecondary)),
+                      ),
+                      Flexible(
+                        child: Text(
+                          row.$2,
+                          textAlign: TextAlign.end,
+                          style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ))
+            .toList(),
       ),
     );
   }
+}
 
-  Widget _buildSynopsisSkeleton() {
+class _ChapterList extends StatefulWidget {
+  const _ChapterList({required this.comic, required this.controller});
+  final ComicDetail comic;
+  final ComicDetailController controller;
+
+  @override
+  State<_ChapterList> createState() => _ChapterListState();
+}
+
+class _ChapterListState extends State<_ChapterList> {
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final chapters = widget.comic.chapters;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: double.infinity,
-          height: 12,
-          decoration: BoxDecoration(
-            color: AppColors.searchBar,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          width: double.infinity,
-          height: 12,
-          decoration: BoxDecoration(
-            color: AppColors.searchBar,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          width: 200,
-          height: 12,
-          decoration: BoxDecoration(
-            color: AppColors.searchBar,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoSectionSkeleton() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: List.generate(
-        6,
-        (index) => Column(
+        Row(
           children: [
-            const SizedBox(height: 8),
-            Container(
-              width: index % 2 == 0 ? 170 : 180,
-              height: 14,
-              decoration: BoxDecoration(
-                color: AppColors.searchBar,
-                borderRadius: BorderRadius.circular(4),
-              ),
+            Expanded(child: _SectionTitle('الفصول'.tr)),
+            Text(
+              '${chapters.length}',
+              style: TextStyle(color: AppColors.textSecondary),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildChapterButtonsSkeleton() {
-    return Row(
-      children: [
-        Expanded(
-          child: Container(
-            height: 50,
-            decoration: BoxDecoration(
-              color: AppColors.searchBar,
-              borderRadius: BorderRadius.circular(12),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _searchController,
+          onChanged: widget.controller.filterChapters,
+          style: TextStyle(color: AppColors.textPrimary),
+          decoration: InputDecoration(
+            hintText: 'ابحث عن فصل...'.tr,
+            prefixIcon: const Icon(Icons.search_rounded),
+            filled: true,
+            fillColor: AppColors.searchBar,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
             ),
           ),
         ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Container(
-            height: 50,
-            decoration: BoxDecoration(
-              color: AppColors.searchBar,
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildChaptersListSkeleton() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 100,
-          height: 20,
-          decoration: BoxDecoration(
-            color: AppColors.searchBar,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
         const SizedBox(height: 10),
-        Container(
-          height: 50,
-          decoration: BoxDecoration(
-            color: AppColors.searchBar,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-        const SizedBox(height: 10),
-        ...List.generate(
-          10,
-          (index) => Column(
-            children: [
-              Container(
-                height: 70,
-                decoration: BoxDecoration(
+        if (chapters.isEmpty)
+          BrandState(
+            title: 'لا توجد فصول مجانية متاحة'.tr,
+            description: 'يعرض التطبيق الفصول المفتوحة فقط من المصدر.'.tr,
+          )
+        else
+          Obx(() {
+            final filtered = _searchController.text.isEmpty
+                ? chapters
+                : widget.controller.filteredChapters;
+            return ListView.separated(
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: filtered.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 7),
+              itemBuilder: (context, index) {
+                final chapter = filtered[index];
+                return Card(
+                  margin: EdgeInsets.zero,
+                  elevation: 0,
                   color: AppColors.searchBar,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: ListTile(
+                    onTap: () => _openChapter(context, chapter),
+                    title: Text(
+                      chapter.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: chapter.releaseTime.isEmpty
+                        ? null
+                        : Text(chapter.releaseTime),
+                    trailing: Obx(() {
+                      final progress = widget.controller
+                          .downloadingChapters[chapter.chapterId];
+                      if (progress != null) {
+                        return SizedBox(
+                          width: 38,
+                          height: 38,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              CircularProgressIndicator(
+                                value: progress,
+                                strokeWidth: 3,
+                                color: AppColors.primary,
+                                backgroundColor: AppColors.divider,
+                              ),
+                              Text('${(progress * 100).round()}%',
+                                  style: TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontSize: 9)),
+                            ],
+                          ),
+                        );
+                      }
+                      return IconButton(
+                        tooltip: 'تنزيل الفصل'.tr,
+                        icon: Icon(
+                          widget.controller.isChapterDownloaded(chapter.chapterId)
+                              ? Icons.download_done_rounded
+                              : Icons.download_rounded,
+                          color: AppColors.primary,
+                        ),
+                        onPressed: () => widget.controller.downloadChapter(
+                          chapter,
+                          widget.comic.comicId,
+                          widget.comic.title,
+                          widget.comic.coverImage,
+                        ),
+                      );
+                    }),
+                    leading: CircleAvatar(
+                      radius: 17,
+                      backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+                      child: Icon(Icons.menu_book_rounded,
+                          size: 17, color: AppColors.primary),
+                    ),
+                  ),
+                );
+              },
+            );
+          }),
       ],
     );
+  }
+
+  Future<void> _openChapter(BuildContext context, Chapter chapter) async {
+    await widget.controller.addToHistory(
+      widget.comic,
+      chapter.chapterId,
+      chapter.title,
+    );
+    if (!mounted) return;
+    Get.toNamed(Routes.CHAPTER, arguments: {
+      'chapterId': chapter.chapterId,
+      'comicId': widget.comic.comicId,
+      'comicTitle': widget.comic.title,
+      'coverImage': widget.comic.coverImage,
+      'chapterTitle': chapter.title,
+    });
   }
 }

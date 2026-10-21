@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:mangaplus/app/data/services/app_data_service.dart';
 import 'package:mangaplus/app/modules/bookmark/controllers/bookmark_controller.dart';
 import 'package:mangaplus/app/modules/download/controllers/download_controller.dart';
 import 'package:mangaplus/app/modules/genre/controllers/genre_controller.dart';
@@ -12,29 +13,14 @@ import '../controllers/main_controller.dart';
 class MainBinding extends Bindings {
   @override
   void dependencies() {
-    Get.lazyPut<MainController>(
-      () => MainController(),
-    );
-    Get.lazyPut<HomeController>(
-      () => HomeController(),
-    );
-    Get.lazyPut<GenreController>(
-      () => GenreController(),
-    );
-    Get.lazyPut<ProfileController>(
-      () => ProfileController(),
-    );
-    Get.lazyPut<HistoryController>(
-      () => HistoryController(),
-    );
-    Get.lazyPut<DownloadController>(
-      () => DownloadController(),
-    );
-    Get.lazyPut<SearchController>(
-      () => SearchController(),
-    );
-    Get.lazyPut<BookmarkController>(
-      () => BookmarkController(),
-    );
+    Get.put<AppDataService>(AppDataService(), permanent: true);
+    Get.lazyPut<MainController>(() => MainController());
+    Get.lazyPut<HomeController>(() => HomeController());
+    Get.lazyPut<GenreController>(() => GenreController());
+    Get.lazyPut<ProfileController>(() => ProfileController());
+    Get.lazyPut<HistoryController>(() => HistoryController());
+    Get.lazyPut<DownloadController>(() => DownloadController());
+    Get.lazyPut<SearchController>(() => SearchController());
+    Get.lazyPut<BookmarkController>(() => BookmarkController());
   }
 }

@@ -26,8 +26,10 @@ class GenreView extends GetView<GenreController> {
         final genres = controller.genreData.value.genres;
         if (genres.isEmpty) {
           return BrandState(
-            title: 'لا توجد تصنيفات متاحة'.tr,
-            description: 'سيُضاف مصدر المانجا في مرحلة لاحقة.'.tr,
+            title: 'تعذر تحميل التصنيفات من Team X'.tr,
+            description: 'تحقق من اتصال الإنترنت ثم حاول مجددًا.'.tr,
+            actionLabel: 'إعادة المحاولة'.tr,
+            onAction: controller.fetchGenres,
           );
         }
         return ListView.separated(
@@ -40,12 +42,17 @@ class GenreView extends GetView<GenreController> {
               color: AppColors.card,
               child: ListTile(
                 leading: Icon(Icons.category_outlined, color: AppColors.primary),
-                title: Text(genre.name,
-                    style: TextStyle(color: AppColors.textPrimary)),
+                title: Text(
+                  genre.name,
+                  style: TextStyle(color: AppColors.textPrimary),
+                ),
                 trailing: Icon(Icons.chevron_right, color: AppColors.icon),
                 onTap: () => Get.toNamed(
                   Routes.GENRE_DETAIL,
-                  arguments: genre.name,
+                  arguments: {
+                    'value': genre.link.isNotEmpty ? genre.link : genre.name,
+                    'name': genre.name,
+                  },
                 ),
               ),
             );

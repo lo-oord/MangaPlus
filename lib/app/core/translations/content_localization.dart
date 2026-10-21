@@ -5,12 +5,19 @@ String localizeContentType(String value) {
     case 'manga':
     case 'مانجا':
       return 'مانجا'.tr;
+    case 'مانhwa':
     case 'manhwa':
     case 'مانهوا':
       return 'مانهوا'.tr;
     case 'manhua':
+    case 'مانها صيني':
+    case 'مانهوا صينية':
     case 'chinese comic':
       return 'مانهوا صينية'.tr;
+    case 'مانجا ياباني':
+      return 'مانجا'.tr;
+    case 'مانهوا كورية':
+      return 'مانهوا'.tr;
     default:
       return value;
   }
@@ -22,12 +29,18 @@ String localizeContentStatus(String value) {
     case 'on going':
     case 'publishing':
     case 'مستمر':
+    case 'مستمرة':
       return 'مستمر'.tr;
     case 'completed':
     case 'complete':
     case 'finished':
     case 'مكتمل':
+    case 'مكتملة':
       return 'مكتمل'.tr;
+    case 'متوقف':
+    case 'متروك':
+    case 'موسم منتهي':
+      return 'متوقف مؤقتًا'.tr;
     case 'hiatus':
     case 'paused':
     case 'متوقف مؤقتًا':

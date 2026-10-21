@@ -89,6 +89,13 @@ late FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  LicenseRegistry.addLicense(() async* {
+    final licenseText = await rootBundle.loadString('assets/licenses/GPL-3.0.txt');
+    yield LicenseEntryWithLineBreaks(
+      ['MangaPlus', 'Team X adapter adapted from IWatch-main'],
+      licenseText,
+    );
+  });
 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
@@ -128,8 +135,6 @@ void main() async {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: savedTheme == 'light' ? ThemeMode.light : ThemeMode.dark,
-      themeAnimationDuration: const Duration(milliseconds: 280),
-      themeAnimationCurve: Curves.easeInOutCubic,
       defaultTransition: Transition.fadeIn,
       transitionDuration: const Duration(milliseconds: 260),
       translations: AppTranslations(),

@@ -20,6 +20,7 @@ class ChapterData {
 
 class DataChapter {
   final String chapterId;
+  final String title;
   final List<String> images;
   final String previousChapter;
   final String? nextChapter;
@@ -27,6 +28,7 @@ class DataChapter {
 
   DataChapter({
     required this.chapterId,
+    this.title = '',
     required this.images,
     required this.previousChapter,
     this.nextChapter,
@@ -35,6 +37,7 @@ class DataChapter {
 
   factory DataChapter.fromJson(Map<String, dynamic> json) => DataChapter(
         chapterId: json["chapterId"] ?? "",
+        title: json["title"] ?? "",
         images: json["images"] != null
             ? List<String>.from(json["images"].map((x) => x.toString()))
             : [],
@@ -48,6 +51,7 @@ class DataChapter {
 
   Map<String, dynamic> toJson() => {
         "chapterId": chapterId,
+        "title": title,
         "images": List<dynamic>.from(images.map((x) => x)),
         "previousChapter": previousChapter,
         "nextChapter": nextChapter,

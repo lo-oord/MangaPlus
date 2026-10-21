@@ -166,13 +166,29 @@ class ProfileView extends GetView<ProfileController> {
               _infoRow(
                 Icons.auto_stories_outlined,
                 'مصدر المحتوى'.tr,
-                'غير مضاف بعد'.tr,
+                'Team X',
+              ),
+              Divider(height: 1, color: AppColors.divider),
+              _infoRow(
+                Icons.language_rounded,
+                'موقع المصدر'.tr,
+                'olympustaff.com',
+              ),
+              Divider(height: 1, color: AppColors.divider),
+              _navigationRow(
+                Icons.policy_outlined,
+                'التراخيص والإسناد'.tr,
+                () => showLicensePage(
+                  context: context,
+                  applicationName: 'MangaPlus',
+                  applicationVersion: '1.0.0',
+                ),
               ),
             ],
           ),
           const SizedBox(height: 16),
           Text(
-            'سيضاف مصدر المحتوى في مرحلة لاحقة. لا يتصل التطبيق حاليًا بخدمة مانجا خارجية.'
+            'يُجلب محتوى القصص والفصول مباشرة من Team X على olympustaff.com. قد تتغير بعض البيانات عند تحديث الموقع.'
                 .tr,
             textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall?.copyWith(

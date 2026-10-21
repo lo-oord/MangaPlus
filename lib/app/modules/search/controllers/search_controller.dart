@@ -10,6 +10,7 @@ class SearchController extends GetxController {
   final TextEditingController textController = TextEditingController();
   final RxList<ComicsList> comicsList = <ComicsList>[].obs;
   final RxBool isLoading = false.obs;
+  final RxBool hasError = false.obs;
   final RxString query = ''.obs;
   Timer? _debounce;
 
@@ -20,16 +21,22 @@ class SearchController extends GetxController {
     if (normalized.isEmpty) {
       comicsList.clear();
       isLoading.value = false;
+      hasError.value = false;
       return;
     }
 
     isLoading.value = true;
+    hasError.value = false;
     _debounce = Timer(const Duration(milliseconds: 280), () async {
       try {
         final data = await _comicService.searchComics(normalized);
         if (query.value == normalized) comicsList.assignAll(data.comicsList);
-      } catch (_) {
-        comicsList.clear();
+      } catch (error) {
+        debugPrint('Team X search failed: $error');
+        if (query.value == normalized) {
+          hasError.value = true;
+          comicsList.clear();
+        }
       } finally {
         if (query.value == normalized) isLoading.value = false;
       }
@@ -38,10 +45,11 @@ class SearchController extends GetxController {
 
   void clearSearch() {
     _debounce?.cancel();
-    textController.clear();
     query.value = '';
+    textController.clear();
     comicsList.clear();
     isLoading.value = false;
+    hasError.value = false;
   }
 
   @override

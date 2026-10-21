@@ -28,10 +28,10 @@ class HomeView extends GetView<HomeController> {
             controller.popularKomikData.value.popularManga.isNotEmpty;
         if (!hasContent) {
           return BrandState(
-            title: 'مصدر المحتوى غير مضاف بعد'.tr,
-            description:
-                'سيُضاف مصدر المانجا في مرحلة لاحقة. لا يتصل التطبيق حاليًا بأي API للمحتوى.'
-                    .tr,
+            title: 'تعذر تحميل محتوى Team X. تحقق من اتصال الإنترنت وحاول مجددًا.'.tr,
+            description: 'موقع المصدر'.tr + ': olympustaff.com',
+            actionLabel: 'إعادة المحاولة'.tr,
+            onAction: controller.reload,
           );
         }
         return SingleChildScrollView(
@@ -72,6 +72,11 @@ class HomeView extends GetView<HomeController> {
                       Positioned.fill(
                         child: CachedNetworkImage(
                           imageUrl: comic['image']!,
+                          httpHeaders: const {
+                            'Referer': 'https://olympustaff.com/',
+                            'User-Agent':
+                                'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+                          },
                           fit: BoxFit.cover,
                           alignment: Alignment.topCenter,
                           placeholder: (context, url) => Container(
@@ -79,7 +84,7 @@ class HomeView extends GetView<HomeController> {
                           ),
                           errorWidget: (context, url, error) => Container(
                             color: AppColors.searchBar,
-                            child: const Icon(Icons.error),
+                            child: const Center(child: MangaPlusLogo(size: 68)),
                           ),
                         ),
                       ),
@@ -215,7 +220,7 @@ class KomikCardsSection extends GetView<HomeController> {
           children: [
             _buildHistorySection(context),
             const SizedBox(height: 16),
-            _buildSectionTitle(context, "الأكثر شعبية".tr),
+            _buildSectionTitle(context, 'كتالوج Team X'.tr),
             const SizedBox(height: 8),
             _buildPopularGrid(context),
             const SizedBox(height: 12),
@@ -499,7 +504,7 @@ class KomikCardsSection extends GetView<HomeController> {
               },
               child: CustomCardNormal(
                 title: comic.title,
-                chapter: 'الترتيب'.tr + ' ${comic.rank}',
+                chapter: 'تصفّح'.tr,
                 imageUrl: comic.image,
               ),
             ),
@@ -565,7 +570,13 @@ class KomikCardsSection extends GetView<HomeController> {
                 ),
               ),
               onPressed: () {
-                Get.toNamed(Routes.GENRE_DETAIL, arguments: genre.name);
+                Get.toNamed(
+                  Routes.GENRE_DETAIL,
+                  arguments: {
+                    'value': genre.link.isNotEmpty ? genre.link : genre.name,
+                    'name': genre.name,
+                  },
+                );
               },
             ),
           );
@@ -586,20 +597,6 @@ class KomikCardsSection extends GetView<HomeController> {
             fontWeight: FontWeight.w700,
           ),
         ),
-        if (title == "الأكثر شعبية".tr || title == "الأحدث".tr)
-          GestureDetector(
-            onTap: () {
-              // Navigate to full list
-            },
-            child: Text(
-              "عرض الكل".tr,
-              style: TextStyle(
-                color: AppColors.primary,
-                fontSize: 17,
-                fontWeight: FontWeight.w300,
-              ),
-            ),
-          ),
       ],
     );
   }

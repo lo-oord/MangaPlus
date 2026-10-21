@@ -1,31 +1,137 @@
+import 'package:get/get.dart';
 import 'package:mangaplus/app/data/models/chapter.dart';
 import 'package:mangaplus/app/data/models/comic.dart';
 import 'package:mangaplus/app/data/models/comic_detail.dart';
 import 'package:mangaplus/app/data/models/popular_comic.dart';
+import 'package:mangaplus/app/data/sources/team_x_source.dart';
 
-/// Content-source placeholder. A manga provider will be added in a later phase.
-/// This service intentionally performs no network requests.
+/// Maps Team X's HTML-backed catalog into the application's existing models.
 class ComicService {
-  ComicData _emptyComicData({int page = 1}) => ComicData(
-        comicsList: const [],
-        source: '',
+  ComicService({TeamXSource? source}) : _source = source ?? TeamXSource();
+
+  final TeamXSource _source;
+  static const String sourceName = 'Team X';
+
+  static ComicsList mapComicItem(Map<String, dynamic> item) {
+    final title = '${item['title'] ?? ''}'.trim();
+    final id = '${item['url'] ?? ''}'.trim();
+    final number = item['latest_chapter_number'];
+    final chapterName = '${item['latest_chapter_name'] ?? ''}'.trim();
+    final chapter = chapterName.isNotEmpty
+        ? chapterName
+        : number == null
+            ? 'تصفّح'.tr
+            : '${'الفصل'.tr} $number';
+    return ComicsList(
+      comicId: id,
+      title: title,
+      link: id,
+      image: '${item['image_url'] ?? ''}',
+      type: '${item['type'] ?? 'manga'}',
+      chapter: chapter,
+      rating: '${item['rating'] ?? ''}',
+      status: '${item['status'] ?? ''}',
+    );
+  }
+
+  ComicData _comicData(List<Map<String, dynamic>> items, {int page = 1}) =>
+      ComicData(
+        comicsList: items.map(mapComicItem).toList(growable: false),
+        source: sourceName,
         page: page,
         genres: const [],
         status: '',
-        type: '',
+        type: 'manga',
         orderby: '',
       );
 
-  Future<ComicData> fetchComics() async => _emptyComicData();
+  Future<ComicData> fetchComics({int page = 1}) async =>
+      _comicData(await _source.latest(page: page), page: page);
 
-  Future<ComicDetailData> fetchComicDetail(String comicId) async =>
-      ComicDetailData.fromJson(const {});
+  Future<ComicData> searchComics(String query) async =>
+      _comicData(await _source.search(query));
 
-  Future<ChapterData> fetchChapter(String chapterId) async =>
-      ChapterData.fromJson(const {});
+  Future<PopularKomikData> fetchPopularComics() async {
+    final items = await _source.catalog(page: 1);
+    return PopularKomikData(
+      popularManga: items
+          .map((item) => PopularKomik(
+                comicId: '${item['url'] ?? ''}',
+                rank: 0,
+                title: '${item['title'] ?? ''}',
+                link: '${item['url'] ?? ''}',
+                image: '${item['image_url'] ?? ''}',
+                genres: const [],
+              ))
+          .toList(growable: false),
+      source: '$sourceName catalog',
+    );
+  }
 
-  Future<PopularKomikData> fetchPopularComics() async =>
-      PopularKomikData(popularManga: const [], source: '');
+  Future<ComicDetailData> fetchComicDetail(String comicId) async {
+    final raw = await _source.details(comicId);
+    final rawChapters = raw['chapters'] is List
+        ? (raw['chapters'] as List)
+            .whereType<Map>()
+            .map((entry) => Map<String, dynamic>.from(entry))
+            .toList(growable: false)
+        : const <Map<String, dynamic>>[];
+    final chapters = rawChapters.map((entry) {
+      final url = '${entry['url'] ?? ''}';
+      return Chapter(
+        chapterId: url,
+        title: '${entry['title'] ?? ''}',
+        link: url,
+        releaseTime: _formatDate('${entry['release_date'] ?? ''}'),
+      );
+    }).toList(growable: false);
+    final genres = raw['genres'] is List
+        ? (raw['genres'] as List).map((value) => value.toString()).toList()
+        : <String>[];
+    final detail = ComicDetail(
+      comicId: '${raw['url'] ?? comicId}',
+      coverImage: '${raw['image_url'] ?? ''}',
+      title: '${raw['title'] ?? ''}',
+      nativeTitle: '',
+      genres: genres,
+      releaseYear: '${raw['release_year'] ?? ''}',
+      author: '${raw['artist'] ?? ''}',
+      status: '${raw['status'] ?? ''}',
+      type: '${raw['type'] ?? 'manga'}',
+      totalChapters: '${raw['total_chapters'] ?? chapters.length}',
+      updatedOn: _formatDate('${raw['updated_on'] ?? ''}'),
+      rating: '${raw['rating'] ?? ''}',
+      synopsis: '${raw['synopsis'] ?? raw['description'] ?? ''}',
+      chapters: chapters,
+    );
+    return ComicDetailData(comicDetail: detail, source: sourceName);
+  }
 
-  Future<ComicData> searchComics(String query) async => _emptyComicData();
+  Future<ChapterData> fetchChapter(String chapterId) async {
+    final raw = await _source.chapterImages(chapterId);
+    if (raw == null) throw StateError('Team X did not return chapter data.');
+    final images = (raw['pages'] as List? ?? const [])
+        .map((image) => image.toString())
+        .where((image) => image.isNotEmpty)
+        .toList(growable: false);
+    return ChapterData(
+      chapter: DataChapter(
+        chapterId: chapterId,
+        title: '${raw['title'] ?? ''}',
+        images: images,
+        previousChapter: '${raw['previousChapter'] ?? ''}',
+        nextChapter: raw['nextChapter']?.toString(),
+        chapters: const [],
+      ),
+      source: sourceName,
+    );
+  }
+
+  String _formatDate(String value) {
+    final date = DateTime.tryParse(value.trim());
+    if (date == null) return value;
+    String two(int number) => number.toString().padLeft(2, '0');
+    final local = date.toLocal();
+    return '${local.year}-${two(local.month)}-${two(local.day)}';
+  }
 }

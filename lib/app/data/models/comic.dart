@@ -95,7 +95,7 @@ class ComicsList {
 class Pagination {
   final int currentPage;
   final dynamic prevPage;
-  final int nextPage;
+  final int? nextPage;
 
   Pagination({
     required this.currentPage,
@@ -106,7 +106,9 @@ class Pagination {
   factory Pagination.fromJson(Map<String, dynamic> json) => Pagination(
         currentPage: json["currentPage"],
         prevPage: json["prevPage"] ?? 1,
-        nextPage: json["nextPage"] ?? 1,
+        nextPage: json["nextPage"] == null
+            ? null
+            : int.tryParse(json["nextPage"].toString()),
       );
 
   Map<String, dynamic> toJson() => {

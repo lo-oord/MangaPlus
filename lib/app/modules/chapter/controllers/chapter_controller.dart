@@ -1,18 +1,22 @@
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/data/models/chapter.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
-import 'package:get_storage/get_storage.dart';
+import 'package:mangaplus/app/widgets/app_feedback.dart';
 
 class ChapterController extends GetxController {
   final ComicService _comicService = ComicService();
   final GetStorage _storage = GetStorage();
-  // final args =  as Map<String, dynamic>;
-  final chapterId = Get.arguments['chapterId'];
 
-  var chapterData = ChapterData(
+  late final Map<String, dynamic> arguments =
+      Map<String, dynamic>.from(Get.arguments as Map);
+  late final String chapterId = '${arguments['chapterId'] ?? ''}';
+
+  final chapterData = ChapterData(
     chapter: DataChapter(
       chapterId: '',
+      title: '',
       images: [],
       previousChapter: '',
       nextChapter: null,
@@ -21,50 +25,56 @@ class ChapterController extends GetxController {
     source: '',
   ).obs;
 
-  var isLoading = false.obs;
-  var isOffline = false.obs;
-  var localImages = <String>[].obs;
+  final isLoading = false.obs;
+  final isOffline = false.obs;
+  final hasError = false.obs;
+  final localImages = <String>[].obs;
 
-  Future<void> fetchChapter(String chapterId) async {
+  Future<void> fetchChapter(String id) async {
     try {
       isLoading(true);
+      hasError(false);
       final downloadedChapters =
           _storage.read<List<dynamic>>('downloadedChapters') ?? [];
       final downloadedChapter = downloadedChapters.firstWhereOrNull(
-        (json) => json['chapterId'] == chapterId,
+        (json) => json['chapterId'] == id,
       );
 
       if (downloadedChapter != null) {
         isOffline.value = true;
-        localImages
-            .assignAll(List<String>.from(downloadedChapter['localImagePaths']));
+        localImages.assignAll(
+          List<String>.from(downloadedChapter['localImagePaths'] ?? const []),
+        );
         chapterData.value = ChapterData(
           chapter: DataChapter(
-            chapterId: chapterId,
-            images: localImages,
+            chapterId: id,
+            title: '${downloadedChapter['chapterTitle'] ?? id}',
+            images: localImages.toList(growable: false),
             previousChapter: '',
             nextChapter: null,
-            chapters: [],
+            chapters: const [],
           ),
           source: 'local',
         );
       } else {
         isOffline.value = false;
-        chapterData.value = await _comicService.fetchChapter(chapterId);
+        chapterData.value = await _comicService.fetchChapter(id);
       }
-    } catch (e) {
-      print('Error fetching chapter: $e');
+    } catch (error) {
+      hasError(true);
+      debugPrint('Team X chapter request failed: $error');
     } finally {
       isLoading(false);
     }
   }
 
-  void navigateToChapter(String? chapterId) {
-    if (chapterId != null && chapterId.isNotEmpty) {
+  void navigateToChapter(String? id) {
+    if (id != null && id.isNotEmpty) {
       Get.toNamed(Routes.CHAPTER, arguments: {
-        'chapterId': chapterId,
-        'comicId': Get.arguments['comicId'],
-        'comicTitle': Get.arguments['comicTitle'],
+        'chapterId': id,
+        'comicId': arguments['comicId'],
+        'comicTitle': arguments['comicTitle'],
+        'coverImage': arguments['coverImage'],
       });
     }
   }
@@ -74,22 +84,17 @@ class ChapterController extends GetxController {
 
   void toggleNavigationVisibility() {
     showNavigation.toggle();
-    if (!showNavigation.value) {
-      showChapterList.value = false;
-    }
+    if (!showNavigation.value) showChapterList.value = false;
   }
 
   void toggleChapterListVisibility() {
     showChapterList.toggle();
-    if (showChapterList.value) {
-      showNavigation.value = true;
-    }
+    if (showChapterList.value) showNavigation.value = true;
   }
 
   @override
   void onInit() {
-    fetchChapter(chapterId);
-
     super.onInit();
+    fetchChapter(chapterId);
   }
 }
