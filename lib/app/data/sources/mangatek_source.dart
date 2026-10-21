@@ -93,7 +93,7 @@ class MangaTekSource extends ContentSource {
     return _item(
       '${manga['title'] ?? ''}',
       'mangatek://series?slug=${Uri.encodeQueryComponent(slug)}',
-      '${manga['cover_image'] ?? manga['cover'] ?? ''}',
+      _coverUrl(manga['cover_image'] ?? manga['cover']),
     )..addAll({
         'description': description,
         'synopsis': description,
@@ -212,8 +212,8 @@ class MangaTekSource extends ContentSource {
     final actualSlug = '${data['slug'] ?? slug}';
     final chapters = _chapters(data['MangaChapters'] ?? data['chapters'], actualSlug);
     final description = '${data['description'] ?? data['description_cool'] ?? data['description_sid'] ?? ''}';
-    final cover = '${data['cover_image'] ?? ''}';
-    return _item('${data['title_ar'] ?? data['title'] ?? ''}', 'mangatek://series?slug=${Uri.encodeQueryComponent(actualSlug)}', cover.startsWith('http') ? cover : 'https://api.mangatek.com/$cover')
+    final cover = _coverUrl(data['cover_image'] ?? data['cover']);
+    return _item('${data['title_ar'] ?? data['title'] ?? ''}', 'mangatek://series?slug=${Uri.encodeQueryComponent(actualSlug)}', cover)
       ..addAll({
         'description': description,
         'synopsis': description,
@@ -285,4 +285,12 @@ class MangaTekSource extends ContentSource {
         'cancelled' || 'dropped' => 'cancelled',
         _ => value,
       };
+
+  String _coverUrl(dynamic value) {
+    final raw = '$value'.trim();
+    if (raw.isEmpty || raw == 'null') return '';
+    final parsed = Uri.tryParse(raw);
+    if (parsed?.hasScheme == true) return raw;
+    return mangaAbsoluteUrl('https://api.mangatek.com/', raw);
+  }
 }

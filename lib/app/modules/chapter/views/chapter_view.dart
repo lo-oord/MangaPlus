@@ -499,8 +499,12 @@ class ChapterView extends GetView<ChapterController> {
 
   Map<String, String> _imageHeaders(String imageUrl) {
     final uri = Uri.tryParse(imageUrl);
+    final isMangaCloud = uri?.host == 'cdn.mangacloud.online' ||
+        uri?.host.endsWith('.mangacloud.online') == true;
     return {
-      'Referer': uri == null || uri.host.isEmpty
+      'Referer': isMangaCloud
+          ? 'https://mangacloud.online/'
+          : uri == null || uri.host.isEmpty
           ? 'https://olympustaff.com/'
           : '${uri.scheme}://${uri.host}/',
       'User-Agent':

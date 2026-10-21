@@ -96,7 +96,8 @@ class MangaCloudSource extends ContentSource {
     final fields = _documentFields(response);
     final pages = _stringArray(fields['pages']).where((page) => page.startsWith('http')).toList(growable: false);
     if (pages.isEmpty) throw Exception('MangaCloud: لا توجد صفحات لهذا الفصل.');
-    final number = Uri.tryParse(url)?.queryParameters['number'] ?? chapterPath.split('/').last;
+    final query = Uri.tryParse(url)?.queryParameters ?? const <String, String>{};
+    final number = query['number'] ?? query['chapter'] ?? chapterPath.split('/').last;
     return {
       'title': 'الفصل $number',
       'chapter_number': number,
@@ -146,12 +147,15 @@ class MangaCloudSource extends ContentSource {
       for (final doc in docs.whereType<Map>()) {
         final name = '${doc['name'] ?? ''}';
         final path = name.split('cloudmangas/').last;
-        final chapterNumber = num.tryParse(path.split('/').last) ?? mangaChapterNumber(path) ?? 0;
+        final pathParts = path.split('/');
+        final mangaId = pathParts.isNotEmpty ? pathParts.first : id;
+        final chapterId = pathParts.length >= 3 ? pathParts.last : '';
+        final chapterNumber = num.tryParse(chapterId) ?? mangaChapterNumber(path) ?? 0;
         result.add({
           'title': 'الفصل $chapterNumber',
           'number': chapterNumber,
           'chapter_number': chapterNumber,
-          'url': 'mangacloud://chapter?path=${Uri.encodeQueryComponent(path)}&number=$chapterNumber',
+          'url': 'mangacloud://chapter?id=${Uri.encodeQueryComponent(mangaId)}&chapter=${Uri.encodeQueryComponent(chapterId.isEmpty ? '$chapterNumber' : chapterId)}&number=$chapterNumber',
         });
       }
       token = decoded is Map ? '${decoded['nextPageToken'] ?? ''}' : '';
@@ -228,5 +232,15 @@ class MangaCloudSource extends ContentSource {
     return '';
   }
 
-  String _chapterPath(String value) => Uri.tryParse(value)?.queryParameters['path'] ?? '';
+  String _chapterPath(String value) {
+    final uri = Uri.tryParse(value);
+    if (uri == null) return '';
+    final query = uri.queryParameters;
+    final path = query['path']?.trim() ?? '';
+    if (path.isNotEmpty) return path;
+    final id = query['id']?.trim() ?? '';
+    final chapter = (query['chapter'] ?? query['number'] ?? '').trim();
+    if (id.isEmpty || chapter.isEmpty) return '';
+    return '$id/chapters/$chapter';
+  }
 }
