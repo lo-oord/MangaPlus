@@ -56,11 +56,34 @@ class MangaTekSource extends ContentSource {
   Future<Map<String, dynamic>> details(String url) async {
     final seriesUrl = _seriesUrl(url);
     if (seriesUrl.isEmpty) throw Exception('MangaTek: رابط المانجا غير صالح.');
-    final document = await _document(seriesUrl);
+    Document document;
+    try {
+      document = await _document(seriesUrl);
+    } catch (_) {
+      return _apiDetails(url);
+    }
     final raw = _astro(document, 'manga');
     final manga = _asMap(raw['manga'] ?? raw);
-    if (manga.isEmpty) throw Exception('MangaTek: لم يتم العثور على تفاصيل المانجا.');
     final slug = _slug(seriesUrl);
+    if (manga.isEmpty) {
+      final title = mangaHtmlText(document.querySelector('h1'));
+      final description = mangaHtmlText(document.querySelector('div.grid p, p.text-gray-300, div.description, div.synopsis'));
+      final chapters = _chaptersFromHtml(document, slug);
+      if (title.isEmpty && chapters.isEmpty) {
+        throw Exception('MangaTek: لم يتم العثور على تفاصيل المانجا.');
+      }
+      final cover = mangaImageUrl(document.querySelector('img'), _site);
+      return _item(title, 'mangatek://series?slug=${Uri.encodeQueryComponent(slug)}', cover)
+        ..addAll({
+          'description': description,
+          'synopsis': description,
+          'genres': document.querySelectorAll('div.flex.gap-2 span.text-gray-300').map(mangaHtmlText).where((tag) => tag.isNotEmpty).toList(),
+          'status': mangaHtmlText(document.querySelector('span.border')),
+          'total_chapters': chapters.length,
+          'latest_chapter_number': chapters.isEmpty ? 0 : chapters.first['number'],
+          'chapters': chapters,
+        });
+    }
     final chapters = _chapters(manga['MangaChapters'] ?? manga['chapters'], slug);
     final tags = manga['Tags'] ?? manga['tags'];
     final genres = tags is List
@@ -91,12 +114,15 @@ class MangaTekSource extends ContentSource {
   Future<Map<String, dynamic>?> chapterImages(String url) async {
     final parts = _chapterParts(url);
     if (parts == null) return null;
-    final document = await _document('$_site/reader/${Uri.encodeComponent(parts.$1)}/${Uri.encodeComponent(parts.$2)}');
-    final raw = _astro(document, 'imageUrls');
-    final values = raw['imageUrls'] ?? raw['images'] ?? raw['pages'];
-    final pages = values is List
-        ? values.map((value) => value.toString().trim()).where((value) => value.startsWith('http')).toList(growable: false)
-        : const <String>[];
+    final readerUrl = '$_site/reader/${Uri.encodeComponent(parts.$1)}/${Uri.encodeComponent(parts.$2)}';
+    final document = await _document(readerUrl);
+    // The working MangaPeak parser reads the rendered reader images directly.
+    // MangaTek does not consistently expose an Astro imageUrls payload.
+    final pages = document
+        .querySelectorAll('div.manga-page img[src], div.manga-page img[data-src]')
+        .map((image) => mangaImageUrl(image, _site))
+        .where((image) => image.isNotEmpty)
+        .toList(growable: false);
     if (pages.isEmpty) throw Exception('MangaTek: لم توجد صفحات لهذا الفصل.');
     return {
       'title': 'الفصل ${parts.$2}',
@@ -128,8 +154,22 @@ class MangaTekSource extends ContentSource {
         'date': '${raw['created_at'] ?? raw['createdAt'] ?? ''}',
         'url': 'mangatek://chapter?slug=${Uri.encodeQueryComponent(slug)}&number=${Uri.encodeQueryComponent(number)}',
       };
-    }).where((entry) => entry['number'].toString().isNotEmpty).toList(growable: false);
+      }).where((entry) => entry['number'].toString().isNotEmpty).toList(growable: false);
   }
+
+  List<Map<String, dynamic>> _chaptersFromHtml(Document document, String slug) =>
+      document.querySelectorAll('div.manga-chapter a, div.grid a[href^="/reader/"]').map((element) {
+        final href = element.attributes['href'] ?? '';
+        final title = mangaHtmlText(element.querySelector('h3'));
+        final number = mangaChapterNumber(title.isEmpty ? href : title);
+        if (href.isEmpty || number == null) return <String, dynamic>{};
+        return <String, dynamic>{
+          'title': title.isEmpty ? 'الفصل $number' : title,
+          'number': number,
+          'chapter_number': number,
+          'url': 'mangatek://chapter?slug=${Uri.encodeQueryComponent(slug)}&number=${Uri.encodeQueryComponent('$number')}',
+        };
+      }).where((entry) => entry.isNotEmpty).toList(growable: false);
 
   Future<Document> _document(String url) async {
     final response = await _client.get(Uri.parse(url), headers: const {
@@ -141,6 +181,60 @@ class MangaTekSource extends ContentSource {
       throw Exception('MangaTek: فشل طلب المصدر (${response.statusCode}).');
     }
     return html_parser.parse(utf8.decode(response.bodyBytes, allowMalformed: true));
+  }
+
+  Future<Map<String, dynamic>> _apiDetails(String value) async {
+    final uri = Uri.tryParse(value);
+    final slug = uri?.queryParameters['slug'] ?? _slug(_seriesUrl(value));
+    var data = <String, dynamic>{};
+    final id = uri?.queryParameters['id'];
+    if (id != null && id.isNotEmpty) {
+      data = _asMap((await _apiGet('/api/manga/$id'))['data']);
+    } else {
+      final response = await _apiGet('/api/manga', query: {'search': slug, 'page': '1', 'limit': '20'});
+      final items = _asMap(response['data'])['mangas'];
+      if (items is List) {
+        for (final item in items.whereType<Map>()) {
+          if ('${item['slug'] ?? ''}' == slug) {
+            data = Map<String, dynamic>.from(item);
+            break;
+          }
+        }
+        if (data.isEmpty && items.isNotEmpty && items.first is Map) {
+          data = Map<String, dynamic>.from(items.first as Map);
+        }
+      }
+      if (data.isNotEmpty && data['id'] != null) {
+        data = _asMap((await _apiGet('/api/manga/${data['id']}'))['data']);
+      }
+    }
+    if (data.isEmpty) throw Exception('MangaTek: لم يتم العثور على تفاصيل المانجا.');
+    final actualSlug = '${data['slug'] ?? slug}';
+    final chapters = _chapters(data['MangaChapters'] ?? data['chapters'], actualSlug);
+    final description = '${data['description'] ?? data['description_cool'] ?? data['description_sid'] ?? ''}';
+    final cover = '${data['cover_image'] ?? ''}';
+    return _item('${data['title_ar'] ?? data['title'] ?? ''}', 'mangatek://series?slug=${Uri.encodeQueryComponent(actualSlug)}', cover.startsWith('http') ? cover : 'https://api.mangatek.com/$cover')
+      ..addAll({
+        'description': description,
+        'synopsis': description,
+        'genres': (data['Tags'] is List ? data['Tags'] : const []).whereType<Map>().map((tag) => '${tag['name'] ?? ''}').where((tag) => tag.isNotEmpty).toList(),
+        'author': '${data['author'] ?? ''}',
+        'status': _status('${data['status'] ?? ''}'),
+        'rating': SourceValues.rating(data['rating']),
+        'total_chapters': chapters.length,
+        'latest_chapter_number': chapters.isEmpty ? 0 : chapters.first['number'],
+        'chapters': chapters,
+      });
+  }
+
+  Future<Map<String, dynamic>> _apiGet(String path, {Map<String, String>? query}) async {
+    final uri = Uri.parse('https://api.mangatek.com$path').replace(queryParameters: query);
+    final response = await _client.get(uri, headers: const {'Accept': 'application/json', 'User-Agent': 'MangaPlus/1.1'}).timeout(const Duration(seconds: 25));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('MangaTek API: فشل الطلب (${response.statusCode}).');
+    }
+    final decoded = jsonDecode(utf8.decode(response.bodyBytes, allowMalformed: true));
+    return decoded is Map ? Map<String, dynamic>.from(decoded) : <String, dynamic>{};
   }
 
   Map<String, dynamic> _astro(Document document, String key) {
