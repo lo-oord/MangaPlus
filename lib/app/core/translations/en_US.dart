@@ -239,7 +239,6 @@ const Map<String, String> enUS = {
   'ابحث عن المانجا': 'Search manga',
   'ابدأ البحث': 'Start searching',
   'جارٍ تحميل المحتوى': 'Loading content',
-  'منذ لحظات': 'Just now',
   'منذ دقيقة': '1 minute ago',
   'منذ @value دقائق': '@value minutes ago',
   'منذ ساعة': '1 hour ago',
