@@ -98,7 +98,7 @@ class CustomCardNormal extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    chapter,
+                    'الفصل@value'.trParams({'value': chapter}),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(

@@ -105,18 +105,6 @@ class ProfileView extends GetView<ProfileController> {
             ],
           ),
           const SizedBox(height: 24),
-          _sectionTitle('حول التطبيق'.tr),
-          const SizedBox(height: 10),
-          _settingsCard(
-            children: [
-              _navigationRow(
-                Icons.info_outline_rounded,
-                'حول التطبيق'.tr,
-                _showAboutDialog,
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
           _sectionTitle('مكتبتي'.tr),
           const SizedBox(height: 10),
           _settingsCard(
@@ -131,6 +119,18 @@ class ProfileView extends GetView<ProfileController> {
                 Icons.download_outlined,
                 'التنزيلات'.tr,
                 () => Get.toNamed(Routes.DOWNLOAD),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _sectionTitle('حول التطبيق'.tr),
+          const SizedBox(height: 10),
+          _settingsCard(
+            children: [
+              _navigationRow(
+                Icons.info_outline_rounded,
+                'حول التطبيق'.tr,
+                _showAboutDialog,
               ),
             ],
           ),

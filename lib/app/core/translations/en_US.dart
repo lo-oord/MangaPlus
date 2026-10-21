@@ -285,5 +285,6 @@ const Map<String, String> enUS = {
   'لا توجد اقتراحات': 'No suggestions available',
   'غير محدد': 'Not specified',
   'عدد الفصول: @value': 'Chapters: @value',
+  'الفصل@value': 'Chapter@value',
   'نظام': 'System',
 };
