@@ -10,7 +10,9 @@ class AuthService {
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    serverClientId: '479859476328-67vu8i5cp6rttk5p6sstutjuq5kv2au5.apps.googleusercontent.com',
+  );
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
   User? get currentUser => _auth.currentUser;

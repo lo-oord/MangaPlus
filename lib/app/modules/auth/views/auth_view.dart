@@ -220,5 +220,39 @@ class AuthView extends GetView<AuthController> {
 class _GoogleMark extends StatelessWidget {
   const _GoogleMark();
   @override
-  Widget build(BuildContext context) => const Text('G', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: Color(0xff4285F4)));
+  Widget build(BuildContext context) => const SizedBox(width: 22, height: 22, child: CustomPaint(painter: _GoogleMarkPainter()));
+}
+
+class _GoogleMarkPainter extends CustomPainter {
+  const _GoogleMarkPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width * .36;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    const stroke = 3.7;
+    final segments = <(Color, double, double)>[
+      (Color(0xff4285F4), -0.20, 1.45),
+      (Color(0xff34A853), 1.25, 1.00),
+      (Color(0xffFBBC05), 2.25, 0.82),
+      (Color(0xffEA4335), 3.07, 1.33),
+    ];
+    for (final segment in segments) {
+      final paint = Paint()
+        ..color = segment.$1
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke
+        ..strokeCap = StrokeCap.round;
+      canvas.drawArc(rect, segment.$2, segment.$3, false, paint);
+    }
+    final barPaint = Paint()
+      ..color = const Color(0xff4285F4)
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(Offset(center.dx, center.dy), Offset(size.width - 2, center.dy), barPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _GoogleMarkPainter oldDelegate) => false;
 }

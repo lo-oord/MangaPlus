@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "479859476328",
+    "project_id": "mangaplus-c98f0",
+    "storage_bucket": "mangaplus-c98f0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:479859476328:android:be0325ec9db14f11e478dd",
+        "android_client_info": {
+          "package_name": "com.mangaplus.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "479859476328-nuk1lcun8kfl6n4lsc6lmm67sh13inur.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.mangaplus.app",
+            "certificate_hash": "5afa95b0f82984e9168ad7d2061c7113bdaf50f0"
+          }
+        },
+        {
+          "client_id": "479859476328-67vu8i5cp6rttk5p6sstutjuq5kv2au5.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA-yhgkPpHWOFqg4ha--UCwj6oYQ10i7Bk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "479859476328-67vu8i5cp6rttk5p6sstutjuq5kv2au5.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
