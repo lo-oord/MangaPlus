@@ -13,6 +13,7 @@ class UserProfile {
     this.gender = '',
     this.bio = '',
     this.photoUrl = '',
+    this.photoData = '',
     this.isGuest = false,
     this.emailVerified = false,
     this.isVerified = false,
@@ -32,6 +33,7 @@ class UserProfile {
   final String gender;
   final String bio;
   final String photoUrl;
+  final String photoData;
   final bool isGuest;
   final bool emailVerified;
   final bool isVerified;
@@ -53,6 +55,7 @@ class UserProfile {
       gender: '${data['gender'] ?? ''}',
       bio: '${data['bio'] ?? ''}',
       photoUrl: '${data['photoUrl'] ?? ''}',
+      photoData: '${data['photoData'] ?? ''}',
       isGuest: data['isGuest'] == true,
       emailVerified: data['emailVerified'] == true,
       isVerified: data['isVerified'] == true,
@@ -74,6 +77,7 @@ class UserProfile {
         'gender': gender,
         'bio': bio,
         'photoUrl': photoUrl,
+        'photoData': photoData,
         'isGuest': isGuest,
         'emailVerified': emailVerified,
         'isVerified': isVerified,
@@ -89,6 +93,7 @@ class UserProfile {
     UserPrivacy? privacy,
     bool? emailVerified,
     String? photoUrl,
+    String? photoData,
     bool? syncFavorites,
   }) => UserProfile(
         uid: uid,
@@ -102,6 +107,7 @@ class UserProfile {
         gender: gender,
         bio: bio ?? this.bio,
         photoUrl: photoUrl ?? this.photoUrl,
+        photoData: photoData ?? this.photoData,
         isGuest: isGuest,
         emailVerified: emailVerified ?? this.emailVerified,
         isVerified: isVerified,

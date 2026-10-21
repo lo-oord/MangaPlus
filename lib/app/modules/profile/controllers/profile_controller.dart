@@ -1,5 +1,4 @@
-import 'dart:io';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
@@ -74,16 +73,23 @@ class ProfileController extends GetxController {
       return;
     }
     try {
-      final selected = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85, maxWidth: 1200);
+      final selected = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 55,
+        maxWidth: 512,
+        maxHeight: 512,
+      );
       if (selected == null) return;
       savingAccount.value = true;
-      final ref = FirebaseStorage.instance.ref('userProfiles/${user.uid}/avatar');
-      await ref.putFile(File(selected.path), SettableMetadata(contentType: _contentType(selected.name)));
-      final url = await ref.getDownloadURL();
-      accountProfile.value = await auth.updatePhotoUrl(url);
+      final bytes = await selected.readAsBytes();
+      if (bytes.isEmpty || bytes.length > 600 * 1024) {
+        throw Exception('الصورة أكبر من الحد المسموح. اختر صورة أصغر.');
+      }
+      final photoData = base64Encode(bytes);
+      accountProfile.value = await auth.updatePhotoData(photoData);
       _message('تم تحديث الصورة'.tr, 'تم حفظ صورة الملف الشخصي'.tr);
     } catch (error) {
-      _message('تعذر رفع الصورة'.tr, error.toString());
+      _message('تعذر حفظ الصورة'.tr, error.toString());
     } finally { savingAccount.value = false; }
   }
 
@@ -111,12 +117,6 @@ class ProfileController extends GetxController {
     } finally { savingAccount.value = false; }
   }
 
-  String _contentType(String name) {
-    final lower = name.toLowerCase();
-    if (lower.endsWith('.png')) return 'image/png';
-    if (lower.endsWith('.webp')) return 'image/webp';
-    return 'image/jpeg';
-  }
 
   Future<void> setFavoritesSync(bool enabled) async {
     final auth = _auth;

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -97,8 +98,9 @@ class ProfileView extends GetView<ProfileController> {
           Container(padding: EdgeInsets.all(account.isVerified ? 3 : 0), decoration: BoxDecoration(shape: BoxShape.circle,
             border: account.isVerified ? Border.all(color: const Color(0xffD4A72C), width: 2.5) : null),
             child: CircleAvatar(radius: 43, backgroundColor: AppColors.primary.withValues(alpha: .15),
-              backgroundImage: account.photoUrl.isEmpty ? null : CachedNetworkImageProvider(account.photoUrl),
-              child: account.photoUrl.isEmpty ? Icon(Icons.person_rounded, size: 42, color: AppColors.primary) : null)),
+              backgroundImage: _avatarProvider(account),
+              child: account.photoData.isEmpty && account.photoUrl.isEmpty
+                  ? Icon(Icons.person_rounded, size: 42, color: AppColors.primary) : null)),
           Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: AppColors.primary, shape: BoxShape.circle, border: Border.all(color: AppColors.card, width: 2)),
             child: const Icon(Icons.camera_alt_rounded, size: 15, color: Colors.white)),
         ])),
@@ -133,7 +135,7 @@ class ProfileView extends GetView<ProfileController> {
     Divider(height: 1, color: AppColors.divider),
     _infoRow(account.emailVerified ? Icons.mark_email_read_outlined : Icons.mark_email_unread_outlined, 'حالة البريد'.tr,
       account.emailVerified ? 'البريد موثق'.tr : 'البريد غير موثق'.tr,
-      trailing: account.emailVerified ? const Icon(Icons.verified_rounded, color: Color(0xffD4A72C), size: 19) : null),
+      trailing: account.emailVerified ? const Icon(Icons.verified_rounded, color: Color(0xff2EAD68), size: 19) : null),
     if (account.isVerified) ...[Divider(height: 1, color: AppColors.divider), _infoRow(Icons.verified_rounded, 'حالة التوثيق'.tr, 'حساب موثق رسميًا'.tr, trailing: _verifiedBadge())],
   ]);
 
@@ -155,6 +157,17 @@ class ProfileView extends GetView<ProfileController> {
   Widget _infoRow(IconData icon, String title, String value, {Widget? trailing}) => ListTile(
     leading: Icon(icon, color: AppColors.primary), title: Text(title, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
     subtitle: Text(value, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)), trailing: trailing);
+
+  ImageProvider? _avatarProvider(UserProfile account) {
+    if (account.photoData.isNotEmpty) {
+      try {
+        return MemoryImage(base64Decode(account.photoData));
+      } catch (_) {
+        // بيانات الصورة القديمة أو غير الصالحة لا تمنع عرض رابط صورة احتياطي.
+      }
+    }
+    return account.photoUrl.isEmpty ? null : CachedNetworkImageProvider(account.photoUrl);
+  }
 
   Future<void> _changePassword() async {
     final oldPassword = TextEditingController(); final newPassword = TextEditingController(); final formKey = GlobalKey<FormState>();

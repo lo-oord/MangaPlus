@@ -175,12 +175,18 @@ class AuthService {
     await _auth.signOut();
   }
 
-  Future<UserProfile> updatePhotoUrl(String photoUrl) async {
+  Future<UserProfile> updatePhotoData(String photoData) async {
     final user = currentUser;
     if (user == null || user.isAnonymous) {
       throw const AuthException('يجب تسجيل الدخول بحساب دائم لتعديل الصورة.');
     }
-    await _profiles.doc(user.uid).update({'photoUrl': photoUrl});
+    if (photoData.length > 850000) {
+      throw const AuthException('الصورة أكبر من الحد المسموح. اختر صورة أصغر.');
+    }
+    await _profiles.doc(user.uid).update({
+      'photoData': photoData,
+      'photoUrl': '',
+    });
     return (await loadProfile(user.uid))!;
   }
 
