@@ -18,7 +18,7 @@ service cloud.firestore {
               && request.resource.data.isVerified == false)
             || request.resource.data.isVerified == resource.data.isVerified)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'displayName', 'bio', 'privacy', 'photoUrl', 'countryCode', 'countryName'
+          'displayName', 'bio', 'gender', 'privacy', 'photoUrl', 'countryCode', 'countryName'
         ]);
       allow delete: if request.auth != null && request.auth.uid == uid;
 

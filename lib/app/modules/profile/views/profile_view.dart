@@ -215,19 +215,60 @@ class ProfileView extends GetView<ProfileController> {
                 ),
                 const SizedBox(height: 4),
                 Text(account?.username.isNotEmpty == true ? '@${account!.username}' : (user == null ? 'سجّل الدخول لمزامنة القراءة والمفضلة' : 'إدارة الحساب والمزامنة'), style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                if (account != null && !account.isGuest) ...[
+                  const SizedBox(height: 5),
+                  InkWell(
+                    onTap: controller.savingAccount.value ? null : () => _showGenderDialog(account!.gender),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text(account!.gender.isEmpty ? 'اختيار الجنس' : _genderLabel(account.gender), style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w700)),
+                        const SizedBox(width: 5),
+                        Icon(Icons.edit_outlined, size: 13, color: AppColors.primary),
+                      ]),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
           if (user != null && !user.isAnonymous)
             TextButton(onPressed: controller.signOut, child: const Text('خروج'))
           else
-            TextButton(onPressed: () => Get.toNamed(Routes.AUTH), child: Text(user == null ? 'دخول' : 'ترقية')),
+            TextButton(onPressed: controller.openAuth, child: Text(user == null ? 'دخول' : 'ترقية')),
         ],
       ),
     );
   }
 
   Widget _verifiedBadge() => const Icon(Icons.verified_rounded, size: 17, color: Color(0xff3e8cf5));
+
+  String _genderLabel(String gender) => gender == 'female' ? '♀️ أنثى' : '♂️ ذكر';
+
+  void _showGenderDialog(String current) {
+    var selected = current;
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: AppColors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: const Text('الجنس'),
+        content: StatefulBuilder(builder: (context, setState) => DropdownButtonFormField<String>(
+              value: selected.isEmpty ? null : selected,
+              decoration: const InputDecoration(labelText: 'اختر الجنس'),
+              items: const [
+                DropdownMenuItem(value: 'male', child: Text('♂️ ذكر')),
+                DropdownMenuItem(value: 'female', child: Text('♀️ أنثى')),
+              ],
+              onChanged: (value) => setState(() => selected = value ?? selected),
+            )),
+        actions: [
+          TextButton(onPressed: Get.back, child: const Text('إلغاء')),
+          FilledButton(onPressed: () async { if (selected.isNotEmpty) { Get.back(); await controller.updateGender(selected); } }, child: const Text('حفظ')),
+        ],
+      ),
+    );
+  }
 
   Widget _privacyCard() {
     final privacy = controller.accountProfile.value?.privacy;

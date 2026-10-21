@@ -10,6 +10,7 @@ class UserProfile {
     required this.countryName,
     required this.createdAt,
     this.birthDate,
+    this.gender = '',
     this.bio = '',
     this.photoUrl = '',
     this.isGuest = false,
@@ -26,6 +27,7 @@ class UserProfile {
   final String countryName;
   final DateTime createdAt;
   final DateTime? birthDate;
+  final String gender;
   final String bio;
   final String photoUrl;
   final bool isGuest;
@@ -44,6 +46,7 @@ class UserProfile {
       countryName: '${data['countryName'] ?? ''}',
       createdAt: _date(data['createdAt']) ?? DateTime.now(),
       birthDate: _date(data['birthDate']),
+      gender: '${data['gender'] ?? ''}',
       bio: '${data['bio'] ?? ''}',
       photoUrl: '${data['photoUrl'] ?? ''}',
       isGuest: data['isGuest'] == true,
@@ -62,6 +65,7 @@ class UserProfile {
         'countryName': countryName,
         'createdAt': Timestamp.fromDate(createdAt),
         'birthDate': birthDate == null ? null : Timestamp.fromDate(birthDate!),
+        'gender': gender,
         'bio': bio,
         'photoUrl': photoUrl,
         'isGuest': isGuest,
@@ -85,6 +89,7 @@ class UserProfile {
         countryName: countryName,
         createdAt: createdAt,
         birthDate: birthDate,
+        gender: gender,
         bio: bio ?? this.bio,
         photoUrl: photoUrl,
         isGuest: isGuest,

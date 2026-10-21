@@ -5,6 +5,7 @@ import 'package:mangaplus/app/core/theme/theme_mode_preference.dart';
 import 'package:mangaplus/app/data/services/notification_presentation.dart';
 import 'package:mangaplus/app/data/models/user_profile.dart';
 import 'package:mangaplus/app/data/services/auth_service.dart';
+import 'package:mangaplus/app/routes/app_pages.dart';
 
 class ProfileController extends GetxController {
   final GetStorage _storage = GetStorage();
@@ -41,6 +42,11 @@ class ProfileController extends GetxController {
 
   Future<void> refreshAccount() => _loadAccount();
 
+  Future<void> openAuth() async {
+    await Get.toNamed(Routes.AUTH);
+    await refreshAccount();
+  }
+
   Future<void> updatePrivacy(UserPrivacy privacy) async {
     final auth = _auth;
     final current = accountProfile.value;
@@ -50,7 +56,25 @@ class ProfileController extends GetxController {
       accountProfile.value = await auth.updateProfile(
         displayName: current.displayName,
         bio: current.bio,
+        gender: current.gender,
         privacy: privacy,
+      );
+    } finally {
+      savingAccount.value = false;
+    }
+  }
+
+  Future<void> updateGender(String gender) async {
+    final auth = _auth;
+    final current = accountProfile.value;
+    if (auth == null || current == null || current.isGuest) return;
+    savingAccount.value = true;
+    try {
+      accountProfile.value = await auth.updateProfile(
+        displayName: current.displayName,
+        bio: current.bio,
+        gender: gender,
+        privacy: current.privacy,
       );
     } finally {
       savingAccount.value = false;

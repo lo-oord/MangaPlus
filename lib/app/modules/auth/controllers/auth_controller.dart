@@ -18,10 +18,12 @@ class AuthController extends GetxController {
   final bio = TextEditingController();
   final isRegister = false.obs;
   final isCompletingGoogle = false.obs;
+  final registrationStep = 0.obs;
   final isBusy = false.obs;
   final obscurePassword = true.obs;
   final obscureConfirmPassword = true.obs;
   final selectedCountry = Rxn<ArabCountry>();
+  final selectedGender = Rxn<String>();
   final birthDate = Rxn<DateTime>();
   final profile = Rxn<UserProfile>();
   final emailVerificationRequired = false.obs;
@@ -94,7 +96,45 @@ class AuthController extends GetxController {
   void setRegisterMode(bool value) {
     isCompletingGoogle.value = false;
     isRegister.value = value;
+    registrationStep.value = 0;
     _onUsernameChanged();
+  }
+
+  bool validateRegistrationStep() {
+    if (registrationStep.value == 0) {
+      if (displayName.text.trim().length < 2) {
+        _message('الاسم مطلوب', 'أدخل اسمًا ظاهرًا من حرفين على الأقل.');
+        return false;
+      }
+      try {
+        AuthService.validateUsername(AuthService.normalizeUsername(username.text));
+      } catch (error) {
+        _message('اسم المستخدم غير صالح', '$error');
+        return false;
+      }
+      return _usernameReady();
+    }
+    if (registrationStep.value == 1) {
+      if (!GetUtils.isEmail(email.text.trim())) {
+        _message('تحقق من البريد', 'أدخل بريدًا إلكترونيًا صالحًا.');
+        return false;
+      }
+      if (password.text.length < 8 || password.text != confirmPassword.text) {
+        _message('تحقق من كلمة المرور', 'استخدم 8 أحرف على الأقل وتأكد من التطابق.');
+        return false;
+      }
+    }
+    return true;
+  }
+
+  void nextRegistrationStep() {
+    if (validateRegistrationStep() && registrationStep.value < 2) {
+      registrationStep.value++;
+    }
+  }
+
+  void previousRegistrationStep() {
+    if (registrationStep.value > 0) registrationStep.value--;
   }
 
   Future<void> submit() async {
@@ -110,6 +150,7 @@ class AuthController extends GetxController {
           countryCode: country.code,
           countryName: country.name,
           birthDate: birthDate.value!,
+          gender: selectedGender.value!,
         );
         Get.back(result: profile.value);
       } else if (isRegister.value) {
@@ -120,6 +161,7 @@ class AuthController extends GetxController {
             countryCode: country.code,
             countryName: country.name,
             birthDate: birthDate.value!,
+            gender: selectedGender.value!,
           );
           Get.back(result: profile.value);
         } else {
@@ -131,6 +173,7 @@ class AuthController extends GetxController {
             countryCode: country.code,
             countryName: country.name,
             birthDate: birthDate.value!,
+            gender: selectedGender.value!,
           );
           emailVerificationRequired.value = true;
           _message('تم إنشاء الحساب', 'أرسلنا رسالة تحقق إلى بريدك الإلكتروني.');
@@ -157,11 +200,12 @@ class AuthController extends GetxController {
     try {
       final result = await service.signInGoogle();
       if (result == null) return;
-      if (result.username.isEmpty || result.countryCode.isEmpty) {
+      if (result.username.isEmpty || result.countryCode.isEmpty || result.gender.isEmpty) {
         profile.value = result;
         isCompletingGoogle.value = true;
         isRegister.value = false;
         displayName.text = result.displayName;
+        selectedGender.value = result.gender.isEmpty ? null : result.gender;
         _message('أكمل بياناتك', 'أضف اسم المستخدم والدولة وتاريخ الميلاد لإكمال الحساب.');
       } else {
         profile.value = result;
@@ -255,8 +299,8 @@ class AuthController extends GetxController {
         return false;
       }
       if (!_usernameReady()) return false;
-      if (selectedCountry.value == null || birthDate.value == null) {
-        _message('بيانات الحساب ناقصة', 'اختر الدولة وتاريخ الميلاد.');
+      if (selectedCountry.value == null || birthDate.value == null || selectedGender.value == null) {
+        _message('بيانات الحساب ناقصة', 'اختر الدولة وتاريخ الميلاد والجنس.');
         return false;
       }
       return true;
@@ -285,8 +329,8 @@ class AuthController extends GetxController {
       _message('كلمتا المرور غير متطابقتين', 'أعد كتابة كلمة المرور نفسها.');
       return false;
     }
-    if (selectedCountry.value == null || birthDate.value == null) {
-      _message('بيانات الحساب ناقصة', 'اختر الدولة وتاريخ الميلاد.');
+    if (selectedCountry.value == null || birthDate.value == null || selectedGender.value == null) {
+      _message('بيانات الحساب ناقصة', 'اختر الدولة وتاريخ الميلاد والجنس.');
       return false;
     }
     if (birthDate.value!.isAfter(DateTime.now())) {

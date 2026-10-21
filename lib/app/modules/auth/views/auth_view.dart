@@ -43,17 +43,12 @@ class AuthView extends GetView<AuthController> {
           Obx(() => controller.isCompletingGoogle.value
               ? _googleCompletionFields()
               : Column(children: [
-                  if (controller.isRegister.value) _registrationFields(),
-                  _field(controller.email, 'البريد الإلكتروني', Icons.email_outlined, keyboard: TextInputType.emailAddress),
-                  const SizedBox(height: 13),
-                  _passwordField(controller.password, 'كلمة المرور', controller.obscurePassword),
-                  if (!controller.isRegister.value) Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(onPressed: _showResetPasswordDialog, child: const Text('نسيت كلمة المرور؟')),
-                  ),
+                  if (controller.isRegister.value) _registrationWizard() else _loginFields(),
                 ])),
           const SizedBox(height: 12),
-          Obx(() => FilledButton(
+          Obx(() => controller.isRegister.value && !controller.isCompletingGoogle.value
+              ? const SizedBox.shrink()
+              : FilledButton(
                 onPressed: controller.isBusy.value ? null : controller.submit,
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(52),
@@ -89,6 +84,56 @@ class AuthView extends GetView<AuthController> {
         ],
       );
 
+  Widget _loginFields() => Column(
+        children: [
+          _field(controller.email, 'البريد الإلكتروني', Icons.email_outlined, keyboard: TextInputType.emailAddress),
+          const SizedBox(height: 13),
+          _passwordField(controller.password, 'كلمة المرور', controller.obscurePassword),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(onPressed: _showResetPasswordDialog, child: const Text('نسيت كلمة المرور؟')),
+          ),
+        ],
+      );
+
+  Widget _registrationWizard() => Obx(() {
+        final step = controller.registrationStep.value;
+        final labels = ['بياناتك', 'الأمان', 'المعلومات'];
+        return Column(
+          children: [
+            Row(
+              children: List.generate(labels.length, (index) => Expanded(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 260),
+                  margin: EdgeInsetsDirectional.only(end: index == labels.length - 1 ? 0 : 6),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(color: index <= step ? AppColors.primary : AppColors.divider, borderRadius: BorderRadius.circular(9)),
+                  child: Text(labels[index], textAlign: TextAlign.center, style: TextStyle(color: index <= step ? Colors.white : AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700)),
+                ),
+              )),
+            ),
+            const SizedBox(height: 16),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 280),
+              transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: SlideTransition(position: Tween<Offset>(begin: const Offset(.08, 0), end: Offset.zero).animate(animation), child: child)),
+              child: KeyedSubtree(key: ValueKey(step), child: _registrationStepFields(step)),
+            ),
+            const SizedBox(height: 16),
+            Row(children: [
+              if (step > 0) Expanded(child: OutlinedButton(onPressed: controller.previousRegistrationStep, child: const Text('السابق'))),
+              if (step > 0) const SizedBox(width: 10),
+              Expanded(child: FilledButton(onPressed: controller.isBusy.value ? null : (step == 2 ? controller.submit : controller.nextRegistrationStep), child: Text(step == 2 ? 'إنشاء الحساب' : 'التالي'))),
+            ]),
+          ],
+        );
+      });
+
+  Widget _registrationStepFields(int step) => switch (step) {
+        0 => Column(children: [_field(controller.displayName, 'الاسم الظاهر', Icons.badge_outlined), const SizedBox(height: 13), _usernameField()]),
+        1 => Column(children: [_field(controller.email, 'البريد الإلكتروني', Icons.email_outlined, keyboard: TextInputType.emailAddress), const SizedBox(height: 13), _passwordField(controller.password, 'كلمة المرور', controller.obscurePassword), const SizedBox(height: 13), _passwordField(controller.confirmPassword, 'تأكيد كلمة المرور', controller.obscureConfirmPassword)]),
+        _ => Column(children: [_countryField(), const SizedBox(height: 13), _genderField(), const SizedBox(height: 13), _birthDateField()]),
+      };
+
   Widget _registrationFields() => Column(
         children: [
           _field(controller.displayName, 'الاسم الظاهر', Icons.badge_outlined),
@@ -98,6 +143,8 @@ class AuthView extends GetView<AuthController> {
           _passwordField(controller.confirmPassword, 'تأكيد كلمة المرور', controller.obscureConfirmPassword),
           const SizedBox(height: 13),
           _countryField(),
+          const SizedBox(height: 13),
+          _genderField(),
           const SizedBox(height: 13),
           _birthDateField(),
           const SizedBox(height: 13),
@@ -136,6 +183,8 @@ class AuthView extends GetView<AuthController> {
           _usernameField(),
           const SizedBox(height: 13),
           _countryField(),
+          const SizedBox(height: 13),
+          _genderField(),
           const SizedBox(height: 13),
           _birthDateField(),
           const SizedBox(height: 13),
@@ -181,6 +230,16 @@ class AuthView extends GetView<AuthController> {
         items: AuthController.countries.map((country) => DropdownMenuItem(value: country, child: Text(country.name))).toList(),
         onChanged: (value) => controller.selectedCountry.value = value,
       );
+
+  Widget _genderField() => Obx(() => DropdownButtonFormField<String>(
+        value: controller.selectedGender.value,
+        decoration: _decoration('الجنس', Icons.wc_rounded),
+        items: const [
+          DropdownMenuItem(value: 'male', child: Text('♂️ ذكر')),
+          DropdownMenuItem(value: 'female', child: Text('♀️ أنثى')),
+        ],
+        onChanged: (value) => controller.selectedGender.value = value,
+      ));
 
   Widget _birthDateField() => InkWell(
         onTap: () async {

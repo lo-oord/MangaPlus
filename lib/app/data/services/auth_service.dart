@@ -40,6 +40,7 @@ class AuthService {
     required String countryCode,
     required String countryName,
     required DateTime birthDate,
+    required String gender,
   }) async {
     final normalized = normalizeUsername(username);
     validateUsername(normalized);
@@ -57,6 +58,7 @@ class AuthService {
         countryCode: countryCode,
         countryName: countryName,
         birthDate: birthDate,
+        gender: gender,
       );
       await user.sendEmailVerification();
       return (await loadProfile(user.uid))!;
@@ -110,6 +112,7 @@ class AuthService {
     required String countryCode,
     required String countryName,
     required DateTime birthDate,
+    required String gender,
   }) async {
     final user = currentUser;
     if (user == null) throw const AuthException('انتهت جلسة التسجيل.');
@@ -124,6 +127,7 @@ class AuthService {
       countryCode: countryCode,
       countryName: countryName,
       birthDate: birthDate,
+      gender: gender,
     );
     return (await loadProfile(user.uid))!;
   }
@@ -169,6 +173,7 @@ class AuthService {
   Future<UserProfile> updateProfile({
     required String displayName,
     required String bio,
+    required String gender,
     required UserPrivacy privacy,
   }) async {
     final user = currentUser;
@@ -178,6 +183,7 @@ class AuthService {
     await _profiles.doc(user.uid).update({
       'displayName': displayName.trim(),
       'bio': bio.trim(),
+      'gender': gender,
       'privacy': privacy.toMap(),
     });
     return (await loadProfile(user.uid))!;
@@ -195,6 +201,7 @@ class AuthService {
     required String countryCode,
     required String countryName,
     required DateTime birthDate,
+    required String gender,
   }) async {
     final usernameRef = _firestore.collection('usernames').doc(normalized);
     final profileRef = _profiles.doc(user.uid);
@@ -212,6 +219,7 @@ class AuthService {
         countryName: countryName,
         createdAt: DateTime.now(),
         birthDate: birthDate,
+        gender: gender,
         emailVerified: user.emailVerified,
         isGuest: user.isAnonymous,
       );
