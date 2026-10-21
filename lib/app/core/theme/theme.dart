@@ -3,30 +3,30 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 
 class AppTheme {
   // Warna Utama
-  static const Color _primaryColorLight = Color(0xFF55758C);
-  static const Color _primaryColorDark = Color(0xff6F8FA1);
+  static const Color _primaryColorLight = Color(0xFF3E73B5);
+  static const Color _primaryColorDark = Color(0xff6A9BD2);
 
   // Warna Aksen
-  static const Color _accentColorLight = Color(0xFF7895A5);
-  static const Color _accentColorDark = Color(0xff8AA8B7);
+  static const Color _accentColorLight = Color(0xFF6A9BD2);
+  static const Color _accentColorDark = Color(0xff8CB4E4);
 
   // Background
-  static const Color _backgroundLight = Colors.white;
-  static const Color _backgroundDark = Color(0xff171B20);
+  static const Color _backgroundLight = Color(0xFFF8FAFD);
+  static const Color _backgroundDark = Color(0xff111A28);
 
   // Surface
-  static const Color _surfaceLight = Color(0xFFF5F5F5);
-  static const Color _surfaceDark = Color(0xff20262D);
+  static const Color _surfaceLight = Color(0xFFF1F5FA);
+  static const Color _surfaceDark = Color(0xff1D2B3D);
 
   // Error
   static const Color _errorLight = Color(0xFFE53935);
   static const Color _errorDark = Color(0xFFEF5350);
 
   // Text
-  static const Color _textPrimaryLight = Color(0xFF212121);
-  static const Color _textSecondaryLight = Color(0xFF757575);
+  static const Color _textPrimaryLight = Color(0xFF1E2A39);
+  static const Color _textSecondaryLight = Color(0xFF687B91);
   static const Color _textPrimaryDark = Color(0xfff2f6fa);
-  static const Color _textSecondaryDark = Color(0xffb5c5d4);
+  static const Color _textSecondaryDark = Color(0xffaec0d8);
 
   // Success dan Attendance Colors
   static const Color _presentColor = Color(0xFF43A047); // Hijau
@@ -65,8 +65,8 @@ class AppTheme {
 
     // AppBar Theme
     appBarTheme: const AppBarTheme(
-      backgroundColor: _primaryColorLight,
-      foregroundColor: Colors.white,
+      backgroundColor: _surfaceLight,
+      foregroundColor: _primaryColorLight,
       elevation: 0,
       centerTitle: true,
       titleTextStyle: TextStyle(
@@ -433,7 +433,7 @@ class AppTheme {
       primary: _primaryColorDark,
       onPrimary: Colors.white,
       secondary: _accentColorDark,
-      onSecondary: Colors.black,
+      onSecondary: Colors.white,
       surface: _surfaceDark,
       onSurface: _textPrimaryDark,
       error: _errorDark,
