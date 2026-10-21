@@ -9,7 +9,13 @@ service cloud.firestore {
       allow update: if request.auth != null
         && request.auth.uid == uid
         && request.resource.data.uid == resource.data.uid
-        && request.resource.data.email == resource.data.email;
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.isGuest == resource.data.isGuest
+        && request.resource.data.emailVerified == resource.data.emailVerified
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName', 'bio', 'privacy', 'photoUrl', 'countryCode', 'countryName'
+        ]);
       allow delete: if request.auth != null && request.auth.uid == uid;
 
       match /private/{document} {
@@ -25,7 +31,8 @@ service cloud.firestore {
         && !exists(/databases/$(database)/documents/usernames/$(username));
       allow update: if request.auth != null
         && resource.data.uid == request.auth.uid
-        && request.resource.data.uid == resource.data.uid;
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid', 'createdAt']);
       allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
     }
 
