@@ -175,6 +175,14 @@ class ProfileView extends GetView<ProfileController> {
   }
 
   Widget _accountCard() {
+    if (controller.accountLoading.value) {
+      return Container(
+        height: 96,
+        decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(18)),
+        alignment: Alignment.center,
+        child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2),
+      );
+    }
     final service = Get.isRegistered<AuthService>() ? Get.find<AuthService>() : null;
     final user = service?.currentUser;
     final account = controller.accountProfile.value;

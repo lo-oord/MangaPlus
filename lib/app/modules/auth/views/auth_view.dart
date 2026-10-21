@@ -191,9 +191,10 @@ class AuthView extends GetView<AuthController> {
         ],
       );
 
-  Widget _field(TextEditingController textController, String label, IconData icon, {TextInputType? keyboard}) => TextField(
+  Widget _field(TextEditingController textController, String label, IconData icon, {TextInputType? keyboard, ValueChanged<String>? onChanged}) => TextField(
         controller: textController,
         keyboardType: keyboard,
+        onChanged: onChanged,
         textDirection: TextDirection.ltr,
         decoration: _decoration(label, icon),
       );
@@ -206,11 +207,11 @@ class AuthView extends GetView<AuthController> {
           UsernameAvailability.taken => 'مأخوذ',
           UsernameAvailability.invalid => 'استخدم 3–24 حرفًا إنجليزيًا أو رقمًا أو _',
           UsernameAvailability.error => 'تعذر الفحص الآن، سيُعاد التحقق عند التسجيل',
-          UsernameAvailability.idle => '',
+          UsernameAvailability.idle => 'اكتب اسم المستخدم لفحص التوفر',
         };
         final color = status == UsernameAvailability.available ? Colors.green : status == UsernameAvailability.taken || status == UsernameAvailability.invalid ? Colors.red : AppColors.textSecondary;
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _field(controller.username, 'اسم المستخدم (إنجليزي وأرقام و_)', Icons.alternate_email_rounded),
+          _field(controller.username, 'اسم المستخدم (إنجليزي وأرقام و_)', Icons.alternate_email_rounded, onChanged: controller.usernameChanged),
           if (text.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 5, left: 12, right: 12), child: Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600))),
         ]);
       });

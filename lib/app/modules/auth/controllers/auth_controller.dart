@@ -93,6 +93,8 @@ class AuthController extends GetxController {
     });
   }
 
+  void usernameChanged(String _) => _onUsernameChanged();
+
   void setRegisterMode(bool value) {
     isCompletingGoogle.value = false;
     isRegister.value = value;
