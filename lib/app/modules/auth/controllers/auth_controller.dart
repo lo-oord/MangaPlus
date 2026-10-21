@@ -29,8 +29,11 @@ class AuthController extends GetxController {
   final emailVerificationRequired = false.obs;
   final verificationCooldown = 0.obs;
   final usernameAvailability = UsernameAvailability.idle.obs;
+  final usernameSuggestions = <String>[].obs;
   Timer? _usernameDebounce;
   int _usernameRequest = 0;
+  int _takenAttempts = 0;
+  int _suggestionRequest = 0;
 
   static const countries = <ArabCountry>[
     ArabCountry('DZ', 'الجزائر'), ArabCountry('BH', 'البحرين'),
@@ -50,7 +53,6 @@ class AuthController extends GetxController {
   void onInit() {
     super.onInit();
     profile.value = Get.arguments is UserProfile ? Get.arguments as UserProfile : null;
-    username.addListener(_onUsernameChanged);
   }
 
   @override
@@ -69,6 +71,7 @@ class AuthController extends GetxController {
     }
     _usernameDebounce?.cancel();
     final value = AuthService.normalizeUsername(username.text);
+    usernameSuggestions.clear();
     if (value.isEmpty) {
       usernameAvailability.value = UsernameAvailability.idle;
       return;
@@ -85,7 +88,14 @@ class AuthController extends GetxController {
       try {
         final available = await service.isUsernameAvailable(value);
         if (request == _usernameRequest && value == AuthService.normalizeUsername(username.text)) {
-          usernameAvailability.value = available ? UsernameAvailability.available : UsernameAvailability.taken;
+          if (available) {
+            _takenAttempts = 0;
+            usernameAvailability.value = UsernameAvailability.available;
+          } else {
+            _takenAttempts++;
+            usernameAvailability.value = UsernameAvailability.taken;
+            if (_takenAttempts >= 3) _loadUsernameSuggestions(value);
+          }
         }
       } catch (_) {
         if (request == _usernameRequest) usernameAvailability.value = UsernameAvailability.error;
@@ -94,6 +104,37 @@ class AuthController extends GetxController {
   }
 
   void usernameChanged(String _) => _onUsernameChanged();
+
+  Future<void> _loadUsernameSuggestions(String base) async {
+    final request = ++_suggestionRequest;
+    final clean = base.replaceAll(RegExp(r'[^a-z0-9_]'), '').toLowerCase();
+    if (clean.isEmpty) return;
+    final candidates = <String>{
+      '${clean}1',
+      '${clean}32',
+      '${clean}_oit',
+      '${clean}2026',
+      'the_$clean',
+    }.where((value) => value.length <= 24).take(5).toList();
+    final available = <String>[];
+    for (final candidate in candidates) {
+      try {
+        if (await service.isUsernameAvailable(candidate)) available.add(candidate);
+      } catch (_) {
+        // The final transaction remains the source of truth if availability is offline.
+      }
+      if (available.length == 3 || request != _suggestionRequest) break;
+    }
+    if (request == _suggestionRequest) usernameSuggestions.assignAll(available.take(3));
+  }
+
+  void selectUsername(String value) {
+    username.text = value;
+    username.selection = TextSelection.collapsed(offset: value.length);
+    _takenAttempts = 0;
+    usernameSuggestions.clear();
+    _onUsernameChanged();
+  }
 
   void setRegisterMode(bool value) {
     isCompletingGoogle.value = false;

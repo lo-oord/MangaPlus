@@ -213,6 +213,23 @@ class AuthView extends GetView<AuthController> {
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           _field(controller.username, 'اسم المستخدم (إنجليزي وأرقام و_)', Icons.alternate_email_rounded, onChanged: controller.usernameChanged),
           if (text.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 5, left: 12, right: 12), child: Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600))),
+          if (controller.usernameSuggestions.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: controller.usernameSuggestions.map((suggestion) => ActionChip(
+                  label: Text(suggestion),
+                  labelStyle: const TextStyle(color: Color(0xff7E57C2), fontWeight: FontWeight.w700, fontSize: 12),
+                  backgroundColor: const Color(0xff7E57C2).withValues(alpha: 0.12),
+                  side: const BorderSide(color: Color(0xff7E57C2)),
+                  onPressed: () => controller.selectUsername(suggestion),
+                )).toList(),
+              ),
+            ),
+          ],
         ]);
       });
 
