@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/data/services/auth_service.dart';
 import 'package:mangaplus/app/modules/profile/controllers/profile_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
@@ -22,6 +23,8 @@ class ProfileView extends GetView<ProfileController> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
         children: [
+          _accountCard(),
+          const SizedBox(height: 24),
           _sectionTitle('التفضيلات'.tr),
           const SizedBox(height: 10),
           _settingsCard(
@@ -163,6 +166,40 @@ class ProfileView extends GetView<ProfileController> {
         ),
         actions: [
           TextButton(onPressed: Get.back, child: Text('حسنًا'.tr)),
+        ],
+      ),
+    );
+  }
+
+  Widget _accountCard() {
+    final service = Get.isRegistered<AuthService>() ? Get.find<AuthService>() : null;
+    final user = service?.currentUser;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 25,
+            backgroundColor: AppColors.primary.withValues(alpha: 0.14),
+            child: Icon(user == null ? Icons.person_outline_rounded : Icons.verified_user_outlined, color: AppColors.primary),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(user == null ? 'حسابك وبياناتك' : (user.isAnonymous ? 'قارئ MangaPlus' : (user.email ?? 'حساب MangaPlus')), style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                Text(user == null ? 'سجّل الدخول لمزامنة القراءة والمفضلة' : 'إدارة الحساب والمزامنة', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              ],
+            ),
+          ),
+          TextButton(onPressed: () => Get.toNamed(Routes.AUTH), child: Text(user == null ? 'دخول' : 'إدارة')),
         ],
       ),
     );

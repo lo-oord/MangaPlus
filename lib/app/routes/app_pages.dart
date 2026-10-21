@@ -1,5 +1,7 @@
 import 'package:get/get.dart';
 
+import '../modules/auth/bindings/auth_binding.dart';
+import '../modules/auth/views/auth_view.dart';
 import '../modules/bookmark/bindings/bookmark_binding.dart';
 import '../modules/bookmark/views/bookmark_view.dart';
 import '../modules/chapter/bindings/chapter_binding.dart';
@@ -34,6 +36,11 @@ class AppPages {
   static const INITIAL = Routes.SPLASH;
 
   static final routes = [
+    GetPage(
+      name: _Paths.AUTH,
+      page: () => const AuthView(),
+      binding: AuthBinding(),
+    ),
     GetPage(
       name: _Paths.SPLASH,
       page: () => const SplashView(),

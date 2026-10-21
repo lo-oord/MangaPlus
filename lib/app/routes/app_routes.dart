@@ -5,6 +5,7 @@ part of 'app_pages.dart';
 
 abstract class Routes {
   Routes._();
+  static const AUTH = _Paths.AUTH;
   static const HOME = _Paths.HOME;
   static const GENRE = _Paths.GENRE;
   static const COMIC_DETAIL = _Paths.COMIC_DETAIL;
@@ -22,6 +23,7 @@ abstract class Routes {
 
 abstract class _Paths {
   _Paths._();
+  static const AUTH = '/auth';
   static const HOME = '/home';
   static const GENRE = '/genre';
   static const COMIC_DETAIL = '/comic-detail';

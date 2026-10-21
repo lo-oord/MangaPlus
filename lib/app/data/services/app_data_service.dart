@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/data/models/bookmark.dart';
 import 'package:mangaplus/app/data/models/history.dart';
+import 'package:mangaplus/app/data/services/account_sync_service.dart';
 
 /// Device-local reading data. No account or authentication is required.
 class AppDataService {
   final GetStorage _storage = GetStorage();
+  final AccountSyncService _sync = AccountSyncService();
 
   Future<void> addHistory(HistoryItem history) async {
     final entries = Map<String, dynamic>.from(
@@ -12,6 +16,7 @@ class AppDataService {
     );
     entries[history.comicId] = history.toMap();
     await _storage.write('reading_history', entries);
+    unawaited(_sync.syncLocalData());
   }
 
   Future<List<HistoryItem>?> getHistory() async {
@@ -34,6 +39,7 @@ class AppDataService {
     );
     entries[bookmark.comicId] = bookmark.toJson();
     await _storage.write('bookmarks', entries);
+    unawaited(_sync.syncLocalData());
   }
 
   Future<List<BookmarkItem>?> getBookmarks() async {
@@ -54,5 +60,6 @@ class AppDataService {
     );
     entries.remove(comicId);
     await _storage.write('bookmarks', entries);
+    unawaited(_sync.syncLocalData());
   }
 }
