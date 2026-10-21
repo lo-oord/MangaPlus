@@ -145,10 +145,13 @@ class HistoryView extends GetView<HistoryController> {
                       child: ElevatedButton(
                         onPressed: () {
                           Get.toNamed(
-                            'chapter/${history.chapterId}',
+                            Routes.CHAPTER,
                             arguments: {
                               'comicId': history.comicId,
+                              'comicTitle': history.title,
+                              'coverImage': history.coverImage,
                               'chapterId': history.chapterId,
+                              'chapterTitle': history.chapterTitle,
                             },
                           );
                         },

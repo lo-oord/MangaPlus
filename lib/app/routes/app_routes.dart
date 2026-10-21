@@ -16,6 +16,7 @@ abstract class Routes {
   static const HISTORY = _Paths.HISTORY;
   static const DOWNLOAD = _Paths.DOWNLOAD;
   static const BOOKMARK = _Paths.BOOKMARK;
+  static const SPLASH = _Paths.SPLASH;
 }
 
 abstract class _Paths {
@@ -31,4 +32,5 @@ abstract class _Paths {
   static const HISTORY = '/history';
   static const DOWNLOAD = '/download';
   static const BOOKMARK = '/bookmark';
+  static const SPLASH = '/splash';
 }

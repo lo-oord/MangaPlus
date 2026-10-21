@@ -59,7 +59,24 @@ class ChapterController extends GetxController {
         );
       } else {
         isOffline.value = false;
-        chapterData.value = await _comicService.fetchChapter(id);
+        final loaded = await _comicService.fetchChapter(id);
+        final fallbackTitle = '${arguments['chapterTitle'] ?? ''}'.trim();
+        final title = loaded.chapter.title.trim().isEmpty ||
+                loaded.chapter.title.trim() == 'الفصل' ||
+                loaded.chapter.title.trim().toLowerCase() == 'chapter'
+            ? fallbackTitle
+            : loaded.chapter.title;
+        chapterData.value = ChapterData(
+          chapter: DataChapter(
+            chapterId: loaded.chapter.chapterId,
+            title: title,
+            images: loaded.chapter.images,
+            previousChapter: loaded.chapter.previousChapter,
+            nextChapter: loaded.chapter.nextChapter,
+            chapters: loaded.chapter.chapters,
+          ),
+          source: loaded.source,
+        );
       }
     } catch (error) {
       hasError(true);
@@ -71,7 +88,7 @@ class ChapterController extends GetxController {
 
   void navigateToChapter(String? id) {
     if (id != null && id.isNotEmpty) {
-      Get.toNamed(Routes.CHAPTER, arguments: {
+      Get.offNamed(Routes.CHAPTER, arguments: {
         'chapterId': id,
         'comicId': arguments['comicId'],
         'comicTitle': arguments['comicTitle'],

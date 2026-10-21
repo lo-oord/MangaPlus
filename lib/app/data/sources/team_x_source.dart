@@ -346,12 +346,10 @@ class TeamXSource extends ContentSource {
     final seriesUrl = _seriesUrl(identifier?.queryParameters['series'] ?? '');
     final document = await _document(chapterUrl);
     final pages = document
-        .querySelectorAll('div.image_list canvas[data-src], div.image_list img[src]')
-        .map((element) => mangaAbsoluteUrl(
-              _site,
-              element.attributes['data-src'] ?? element.attributes['src'],
-            ))
+        .querySelectorAll('div.image_list canvas, div.image_list img')
+        .map((element) => mangaImageUrl(element, _site))
         .where((value) => value.isNotEmpty)
+        .toSet()
         .toList(growable: false);
     if (pages.isEmpty) throw Exception('Team X: لا توجد صور قراءة في صفحة الفصل.');
     var previousChapter = '';
@@ -367,8 +365,16 @@ class TeamXSource extends ContentSource {
       }
       if (index > 0) nextChapter = '${chapters[index - 1]['url']}';
     }
+    final pageTitle = mangaHtmlText(
+      document.querySelector('h1, .chapter-title, .head_chapter_name'),
+    );
+    final requestedTitle = identifier?.queryParameters['title']?.trim() ?? '';
     return {
-      'title': identifier?.queryParameters['title'] ?? 'الفصل',
+      'title': pageTitle.isNotEmpty
+          ? pageTitle
+          : requestedTitle.isNotEmpty
+              ? requestedTitle
+              : 'الفصل',
       'pages': pages,
       'images': pages.map((image) => {'url': image}).toList(),
       'url': chapterUrl,

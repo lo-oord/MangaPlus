@@ -11,6 +11,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/core/theme/theme.dart';
+import 'package:mangaplus/app/core/theme/theme_mode_preference.dart';
 import 'package:mangaplus/app/data/services/notification_presentation.dart';
 import 'package:mangaplus/app/core/translations/app_translations.dart';
 
@@ -115,7 +116,7 @@ void main() async {
   await GetStorage.init();
   final storage = GetStorage();
   final savedLanguage = storage.read('language') as String? ?? 'ar_SA';
-  final savedTheme = storage.read('themeMode') as String? ?? 'dark';
+  final savedTheme = storage.read<String>('themeMode');
   final initialLocale = savedLanguage == 'en_US'
       ? const Locale('en', 'US')
       : const Locale('ar', 'SA');
@@ -134,7 +135,7 @@ void main() async {
       title: "MangaPlus",
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: savedTheme == 'light' ? ThemeMode.light : ThemeMode.dark,
+      themeMode: ThemeModePreference.fromStorage(savedTheme),
       defaultTransition: Transition.fadeIn,
       transitionDuration: const Duration(milliseconds: 260),
       translations: AppTranslations(),
@@ -146,7 +147,7 @@ void main() async {
         textDirection: TextDirection.ltr,
         child: child ?? const SizedBox.shrink(),
       ),
-      initialRoute: Routes.MAIN,
+      initialRoute: Routes.SPLASH,
       getPages: AppPages.routes,
     ),
   );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:mangaplus/app/core/theme/theme_mode_preference.dart';
 import 'package:mangaplus/app/data/services/notification_presentation.dart';
 
 class ProfileController extends GetxController {
@@ -11,8 +12,10 @@ class ProfileController extends GetxController {
   @override
   void onInit() {
     selectedLanguage.value = _storage.read<String>('language') ?? 'ar_SA';
-    final savedTheme = _storage.read<String>('themeMode') ?? 'dark';
-    isDarkMode.value = savedTheme == 'dark';
+    final savedTheme = ThemeModePreference.fromStorage(
+      _storage.read<String>('themeMode'),
+    );
+    isDarkMode.value = savedTheme == ThemeMode.dark;
     super.onInit();
   }
 
@@ -31,9 +34,9 @@ class ProfileController extends GetxController {
   }
 
   Future<void> changeTheme(bool darkMode) async {
-    isDarkMode.value = darkMode;
     final mode = darkMode ? ThemeMode.dark : ThemeMode.light;
     Get.changeThemeMode(mode);
-    await _storage.write('themeMode', darkMode ? 'dark' : 'light');
+    isDarkMode.value = darkMode;
+    await _storage.write('themeMode', ThemeModePreference.toStorage(mode));
   }
 }

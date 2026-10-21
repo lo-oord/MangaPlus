@@ -134,12 +134,15 @@ class ChapterView extends GetView<ChapterController> {
 
   Widget _buildImage(String imageUrl) {
     return Container(
+      width: double.infinity,
       color: Colors.black,
       child: Obx(
         () => controller.isOffline.value
             ? Image.file(
                 File(imageUrl),
-                fit: BoxFit.contain,
+                width: double.infinity,
+                fit: BoxFit.fitWidth,
+                filterQuality: FilterQuality.medium,
                 errorBuilder: (context, error, stackTrace) => const Center(
                   child: Icon(Icons.broken_image_outlined, color: Colors.white70),
                 ),
@@ -151,31 +154,52 @@ class ChapterView extends GetView<ChapterController> {
                   'User-Agent':
                       'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
                 },
-                fit: BoxFit.contain,
-                placeholder: (context, url) => Center(
-                  child: SizedBox(
-                    height: 200,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const MangaPlusLogo(size: 52),
-                        const SizedBox(height: 8),
-                        const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'جارٍ تحميل الصورة...'.tr,
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
+                imageBuilder: (context, imageProvider) => Image(
+                  image: imageProvider,
+                  width: double.infinity,
+                  fit: BoxFit.fitWidth,
+                  filterQuality: FilterQuality.medium,
+                  gaplessPlayback: true,
+                ),
+                placeholder: (context, url) => SizedBox(
+                  width: double.infinity,
+                  height: MediaQuery.sizeOf(context).height * 0.68,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const MangaPlusLogo(size: 48),
+                      const SizedBox(height: 12),
+                      const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2.2),
+                      ),
+                    ],
                   ),
                 ),
-                errorWidget: (context, url, error) => const Center(
-                  child: MangaPlusLogo(size: 60),
+                errorWidget: (context, url, error) => SizedBox(
+                  width: double.infinity,
+                  height: MediaQuery.sizeOf(context).height * 0.68,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.broken_image_outlined,
+                        size: 44,
+                        color: Colors.white70,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'تعذر تحميل الصورة'.tr,
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => controller.fetchChapter(controller.chapterId),
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: Text('إعادة المحاولة'.tr),
+                      ),
+                    ],
+                  ),
                 ),
               ),
       ),
