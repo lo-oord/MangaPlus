@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'manga_html_utils.dart';
 import 'source_base.dart';
 import 'source_values.dart';
 
