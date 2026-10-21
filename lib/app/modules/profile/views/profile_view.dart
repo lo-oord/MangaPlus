@@ -19,6 +19,9 @@ class ProfileView extends GetView<ProfileController> {
               _profileHeader(),
               const SizedBox(height: 22),
               if (controller.accountProfile.value != null) ...[
+                _sectionTitle('نبذة'.tr), const SizedBox(height: 10),
+                _bioCard(controller.accountProfile.value!),
+                const SizedBox(height: 22),
                 _sectionTitle('معلومات الحساب'.tr), const SizedBox(height: 10),
                 _accountInfoCard(controller.accountProfile.value!),
                 const SizedBox(height: 22), _sectionTitle('الأمان والمزامنة'.tr), const SizedBox(height: 10),
@@ -98,7 +101,6 @@ class ProfileView extends GetView<ProfileController> {
               child: account.photoUrl.isEmpty ? Icon(Icons.person_rounded, size: 42, color: AppColors.primary) : null)),
           Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: AppColors.primary, shape: BoxShape.circle, border: Border.all(color: AppColors.card, width: 2)),
             child: const Icon(Icons.camera_alt_rounded, size: 15, color: Colors.white)),
-          if (account.isVerified) Positioned(top: 0, right: 0, child: _verifiedBadge()),
         ])),
       const SizedBox(width: 17),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -132,6 +134,21 @@ class ProfileView extends GetView<ProfileController> {
       trailing: account.emailVerified ? const Icon(Icons.verified_rounded, color: Color(0xffD4A72C), size: 19) : null),
     if (account.isVerified) ...[Divider(height: 1, color: AppColors.divider), _infoRow(Icons.verified_rounded, 'حالة التوثيق'.tr, 'حساب موثق رسميًا'.tr, trailing: _verifiedBadge())],
     if (account.isOfficialDeveloper) ...[Divider(height: 1, color: AppColors.divider), _infoRow(Icons.shield_rounded, 'صاحب الحساب'.tr, 'حساب رسمي للمطور'.tr, trailing: _officialBadge())],
+  ]);
+
+  Widget _bioCard(UserProfile account) => _settingsCard([
+    ListTile(
+      leading: Icon(Icons.notes_rounded, color: AppColors.primary),
+      title: Text('نبذة'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
+      subtitle: Padding(padding: const EdgeInsets.only(top: 5), child: Text(
+        account.bio.trim().isEmpty ? 'أضف نبذة قصيرة عن نفسك'.tr : account.bio,
+        maxLines: 5, overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: account.bio.trim().isEmpty ? AppColors.textSecondary : AppColors.textPrimary, height: 1.4),
+      )),
+      trailing: IconButton(tooltip: 'تعديل النبذة'.tr, onPressed: controller.savingAccount.value ? null : () => _editBio(account.bio),
+        icon: Icon(Icons.edit_outlined, color: AppColors.primary)),
+      onTap: controller.savingAccount.value ? null : () => _editBio(account.bio),
+    ),
   ]);
 
   Widget _infoRow(IconData icon, String title, String value, {Widget? trailing}) => ListTile(
@@ -171,6 +188,20 @@ class ProfileView extends GetView<ProfileController> {
     name.dispose();
   }
 
+  Future<void> _editBio(String current) async {
+    final bio = TextEditingController(text: current);
+    final result = await Get.dialog<bool>(AlertDialog(backgroundColor: AppColors.card,
+      title: Text('تعديل النبذة'.tr),
+      content: TextField(controller: bio, minLines: 3, maxLines: 5, maxLength: 300, autofocus: true,
+        decoration: InputDecoration(labelText: 'نبذة'.tr, hintText: 'اكتب نبذة قصيرة عن نفسك'.tr)),
+      actions: [
+        TextButton(onPressed: () => Get.back(result: false), child: Text('إلغاء'.tr)),
+        FilledButton(onPressed: () => Get.back(result: true), child: Text('حفظ'.tr)),
+      ]));
+    if (result == true) await controller.updateBio(bio.text);
+    bio.dispose();
+  }
+
   void _confirmSignOut() => Get.dialog(AlertDialog(backgroundColor: AppColors.card,
     title: Text('تسجيل الخروج'.tr), content: Text('هل تريد تسجيل الخروج من هذا الحساب؟'.tr), actions: [
       TextButton(onPressed: Get.back, child: Text('إلغاء'.tr)),
@@ -183,10 +214,28 @@ class ProfileView extends GetView<ProfileController> {
     content: Text('${'app_name'.tr}\n${'قارئ مانجا ومانهوا'.tr}\n\n${'الإصدار'.tr}: 1.1', style: TextStyle(color: AppColors.textSecondary, height: 1.6)),
     actions: [TextButton(onPressed: Get.back, child: Text('حسنًا'.tr))]));
 
-  Widget _verifiedBadge() => const Icon(Icons.verified_rounded, size: 19, color: Color(0xffD4A72C));
-  Widget _officialBadge() => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-    decoration: BoxDecoration(color: const Color(0xffD4A72C).withValues(alpha: .14), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xffD4A72C).withValues(alpha: .5))),
-    child: Text('حساب رسمي للمطور'.tr, style: const TextStyle(color: Color(0xffD4A72C), fontSize: 10, fontWeight: FontWeight.w800)));
+  Widget _verifiedBadge() => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+    decoration: BoxDecoration(color: const Color(0xffD4A72C).withValues(alpha: .13),
+      borderRadius: BorderRadius.circular(20), border: Border.all(color: const Color(0xffD4A72C).withValues(alpha: .45))),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      const Icon(Icons.verified_rounded, size: 13, color: Color(0xffD4A72C)),
+      const SizedBox(width: 3),
+      Text('موثق'.tr, style: const TextStyle(color: Color(0xffD4A72C), fontSize: 10, height: 1.1, fontWeight: FontWeight.w800)),
+    ]),
+  );
+
+  Widget _officialBadge() => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+    decoration: BoxDecoration(color: const Color(0xffD4A72C).withValues(alpha: .10),
+      borderRadius: BorderRadius.circular(9), border: Border.all(color: const Color(0xffD4A72C).withValues(alpha: .42))),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      const Icon(Icons.shield_rounded, size: 13, color: Color(0xffD4A72C)),
+      const SizedBox(width: 5),
+      Flexible(child: Text('حساب رسمي للمطور'.tr, maxLines: 1, overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: Color(0xffD4A72C), fontSize: 10, height: 1.1, fontWeight: FontWeight.w700))),
+    ]),
+  );
   String _genderLabel(String gender) => gender == 'female' ? 'أنثى'.tr : gender == 'male' ? 'ذكر'.tr : 'غير محدد'.tr;
   Widget _sectionTitle(String title) => Padding(padding: const EdgeInsetsDirectional.only(start: 4), child: Text(title, style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w700)));
   BoxDecoration _boxDecoration() => BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.primary.withValues(alpha: .18)));

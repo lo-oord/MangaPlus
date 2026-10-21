@@ -38,7 +38,10 @@ class AppDataService {
     final entries = Map<String, dynamic>.from(
       _storage.read('bookmarks') ?? <String, dynamic>{},
     );
-    entries[bookmark.comicId] = bookmark.toJson();
+    entries[bookmark.comicId] = {
+      ...bookmark.toJson(),
+      'updatedAt': DateTime.now().toUtc().toIso8601String(),
+    };
     await _storage.write('bookmarks', entries);
     BookmarkStateService.instance.changed();
     unawaited(_sync.syncLocalData());
@@ -63,6 +66,6 @@ class AppDataService {
     entries.remove(comicId);
     await _storage.write('bookmarks', entries);
     BookmarkStateService.instance.changed();
-    unawaited(_sync.syncLocalData());
+    await _sync.removeBookmark(comicId);
   }
 }

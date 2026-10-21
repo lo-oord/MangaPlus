@@ -32,7 +32,6 @@ class AuthController extends GetxController {
   final usernameSuggestions = <String>[].obs;
   Timer? _usernameDebounce;
   int _usernameRequest = 0;
-  int _takenAttempts = 0;
   int _suggestionRequest = 0;
 
   static const countries = <ArabCountry>[
@@ -65,6 +64,7 @@ class AuthController extends GetxController {
   }
 
   void _onUsernameChanged() {
+    _suggestionRequest++;
     if (!isRegister.value && !isCompletingGoogle.value) {
       usernameAvailability.value = UsernameAvailability.idle;
       return;
@@ -89,12 +89,10 @@ class AuthController extends GetxController {
         final available = await service.isUsernameAvailable(value);
         if (request == _usernameRequest && value == AuthService.normalizeUsername(username.text)) {
           if (available) {
-            _takenAttempts = 0;
             usernameAvailability.value = UsernameAvailability.available;
           } else {
-            _takenAttempts++;
             usernameAvailability.value = UsernameAvailability.taken;
-            if (_takenAttempts >= 3) _loadUsernameSuggestions(value);
+            _loadUsernameSuggestions(value);
           }
         }
       } catch (_) {
@@ -109,29 +107,34 @@ class AuthController extends GetxController {
     final request = ++_suggestionRequest;
     final clean = base.replaceAll(RegExp(r'[^a-z0-9_]'), '').toLowerCase();
     if (clean.isEmpty) return;
-    final candidates = <String>{
-      '${clean}1',
-      '${clean}32',
-      '${clean}_oit',
-      '${clean}2026',
-      'the_$clean',
-    }.where((value) => value.length <= 24).take(5).toList();
-    final available = <String>[];
-    for (final candidate in candidates) {
+    final candidates = <String>{};
+    for (final suffix in ['7', '01', '1', '_x', '_mp', '_reads', '_manga', '_ink']) {
+      final prefixLength = clean.length.clamp(0, 24 - suffix.length).toInt();
+      final prefix = clean.substring(0, prefixLength);
+      if (prefix.length + suffix.length >= 3) candidates.add('$prefix$suffix');
+    }
+    for (final prefix in ['its_', 'the_']) {
+      final stemLength = clean.length.clamp(0, 24 - prefix.length).toInt();
+      final stem = clean.substring(0, stemLength);
+      if (stem.length + prefix.length >= 3) candidates.add('$prefix$stem');
+    }
+    candidates.remove(clean);
+    final results = await Future.wait(candidates.map((candidate) async {
       try {
-        if (await service.isUsernameAvailable(candidate)) available.add(candidate);
+        return await service.isUsernameAvailable(candidate) ? candidate : null;
       } catch (_) {
         // The final transaction remains the source of truth if availability is offline.
+        return null;
       }
-      if (available.length == 3 || request != _suggestionRequest) break;
+    }));
+    if (request == _suggestionRequest) {
+      usernameSuggestions.assignAll(results.whereType<String>().take(4));
     }
-    if (request == _suggestionRequest) usernameSuggestions.assignAll(available.take(3));
   }
 
   void selectUsername(String value) {
     username.text = value;
     username.selection = TextSelection.collapsed(offset: value.length);
-    _takenAttempts = 0;
     usernameSuggestions.clear();
     _onUsernameChanged();
   }

@@ -17,7 +17,7 @@ service cloud.firestore {
         && request.resource.data.isOfficialDeveloper == false;
 
       // الهوية والبريد والدولة والجنس وحالة التوثيق ووقت الإنشاء حقول ثابتة.
-      // يسمح للمستخدم بتغيير الاسم الظاهر والصورة وخيار المزامنة وإعدادات العرض فقط.
+      // يسمح للمستخدم بتغيير الاسم الظاهر والنبذة والصورة والمزامنة وإعدادات العرض فقط.
       allow update: if signedInAs(uid)
         && request.resource.data.get('uid', null) == resource.data.get('uid', null)
         && request.resource.data.get('email', null) == resource.data.get('email', null)
@@ -31,12 +31,14 @@ service cloud.firestore {
         && request.resource.data.get('emailVerified', null) == resource.data.get('emailVerified', null)
         && request.resource.data.get('isVerified', null) == resource.data.get('isVerified', null)
         && request.resource.data.get('isOfficialDeveloper', null) == resource.data.get('isOfficialDeveloper', null)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoUrl', 'syncFavorites', 'settings'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'bio', 'photoUrl', 'syncFavorites', 'settings'])
         && (!request.resource.data.keys().hasAll(['displayName'])
           || (request.resource.data.displayName is string && request.resource.data.displayName.size() > 0
             && request.resource.data.displayName.size() <= 40))
         && (!request.resource.data.keys().hasAll(['photoUrl'])
           || (request.resource.data.photoUrl is string && request.resource.data.photoUrl.size() <= 2048))
+        && (!request.resource.data.keys().hasAll(['bio'])
+          || (request.resource.data.bio is string && request.resource.data.bio.size() <= 300))
         && (!request.resource.data.keys().hasAll(['syncFavorites'])
           || request.resource.data.syncFavorites is bool)
         && (!request.resource.data.keys().hasAll(['settings'])

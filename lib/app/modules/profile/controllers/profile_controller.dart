@@ -7,8 +7,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mangaplus/app/core/theme/theme_mode_preference.dart';
 import 'package:mangaplus/app/data/models/user_profile.dart';
 import 'package:mangaplus/app/data/services/account_sync_service.dart';
+import 'package:mangaplus/app/data/services/bookmark_state_service.dart';
 import 'package:mangaplus/app/data/services/auth_service.dart';
 import 'package:mangaplus/app/data/services/notification_presentation.dart';
+import 'package:mangaplus/app/modules/history/controllers/history_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 
 class ProfileController extends GetxController {
@@ -52,6 +54,7 @@ class ProfileController extends GetxController {
           Get.changeThemeMode(theme == 'dark' ? ThemeMode.dark : ThemeMode.light);
           await _storage.write('themeMode', theme);
         }
+        await AccountSyncService().syncLocalData();
       }
     } catch (error) {
       _message('تعذر تحميل الحساب'.tr, error.toString());
@@ -91,6 +94,18 @@ class ProfileController extends GetxController {
     try {
       accountProfile.value = await auth.updateDisplayName(value);
       _message('تم حفظ التغييرات'.tr, 'تم تحديث الاسم الظاهر'.tr);
+    } catch (error) {
+      _message('تعذر حفظ الإعداد'.tr, error.toString());
+    } finally { savingAccount.value = false; }
+  }
+
+  Future<void> updateBio(String value) async {
+    final auth = _auth;
+    if (auth == null) return;
+    savingAccount.value = true;
+    try {
+      accountProfile.value = await auth.updateBio(value);
+      _message('تم حفظ التغييرات'.tr, 'تم تحديث النبذة'.tr);
     } catch (error) {
       _message('تعذر حفظ الإعداد'.tr, error.toString());
     } finally { savingAccount.value = false; }
@@ -139,7 +154,19 @@ class ProfileController extends GetxController {
   }
 
   Future<void> signOut() async {
-    try { await _auth?.signOut(); accountProfile.value = null; }
+    try {
+      final hadAccount = _auth?.currentUser != null;
+      await _auth?.signOut();
+      if (hadAccount) {
+        await _storage.write('bookmarks', <String, dynamic>{});
+        await _storage.write('reading_history', <String, dynamic>{});
+        BookmarkStateService.instance.changed();
+        if (Get.isRegistered<HistoryController>()) {
+          await Get.find<HistoryController>().getHistory();
+        }
+      }
+      accountProfile.value = null;
+    }
     catch (error) { _message('تعذر تسجيل الخروج'.tr, error.toString()); }
   }
 

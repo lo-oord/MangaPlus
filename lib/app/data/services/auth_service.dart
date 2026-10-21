@@ -194,6 +194,16 @@ class AuthService {
     return (await loadProfile(user.uid))!;
   }
 
+  Future<UserProfile> updateBio(String bio) async {
+    final user = currentUser;
+    final value = bio.trim();
+    if (user == null || user.isAnonymous || value.length > 300) {
+      throw const AuthException('تعذر حفظ النبذة، الحد الأقصى 300 حرف.');
+    }
+    await _profiles.doc(user.uid).update({'bio': value});
+    return (await loadProfile(user.uid))!;
+  }
+
   Future<UserProfile> setFavoritesSync(bool enabled) async {
     final user = currentUser;
     if (user == null || user.isAnonymous) {

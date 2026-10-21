@@ -4,6 +4,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/data/models/bookmark.dart';
 import 'package:mangaplus/app/data/services/app_data_service.dart';
 import 'package:mangaplus/app/data/services/account_gate_service.dart';
+import 'package:mangaplus/app/data/services/account_sync_service.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 
@@ -14,8 +15,9 @@ class BookmarkController extends GetxController {
   final RxBool isLoading = true.obs;
   final RxList<BookmarkItem> bookmarks = <BookmarkItem>[].obs;
 
-  Future<void> getBookmark() async {
+  Future<void> getBookmark({bool syncCloud = true}) async {
     try {
+      if (syncCloud) await AccountSyncService().syncLocalData();
       final values = await _appDataService.getBookmarks();
       bookmarks.assignAll(values ?? const <BookmarkItem>[]);
     } catch (error) {
@@ -79,7 +81,7 @@ class BookmarkController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    _storage.listenKey('bookmarks', (_) => getBookmark());
+    _storage.listenKey('bookmarks', (_) => getBookmark(syncCloud: false));
     getBookmark();
   }
 }

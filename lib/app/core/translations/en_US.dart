@@ -369,4 +369,12 @@ const Map<String, String> enUS = {
   'تم حفظ التغييرات': 'Changes saved',
   'تم تحديث الاسم الظاهر': 'Display name updated',
   'الاسم الظاهر مطلوب ويجب ألا يتجاوز 40 حرفًا.': 'Display name is required and must not exceed 40 characters.',
+  'نبذة': 'Bio',
+  'أضف نبذة قصيرة عن نفسك': 'Add a short bio about yourself',
+  'تعديل النبذة': 'Edit bio',
+  'اكتب نبذة قصيرة عن نفسك': 'Write a short bio about yourself',
+  'تم تحديث النبذة': 'Bio updated',
+  'موثق': 'Verified',
+  'اقتراحات قريبة متاحة': 'Similar available suggestions',
+  'اختَر اسماً قريباً من اختيارك': 'Choose a name close to your original choice',
 };

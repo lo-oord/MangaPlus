@@ -215,6 +215,9 @@ class AuthView extends GetView<AuthController> {
           if (text.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 5, left: 12, right: 12), child: Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600))),
           if (controller.usernameSuggestions.isNotEmpty) ...[
             const SizedBox(height: 8),
+            Text('اقتراحات قريبة متاحة'.tr,
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
             Align(
               alignment: AlignmentDirectional.centerStart,
               child: Wrap(
