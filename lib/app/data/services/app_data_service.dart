@@ -4,6 +4,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/data/models/bookmark.dart';
 import 'package:mangaplus/app/data/models/history.dart';
 import 'package:mangaplus/app/data/services/account_sync_service.dart';
+import 'package:mangaplus/app/data/services/bookmark_state_service.dart';
 
 /// Device-local reading data. No account or authentication is required.
 class AppDataService {
@@ -39,6 +40,7 @@ class AppDataService {
     );
     entries[bookmark.comicId] = bookmark.toJson();
     await _storage.write('bookmarks', entries);
+    BookmarkStateService.instance.changed();
     unawaited(_sync.syncLocalData());
   }
 
@@ -60,6 +62,7 @@ class AppDataService {
     );
     entries.remove(comicId);
     await _storage.write('bookmarks', entries);
+    BookmarkStateService.instance.changed();
     unawaited(_sync.syncLocalData());
   }
 }

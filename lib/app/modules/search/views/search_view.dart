@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/models/comic.dart';
+import 'package:mangaplus/app/data/services/bookmark_state_service.dart';
 import 'package:mangaplus/app/modules/search/controllers/search_controller.dart'
     as search_controller;
 import 'package:mangaplus/app/routes/app_pages.dart';
@@ -211,35 +212,51 @@ class _SearchComicTile extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(11),
-                child: CachedNetworkImage(
-                  imageUrl: comic.image,
-                  httpHeaders: const {
-                    'Referer': 'https://olympustaff.com/',
-                    'User-Agent':
-                        'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
-                  },
-                  width: 76,
-                  height: 104,
-                  memCacheWidth: 228,
-                  maxWidthDiskCache: 720,
-                  fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(
-                    width: 76,
-                    height: 104,
-                    color: AppColors.searchBar,
-                    alignment: Alignment.center,
-                    child: const MangaPlusLogo(size: 30),
+              Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(11),
+                    child: CachedNetworkImage(
+                      imageUrl: comic.image,
+                      httpHeaders: const {
+                        'Referer': 'https://olympustaff.com/',
+                        'User-Agent':
+                            'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+                      },
+                      width: 76,
+                      height: 104,
+                      memCacheWidth: 228,
+                      maxWidthDiskCache: 720,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => Container(
+                        width: 76,
+                        height: 104,
+                        color: AppColors.searchBar,
+                        alignment: Alignment.center,
+                        child: const MangaPlusLogo(size: 30),
+                      ),
+                      errorWidget: (_, __, ___) => Container(
+                        width: 76,
+                        height: 104,
+                        color: AppColors.searchBar,
+                        alignment: Alignment.center,
+                        child: const MangaPlusLogo(size: 30),
+                      ),
+                    ),
                   ),
-                  errorWidget: (_, __, ___) => Container(
-                    width: 76,
-                    height: 104,
-                    color: AppColors.searchBar,
-                    alignment: Alignment.center,
-                    child: const MangaPlusLogo(size: 30),
-                  ),
-                ),
+                  Obx(() {
+                    if (!BookmarkStateService.instance.contains(comic.comicId)) return const SizedBox.shrink();
+                    return Positioned(
+                      top: 6,
+                      right: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.9), shape: BoxShape.circle, boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)]),
+                        child: const Icon(Icons.favorite_rounded, color: Colors.red, size: 17),
+                      ),
+                    );
+                  }),
+                ],
               ),
               const SizedBox(width: 12),
               Expanded(

@@ -1,8 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/data/services/bookmark_state_service.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 
 class CustomCardNormal extends StatelessWidget {
@@ -112,10 +112,11 @@ class CustomCardNormal extends StatelessWidget {
                   ),
                 ),
               ),
-            if (comicId != null &&
-                (GetStorage().read<Map<dynamic, dynamic>>('bookmarks') ?? {})
-                    .containsKey(comicId))
-              Positioned(
+            Obx(() {
+              if (!BookmarkStateService.instance.contains(comicId)) {
+                return const SizedBox.shrink();
+              }
+              return Positioned(
                 top: 7,
                 right: 7,
                 child: Container(
@@ -126,13 +127,10 @@ class CustomCardNormal extends StatelessWidget {
                     shape: BoxShape.circle,
                   ),
                   alignment: Alignment.center,
-                  child: const Icon(
-                    Icons.favorite_rounded,
-                    color: Color(0xffef5350),
-                    size: 17,
-                  ),
+                  child: const Icon(Icons.favorite_rounded, color: Color(0xffef5350), size: 17),
                 ),
-              ),
+              );
+            }),
           ],
         ),
         const SizedBox(height: 7),
