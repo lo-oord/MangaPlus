@@ -10,8 +10,8 @@ import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 
 class ChapterView extends GetView<ChapterController> {
-  const ChapterView({super.key});
-  static final List<GlobalKey> _pageKeys = <GlobalKey>[];
+  ChapterView({super.key});
+  final List<GlobalKey> _pageKeys = <GlobalKey>[];
 
   @override
   Widget build(BuildContext context) {
@@ -412,11 +412,13 @@ class ChapterView extends GetView<ChapterController> {
       color: Colors.black,
       child: Obx(
         () => controller.isOffline.value
-            ? Image.file(
-                File(imageUrl),
-                width: double.infinity,
-                fit: _imageFit(controller.readerFit.value),
-                filterQuality: FilterQuality.medium,
+              ? Image.file(
+                  File(imageUrl),
+                  width: double.infinity,
+                  fit: _imageFit(controller.readerFit.value),
+                  filterQuality: FilterQuality.medium,
+                  alignment: Alignment.topCenter,
+                  gaplessPlayback: true,
                 errorBuilder: (context, error, stackTrace) => const Center(
                   child: Icon(Icons.broken_image_outlined, color: Colors.white70),
                 ),

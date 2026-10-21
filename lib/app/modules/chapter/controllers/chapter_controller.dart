@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -38,6 +40,7 @@ class ChapterController extends GetxController {
     try {
       isLoading(true);
       hasError(false);
+      currentPage.value = 0;
       final downloadedChapters =
           _storage.read<List<dynamic>>('downloadedChapters') ?? [];
       final downloadedChapter = downloadedChapters.firstWhereOrNull(
@@ -59,9 +62,16 @@ class ChapterController extends GetxController {
         final localNext = localIndex > 0
             ? '${localChapterRecords[localIndex - 1]['chapterId']}'
             : null;
-        localImages.assignAll(
-          List<String>.from(downloadedChapter['localImagePaths'] ?? const []),
-        );
+        final paths = List<String>.from(
+          downloadedChapter['localImagePaths'] ?? const [],
+        )
+            .where((path) => File(path).existsSync())
+            .toList()
+          ..sort((left, right) => _pageNumber(left).compareTo(_pageNumber(right)));
+        if (paths.isEmpty) {
+          throw StateError('لا توجد صفحات محلية صالحة لهذا الفصل.');
+        }
+        localImages.assignAll(paths);
         chapterData.value = ChapterData(
           chapter: DataChapter(
             chapterId: id,
@@ -104,6 +114,11 @@ class ChapterController extends GetxController {
     } finally {
       isLoading(false);
     }
+  }
+
+  int _pageNumber(String path) {
+    final match = RegExp(r'page_(\d+)', caseSensitive: false).firstMatch(path);
+    return match == null ? 0 : int.tryParse(match.group(1)!) ?? 0;
   }
 
   String? get nextChapterId => chapterData.value.chapter.nextChapter;

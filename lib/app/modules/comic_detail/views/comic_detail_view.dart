@@ -89,7 +89,8 @@ class ComicDetailView extends GetView<ComicDetailController> {
                 File(comic.coverImage),
                 fit: BoxFit.cover,
               )
-            else if (comic.coverImage.isNotEmpty)
+            else if (comic.coverImage.startsWith('http://') ||
+                comic.coverImage.startsWith('https://'))
               CachedNetworkImage(
                 imageUrl: comic.coverImage,
                 httpHeaders: const {
@@ -184,6 +185,12 @@ class ComicDetailView extends GetView<ComicDetailController> {
                             if (comic.status.trim().isNotEmpty) ...[
                               const SizedBox(height: 10),
                               _StatusBadge(status: comic.status),
+                            ],
+                            if (controller.comicDetailData.value.source.trim().isNotEmpty) ...[
+                              const SizedBox(height: 9),
+                              _SourceBadge(
+                                source: controller.comicDetailData.value.source,
+                              ),
                             ],
                           ],
                         ),
@@ -381,18 +388,20 @@ class _CoverThumbnail extends StatelessWidget {
             ? const Center(child: MangaPlusLogo(size: 52))
             : imageUrl.startsWith('/') && File(imageUrl).existsSync()
                 ? Image.file(File(imageUrl), fit: BoxFit.cover)
-            : CachedNetworkImage(
-                imageUrl: imageUrl,
-                fit: BoxFit.cover,
-                httpHeaders: const {
-                  'Referer': 'https://olympustaff.com/',
-                  'User-Agent':
-                      'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
-                },
-                placeholder: (_, __) => Container(color: AppColors.card),
-                errorWidget: (_, __, ___) =>
-                    const Center(child: MangaPlusLogo(size: 52)),
-              ),
+            : imageUrl.startsWith('http://') || imageUrl.startsWith('https://')
+                ? CachedNetworkImage(
+                    imageUrl: imageUrl,
+                    fit: BoxFit.cover,
+                    httpHeaders: const {
+                      'Referer': 'https://olympustaff.com/',
+                      'User-Agent':
+                          'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+                    },
+                    placeholder: (_, __) => Container(color: AppColors.card),
+                    errorWidget: (_, __, ___) =>
+                        const Center(child: MangaPlusLogo(size: 52)),
+                  )
+                : const Center(child: MangaPlusLogo(size: 52)),
       );
 }
 
@@ -556,6 +565,61 @@ class _MetadataGrid extends StatelessWidget {
           .toList(),
     );
   }
+}
+
+class _SourceBadge extends StatelessWidget {
+  const _SourceBadge({required this.source});
+
+  final String source;
+
+  String get logoUrl {
+    final value = source.toLowerCase();
+    if (value.contains('swat')) return 'https://appswat.com/favicon.ico';
+    if (value.contains('azora')) return 'https://azorafly.com/favicon.ico';
+    if (value.contains('time')) return 'https://mangatime.org/favicon.ico';
+    if (value.contains('online')) return 'https://onma.top/favicon.ico';
+    if (value.contains('lava')) return 'https://lavascans.com/favicon.ico';
+    if (value.contains('team')) return 'https://olympustaff.com/favicon.ico';
+    return 'https://mangaplus.com/favicon.ico';
+  }
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.34),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(5),
+              child: CachedNetworkImage(
+                imageUrl: logoUrl,
+                width: 18,
+                height: 18,
+                fit: BoxFit.cover,
+                errorWidget: (_, __, ___) => const Icon(
+                  Icons.public_rounded,
+                  size: 17,
+                  color: Colors.white70,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              source,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _SectionTitle extends StatelessWidget {

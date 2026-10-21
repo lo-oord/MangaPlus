@@ -49,12 +49,14 @@ class ComicDetailController extends GetxController {
   final sortAscending = false.obs;
   final historyRevision = 0.obs;
   final bookmarkRevision = 0.obs;
+  final downloadRevision = 0.obs;
 
   @override
   void onInit() {
     super.onInit();
     _syncDownloadingChapters();
     _storage.listenKey('downloadingChapters', (_) => _syncDownloadingChapters());
+    _storage.listenKey('downloadedChapters', (_) => downloadRevision.value++);
     final arguments = Get.arguments;
     final comicId = arguments is Map
         ? '${arguments['comicId'] ?? ''}'
@@ -240,6 +242,7 @@ class ComicDetailController extends GetxController {
   }
 
   bool isChapterDownloaded(String chapterId) {
+    downloadRevision.value;
     final downloaded = _storage.read<List<dynamic>>('downloadedChapters') ?? [];
     return downloaded.any(
       (item) => item is Map && item['chapterId']?.toString() == chapterId,
@@ -259,10 +262,13 @@ class ComicDetailController extends GetxController {
     }
     raw.removeWhere((item) => item is Map && '${item['chapterId'] ?? ''}' == chapterId);
     await _storage.write('downloadedChapters', raw);
+    downloadRevision.value++;
+    downloadingChapters.remove(chapterId);
     historyRevision.value++;
   }
 
   void toggleChapterSelection(Chapter chapter) {
+    if (isChapterDownloaded(chapter.chapterId)) return;
     isSelectionMode.value = true;
     if (selectedChapterIds.contains(chapter.chapterId)) {
       selectedChapterIds.remove(chapter.chapterId);
@@ -281,7 +287,10 @@ class ComicDetailController extends GetxController {
   }
 
   void selectAllChapters(List<Chapter> chapters) {
-    final allIds = chapters.map((chapter) => chapter.chapterId).toSet();
+    final allIds = chapters
+        .where((chapter) => !isChapterDownloaded(chapter.chapterId))
+        .map((chapter) => chapter.chapterId)
+        .toSet();
     final alreadySelected = allIds.isNotEmpty && allIds.every(selectedChapterIds.contains);
     if (alreadySelected) {
       for (final id in allIds) {

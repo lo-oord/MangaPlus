@@ -55,7 +55,7 @@ class AppPages {
     ),
     GetPage(
       name: _Paths.CHAPTER,
-      page: () => const ChapterView(),
+      page: () => ChapterView(),
       binding: ChapterBinding(),
     ),
     GetPage(

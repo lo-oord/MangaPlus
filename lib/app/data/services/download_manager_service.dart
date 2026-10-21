@@ -48,9 +48,12 @@ class DownloadManagerService extends GetxService {
       }
     }).whereType<DownloadTask>());
     final legacy = _storage.read<Map<String, dynamic>>(_progressKey) ?? {};
-    chapterProgress.assignAll(legacy.map(
-      (key, value) => MapEntry(key, value is num ? value.toDouble() : 0.0),
-    ));
+    chapterProgress.assignAll(Map.fromEntries(legacy.entries
+        .map((entry) => MapEntry(
+              entry.key,
+              entry.value is num ? entry.value.toDouble() : 0.0,
+            ))
+        .where((entry) => entry.value > 0 && entry.value < 1)));
   }
 
   Future<void> _initNotifications() async {
@@ -206,6 +209,7 @@ class DownloadManagerService extends GetxService {
       await _replace(task.copyWith(currentChapterId: id));
       try {
         await _downloadChapter(task, id, chapter['title'] ?? 'الفصل');
+        await _clearChapterProgress(id);
         task = _task(original.id);
         if (task == null) return;
         if (task.status == DownloadTaskStatus.paused ||
@@ -219,6 +223,7 @@ class DownloadManagerService extends GetxService {
           clearCurrentChapter: true,
         ));
       } catch (error) {
+        await _clearChapterProgress(id);
         task = _task(original.id);
         if (task == null) return;
         await _replace(task.copyWith(
@@ -330,13 +335,21 @@ class DownloadManagerService extends GetxService {
       final base = await getApplicationDocumentsDirectory();
       final dir = Directory('${base.path}/chapters/${_key(task.comicId)}');
       await dir.create(recursive: true);
-      final response = await http.get(Uri.parse(cover)).timeout(
+      final cachedFile = File('${dir.path}/cover.jpg');
+      if (await cachedFile.exists() && await cachedFile.length() > 0) {
+        return cachedFile.path;
+      }
+      final coverUri = Uri.parse(cover);
+      final response = await http.get(coverUri, headers: {
+        'Referer': '${coverUri.scheme}://${coverUri.host}/',
+        'User-Agent':
+            'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+      }).timeout(
             const Duration(seconds: 15),
           );
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        final file = File('${dir.path}/cover.jpg');
-        await file.writeAsBytes(response.bodyBytes, flush: true);
-        return file.path;
+        await cachedFile.writeAsBytes(response.bodyBytes, flush: true);
+        return cachedFile.path;
       }
     } catch (_) {}
     return cover;
@@ -352,6 +365,11 @@ class DownloadManagerService extends GetxService {
   }
 
   String _key(String value) => value.hashCode.toUnsigned(32).toRadixString(16);
+
+  Future<void> _clearChapterProgress(String chapterId) async {
+    chapterProgress.remove(chapterId);
+    await _storage.write(_progressKey, chapterProgress);
+  }
 
   Future<void> _replace(DownloadTask task, {bool notify = true}) async {
     final index = tasks.indexWhere((item) => item.id == task.id);
@@ -392,6 +410,15 @@ class DownloadManagerService extends GetxService {
         task.status != DownloadTaskStatus.cancelled) {
       actions.add(const AndroidNotificationAction('cancel', 'إلغاء'));
     }
+    final coverPath = await _notificationCover(task);
+    final styleInformation = coverPath == null
+        ? null
+        : BigPictureStyleInformation(
+            FilePathAndroidBitmap(coverPath),
+            hideExpandedLargeIcon: true,
+            contentTitle: task.comicTitle,
+            summaryText: '${task.completedCount}/${task.totalChapters} • $status',
+          );
     await _notifications.show(
       task.id.hashCode,
       task.comicTitle,
@@ -409,10 +436,17 @@ class DownloadManagerService extends GetxService {
           progress: percent,
           ongoing: task.status == DownloadTaskStatus.downloading,
           autoCancel: task.status != DownloadTaskStatus.downloading,
+          styleInformation: styleInformation,
           actions: actions,
         ),
       ),
       payload: '${task.status == DownloadTaskStatus.downloading ? 'pause' : 'resume'}|${task.id}',
     );
+  }
+
+  Future<String?> _notificationCover(DownloadTask task) async {
+    final value = await _ensureLocalCover(task);
+    if (value.startsWith('/') && await File(value).exists()) return value;
+    return null;
   }
 }
