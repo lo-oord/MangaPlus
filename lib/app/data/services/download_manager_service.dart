@@ -48,12 +48,12 @@ class DownloadManagerService extends GetxService {
       }
     }).whereType<DownloadTask>());
     final legacy = _storage.read<Map<String, dynamic>>(_progressKey) ?? {};
-    chapterProgress.assignAll(Map.fromEntries(legacy.entries
-        .map((entry) => MapEntry(
-              entry.key,
-              entry.value is num ? entry.value.toDouble() : 0.0,
-            ))
-        .where((entry) => entry.value > 0 && entry.value < 1)));
+    final activeProgress = <String, double>{};
+    for (final entry in legacy.entries) {
+      final value = entry.value is num ? (entry.value as num).toDouble() : 0.0;
+      if (value > 0 && value < 1) activeProgress[entry.key] = value;
+    }
+    chapterProgress.assignAll(activeProgress);
   }
 
   Future<void> _initNotifications() async {
