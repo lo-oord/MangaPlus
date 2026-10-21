@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
@@ -9,6 +10,7 @@ class CustomCardNormal extends StatelessWidget {
   final String chapter;
   final String imageUrl;
   final String? type;
+  final String releaseDate;
 
   const CustomCardNormal({
     super.key,
@@ -16,10 +18,40 @@ class CustomCardNormal extends StatelessWidget {
     required this.chapter,
     required this.imageUrl,
     this.type,
+    this.releaseDate = '',
   });
+
+  String _relativeDate() {
+    final parsed = DateTime.tryParse(releaseDate.trim());
+    if (parsed == null) return '';
+    final date = parsed.toLocal();
+    final now = DateTime.now();
+    final difference = now.difference(date);
+    if (difference.isNegative) return '';
+    if (difference.inSeconds < 60) return 'منذ لحظات'.tr;
+    if (difference.inMinutes < 60) {
+      final minutes = difference.inMinutes;
+      if (minutes == 1) return 'منذ دقيقة'.tr;
+      return 'منذ @value دقائق'.trParams({'value': '$minutes'});
+    }
+    if (difference.inHours < 24) {
+      final hours = difference.inHours;
+      if (hours == 1) return 'منذ ساعة'.tr;
+      if (hours == 2) return 'منذ ساعتين'.tr;
+      return 'منذ @value ساعات'.trParams({'value': '$hours'});
+    }
+    final today = DateTime(now.year, now.month, now.day);
+    final dateOnly = DateTime(date.year, date.month, date.day);
+    final calendarDays = today.difference(dateOnly).inDays;
+    if (calendarDays == 0) return 'اليوم'.tr;
+    if (calendarDays == 1) return 'أمس'.tr;
+    if (calendarDays == 2) return 'أول أمس'.tr;
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final relativeDate = _relativeDate();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -36,6 +68,8 @@ class CustomCardNormal extends StatelessWidget {
                 },
                 width: 120,
                 height: 150,
+                memCacheWidth: 360,
+                maxWidthDiskCache: 720,
                 fit: BoxFit.cover,
                 placeholder: (context, url) => Container(
                   width: 120,
@@ -53,27 +87,28 @@ class CustomCardNormal extends StatelessWidget {
                 ),
               ),
             ),
-            Positioned(
-              left: 7,
-              top: 7,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.72),
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: Text(
-                  chapter,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
+            if (chapter.trim().isNotEmpty)
+              Positioned(
+                left: 7,
+                top: 7,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.72),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: Text(
+                    chapter,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
-            ),
             if (type != null && type!.trim().isNotEmpty)
               Positioned(
                 right: 7,
@@ -112,6 +147,22 @@ class CustomCardNormal extends StatelessWidget {
             ),
           ),
         ),
+        if (relativeDate.isNotEmpty) ...[
+          const SizedBox(height: 3),
+          SizedBox(
+            width: 120,
+            child: Text(
+              relativeDate,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 9.5,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }

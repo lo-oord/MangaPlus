@@ -2,7 +2,6 @@ import 'package:get/get.dart';
 import 'package:mangaplus/app/data/models/chapter.dart';
 import 'package:mangaplus/app/data/models/comic.dart';
 import 'package:mangaplus/app/data/models/comic_detail.dart';
-import 'package:mangaplus/app/data/models/popular_comic.dart';
 import 'package:mangaplus/app/data/sources/team_x_source.dart';
 
 /// Maps Team X's HTML-backed catalog into the application's existing models.
@@ -20,7 +19,7 @@ class ComicService {
     final chapter = chapterName.isNotEmpty
         ? chapterName
         : number == null
-            ? 'تصفّح'.tr
+            ? ''
             : '${'الفصل'.tr} $number';
     return ComicsList(
       comicId: id,
@@ -31,6 +30,7 @@ class ComicService {
       chapter: chapter,
       rating: '${item['rating'] ?? ''}',
       status: '${item['status'] ?? ''}',
+      latestChapterDate: '${item['latest_chapter_date'] ?? ''}',
     );
   }
 
@@ -46,27 +46,10 @@ class ComicService {
       );
 
   Future<ComicData> fetchComics({int page = 1}) async =>
-      _comicData(await _source.latest(page: page), page: page);
+      _comicData(await _source.latestWithChapterDates(page: page), page: page);
 
   Future<ComicData> searchComics(String query) async =>
       _comicData(await _source.search(query));
-
-  Future<PopularKomikData> fetchPopularComics() async {
-    final items = await _source.catalog(page: 1);
-    return PopularKomikData(
-      popularManga: items
-          .map((item) => PopularKomik(
-                comicId: '${item['url'] ?? ''}',
-                rank: 0,
-                title: '${item['title'] ?? ''}',
-                link: '${item['url'] ?? ''}',
-                image: '${item['image_url'] ?? ''}',
-                genres: const [],
-              ))
-          .toList(growable: false),
-      source: '$sourceName catalog',
-    );
-  }
 
   Future<ComicDetailData> fetchComicDetail(String comicId) async {
     final raw = await _source.details(comicId);

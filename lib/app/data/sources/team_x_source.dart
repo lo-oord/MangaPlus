@@ -26,7 +26,7 @@ class TeamXSource extends ContentSource {
     'User-Agent':
         'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
   };
-  static const int _latestFeedPageSize = 30;
+  static const int _latestFeedPageSize = 40;
   static const int _dateLookupConcurrency = 8;
   static final Map<String, List<Map<String, dynamic>>> _chapterCache = {};
   final http.Client _client;
@@ -194,7 +194,6 @@ class TeamXSource extends ContentSource {
     for (final card in document.querySelectorAll(
       'div.chapter-card, .chapter-list .chapter-item, .chapters-list .chapter-item, [data-number].chapter',
     )) {
-      if (card.querySelector('span.locked') != null) continue;
       final number = mangaChapterNumber(
         card.attributes['data-number'] ??
             card.attributes['data-chapter-number'] ??

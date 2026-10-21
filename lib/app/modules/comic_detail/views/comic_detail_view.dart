@@ -6,6 +6,8 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/models/comic_detail.dart';
 import 'package:mangaplus/app/modules/comic_detail/controllers/comic_detail_controller.dart';
+import 'package:mangaplus/app/modules/home/controllers/home_controller.dart';
+import 'package:mangaplus/app/modules/main/controllers/main_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
@@ -156,10 +158,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
                                   backgroundColor: AppColors.searchBar,
                                   side: BorderSide.none,
                                   label: Text(localizeContentGenre(genre)),
-                                  onPressed: () => Get.toNamed(
-                                    Routes.GENRE_DETAIL,
-                                    arguments: genre,
-                                  ),
+                                  onPressed: () => _openGenre(genre),
                                 ))
                             .toList(),
                       ),
@@ -196,6 +195,22 @@ class ComicDetailView extends GetView<ComicDetailController> {
         );
       }),
     );
+  }
+
+  void _openGenre(String genre) {
+    if (Get.isRegistered<HomeController>() &&
+        Get.isRegistered<MainController>()) {
+      final home = Get.find<HomeController>();
+      final selected = home.genreController.genreData.value.genres
+          .firstWhereOrNull(
+        (item) => item.name.toLowerCase() == genre.toLowerCase(),
+      );
+      home.openGenre(selected?.link ?? genre, localizeContentGenre(genre));
+      Get.find<MainController>().changeIndex(0);
+      Get.back();
+      return;
+    }
+    Get.toNamed(Routes.GENRE_DETAIL, arguments: genre);
   }
 }
 

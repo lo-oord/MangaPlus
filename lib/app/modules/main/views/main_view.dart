@@ -41,10 +41,10 @@ class MainView extends GetView<MainController> {
             ),
             child: Row(
               children: [
-                _navItem(0, Icons.home_rounded, 'home'.tr),
-                _navItem(1, Icons.search_rounded, 'بحث'.tr),
-                _navItem(2, Icons.bookmark_rounded, 'المفضلة'.tr),
-                _navItem(3, Icons.settings_rounded, 'الإعدادات'.tr),
+                _navItem(0, Icons.home_rounded, Icons.home_outlined),
+                _navItem(1, Icons.search_rounded, Icons.search),
+                _navItem(2, Icons.bookmark_rounded, Icons.bookmark_border_rounded),
+                _navItem(3, Icons.settings_rounded, Icons.settings_outlined),
               ],
             ),
           ),
@@ -53,7 +53,7 @@ class MainView extends GetView<MainController> {
     );
   }
 
-  Widget _navItem(int itemIndex, IconData icon, String label) {
+  Widget _navItem(int itemIndex, IconData activeIcon, IconData inactiveIcon) {
     final selected = controller.index.value == itemIndex;
     return Expanded(
       child: Padding(
@@ -66,44 +66,24 @@ class MainView extends GetView<MainController> {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 220),
               curve: Curves.easeOutCubic,
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
               decoration: BoxDecoration(
                 color: selected
                     ? AppColors.primary.withValues(alpha: 0.16)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon,
-                      size: 21,
-                      color: selected ? AppColors.primary : AppColors.icon),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 160),
-                    switchInCurve: Curves.easeOut,
-                    switchOutCurve: Curves.easeIn,
-                    child: selected
-                        ? Padding(
-                            key: ValueKey('label-$itemIndex'),
-                            padding: const EdgeInsets.only(left: 5),
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 56),
-                              child: Text(
-                                label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: AppColors.primary,
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          )
-                        : const SizedBox.shrink(key: ValueKey('empty-label')),
+              child: Center(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  switchInCurve: Curves.easeOutCubic,
+                  child: Icon(
+                    selected ? activeIcon : inactiveIcon,
+                    key: ValueKey('$itemIndex-$selected'),
+                    size: 29,
+                    color: selected ? AppColors.primary : AppColors.icon,
                   ),
-                ],
+                ),
               ),
             ),
           ),

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/data/models/bookmark.dart';
 import 'package:mangaplus/app/data/services/app_data_service.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
@@ -7,6 +8,7 @@ import 'package:mangaplus/app/widgets/app_feedback.dart';
 
 class BookmarkController extends GetxController {
   final AppDataService _appDataService = AppDataService();
+  final GetStorage _storage = GetStorage();
   final RxBool isLoading = true.obs;
   final RxList<BookmarkItem> bookmarks = <BookmarkItem>[].obs;
 
@@ -72,7 +74,8 @@ class BookmarkController extends GetxController {
 
   @override
   void onInit() {
-    getBookmark();
     super.onInit();
+    _storage.listenKey('bookmarks', (_) => getBookmark());
+    getBookmark();
   }
 }

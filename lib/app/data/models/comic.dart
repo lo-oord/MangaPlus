@@ -57,6 +57,7 @@ class ComicsList {
   final String chapter;
   final String rating;
   final String? status;
+  final String latestChapterDate;
 
   ComicsList({
     required this.comicId,
@@ -66,7 +67,8 @@ class ComicsList {
     required this.type,
     required this.chapter,
     required this.rating,
-     this.status,
+    this.status,
+    this.latestChapterDate = '',
   });
 
   factory ComicsList.fromJson(Map<String, dynamic> json) => ComicsList(
@@ -78,6 +80,7 @@ class ComicsList {
         chapter: json["chapter"],
         rating: json["rating"],
         status: json["status"] ?? '',
+        latestChapterDate: json["latestChapterDate"]?.toString() ?? '',
       );
 
   Map<String, dynamic> toJson() => {
@@ -89,6 +92,7 @@ class ComicsList {
         "chapter": chapter,
         "rating": rating,
         "status": status,
+        "latestChapterDate": latestChapterDate,
       };
 }
 

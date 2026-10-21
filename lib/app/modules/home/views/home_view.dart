@@ -17,6 +17,7 @@ class HomeView extends GetView<HomeController> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Obx(() {
+        if (controller.showGenrePage.value) return _buildInlineGenrePage();
         if (controller.isLoading.value) {
           return BrandState(
             title: 'جارٍ تحميل المحتوى'.tr,
@@ -24,8 +25,7 @@ class HomeView extends GetView<HomeController> {
           );
         }
         final hasContent = controller.heroComics.isNotEmpty ||
-            controller.comicData.value.comicsList.isNotEmpty ||
-            controller.popularKomikData.value.popularManga.isNotEmpty;
+            controller.comicData.value.comicsList.isNotEmpty;
         if (!hasContent) {
           return BrandState(
             title: 'تعذر تحميل المحتوى'.tr,
@@ -34,6 +34,7 @@ class HomeView extends GetView<HomeController> {
           );
         }
         return SingleChildScrollView(
+          controller: controller.scrollController,
           child: Column(
             children: [
               _buildHeroImage(context),
@@ -45,6 +46,110 @@ class HomeView extends GetView<HomeController> {
       }),
     );
   }
+
+  Widget _buildInlineGenrePage() => SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: 'عودة'.tr,
+                    onPressed: controller.closeGenre,
+                    icon: Icon(Icons.arrow_back_rounded, color: AppColors.icon),
+                  ),
+                  Expanded(
+                    child: Obx(
+                      () => Text(
+                        controller.selectedGenreName.value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Obx(() {
+                if (controller.isGenreLoading.value) {
+                  return BrandState(
+                    title: 'جارٍ تحميل التصنيف'.tr,
+                    loading: true,
+                  );
+                }
+                if (controller.genreHasError.value &&
+                    controller.genreComics.isEmpty) {
+                  return BrandState(
+                    title: 'تعذر تحميل التصنيفات'.tr,
+                    actionLabel: 'إعادة المحاولة'.tr,
+                    onAction: () => controller.openGenre(
+                      controller.selectedGenreFilter.value,
+                      controller.selectedGenreName.value,
+                    ),
+                  );
+                }
+                if (controller.genreComics.isEmpty) {
+                  return BrandState(
+                    title: 'لا توجد قصص مصورة لهذا التصنيف'.tr,
+                  );
+                }
+                return NotificationListener<ScrollNotification>(
+                  onNotification: (notification) {
+                    if (notification.metrics.extentAfter < 500 &&
+                        controller.genreHasMore.value &&
+                        !controller.isGenreLoadingMore.value) {
+                      controller.loadMoreGenre();
+                    }
+                    return false;
+                  },
+                  child: GridView.builder(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+                    physics: const BouncingScrollPhysics(),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 10,
+                      mainAxisExtent: 210,
+                    ),
+                    itemCount: controller.genreComics.length +
+                        (controller.isGenreLoadingMore.value ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (index >= controller.genreComics.length) {
+                        return Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.primary,
+                          ),
+                        );
+                      }
+                      final comic = controller.genreComics[index];
+                      return GestureDetector(
+                        onTap: () => Get.toNamed(
+                          Routes.COMIC_DETAIL,
+                          arguments: comic.comicId,
+                        ),
+                        child: CustomCardNormal(
+                          title: comic.title,
+                          chapter: comic.chapter,
+                          imageUrl: comic.image,
+                          type: comic.type,
+                        ),
+                      );
+                    },
+                  ),
+                );
+              }),
+            ),
+          ],
+        ),
+      );
 
   Widget _buildHeroImage(BuildContext context) {
     return Obx(() {
@@ -112,14 +217,15 @@ class HomeView extends GetView<HomeController> {
                           padding: const EdgeInsets.symmetric(horizontal: 40),
                           child: Column(
                             children: [
-                              Text(
-                                comic['subtitle']!.tr.toUpperCase(),
-                                style: TextStyle(
-                                  color: AppColors.textSecondary.withValues(alpha: 0.8),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
+                              if ((comic['subtitle'] ?? '').trim().isNotEmpty)
+                                Text(
+                                  comic['subtitle']!.tr.toUpperCase(),
+                                  style: TextStyle(
+                                    color: AppColors.textSecondary.withValues(alpha: 0.8),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
-                              ),
                               const SizedBox(height: 0),
                               Text(
                                 comic['title']!.tr,
@@ -206,8 +312,7 @@ class KomikCardsSection extends GetView<HomeController> {
       if (controller.isLoading.value) {
         return _buildLoadingSkeleton();
       }
-      if (controller.comicData.value.comicsList.isEmpty &&
-          controller.popularKomikData.value.popularManga.isEmpty) {
+      if (controller.comicData.value.comicsList.isEmpty) {
         return Center(
             child: Text('لا توجد قصص مصورة متاحة'.tr,
                 style: TextStyle(color: AppColors.textPrimary)));
@@ -217,12 +322,6 @@ class KomikCardsSection extends GetView<HomeController> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildHistorySection(context),
-            const SizedBox(height: 16),
-            _buildSectionTitle(context, 'كتالوج المانجا'.tr),
-            const SizedBox(height: 8),
-            _buildPopularGrid(context),
-            const SizedBox(height: 12),
             _buildSectionTitle(context, "اختيار التصنيف".tr),
             const SizedBox(height: 8),
             _buildGenreChips(context),
@@ -392,154 +491,50 @@ class KomikCardsSection extends GetView<HomeController> {
     );
   }
 
-  Widget _buildHistorySection(BuildContext context) {
-    final histories = controller.historyController.histories;
-    if (histories.isEmpty) {
-      return Container(
-        height: 0,
-      );
-    }
-    return SizedBox(
-      height: 140,
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          image: DecorationImage(
-            image: CachedNetworkImageProvider(
-              histories.first.coverImage,
-            ),
-            fit: BoxFit.cover,
+  Widget _buildTerbaruGrid(BuildContext context) {
+    final terbaruComics = controller.comicData.value.comicsList;
+    return Column(
+      children: [
+        GridView.builder(
+          padding: EdgeInsets.zero,
+          physics: const NeverScrollableScrollPhysics(),
+          shrinkWrap: true,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            childAspectRatio: 0.75,
+            crossAxisSpacing: 8,
+            mainAxisExtent: 216,
           ),
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.black.withOpacity(0.3),
-                Colors.black.withOpacity(0.7),
-              ],
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Text(
-                "آخر ما تمت قراءته".tr,
-                style: TextStyle(
-                  color: AppColors.textSecondary.withValues(alpha: 0.8),
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                histories.first.title,
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 8),
-              TextButton.icon(
-                onPressed: () {
-                  Get.toNamed(Routes.COMIC_DETAIL,
-                      arguments: histories.first.comicId);
-                },
-                icon: Icon(
-                  Icons.play_circle_outline,
-                  color: AppColors.textPrimary,
-                  size: 20,
-                ),
-                label: Text(
-                  'متابعة القراءة'.tr,
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 14,
-                  ),
-                ),
-                style: TextButton.styleFrom(
-                  backgroundColor: Colors.black38,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPopularGrid(BuildContext context) {
-    final popularComics = controller.popularKomikData.value.popularManga;
-
-    return Container(
-      height: 190,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.zero,
-        physics: const BouncingScrollPhysics(),
-        itemCount: popularComics.length,
-        itemBuilder: (context, index) {
-          final comic = popularComics[index];
-          return Container(
-            margin: const EdgeInsets.only(right: 5),
-            child: GestureDetector(
+          itemCount: terbaruComics.length,
+          itemBuilder: (context, index) {
+            final comic = terbaruComics[index];
+            return GestureDetector(
               onTap: () {
                 Get.toNamed(Routes.COMIC_DETAIL, arguments: comic.comicId);
               },
               child: CustomCardNormal(
                 title: comic.title,
-                chapter: 'تصفّح'.tr,
+                chapter: comic.chapter,
                 imageUrl: comic.image,
+                type: comic.type,
+                releaseDate: comic.latestChapterDate,
+              ),
+            );
+          },
+        ),
+        if (controller.isLoadingMore.value)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.4,
+                color: AppColors.primary,
               ),
             ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildTerbaruGrid(BuildContext context) {
-    final terbaruComics = controller.comicData.value.comicsList;
-    return GridView.builder(
-      padding: EdgeInsets.zero,
-      physics: const NeverScrollableScrollPhysics(),
-      shrinkWrap: true,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 0.75,
-        crossAxisSpacing: 8,
-        mainAxisExtent: 200,
-      ),
-      itemCount: terbaruComics.length,
-      itemBuilder: (context, index) {
-        final comic = terbaruComics[index];
-        return GestureDetector(
-          onTap: () {
-            Get.toNamed(Routes.COMIC_DETAIL, arguments: comic.comicId);
-          },
-          child: CustomCardNormal(
-            title: comic.title,
-            chapter: comic.chapter,
-            imageUrl: comic.image,
-            type: comic.type,
           ),
-        );
-      },
+      ],
     );
   }
 
@@ -568,15 +563,10 @@ class KomikCardsSection extends GetView<HomeController> {
                   fontSize: 12,
                 ),
               ),
-              onPressed: () {
-                Get.toNamed(
-                  Routes.GENRE_DETAIL,
-                  arguments: {
-                    'value': genre.link.isNotEmpty ? genre.link : genre.name,
-                    'name': genre.name,
-                  },
-                );
-              },
+              onPressed: () => controller.openGenre(
+                genre.link.isNotEmpty ? genre.link : genre.name,
+                genre.name,
+              ),
             ),
           );
         },

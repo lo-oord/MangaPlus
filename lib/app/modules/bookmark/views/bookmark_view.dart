@@ -70,8 +70,15 @@ class BookmarkView extends GetView<BookmarkController> {
                 borderRadius: BorderRadius.circular(8),
                 child: CachedNetworkImage(
                   imageUrl: bookmark.coverImage,
+                  httpHeaders: const {
+                    'Referer': 'https://olympustaff.com/',
+                    'User-Agent':
+                        'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+                  },
                   width: 85,
                   height: 114,
+                  memCacheWidth: 255,
+                  maxWidthDiskCache: 720,
                   fit: BoxFit.cover,
                   placeholder: (context, url) => Container(
                     width: 80,
