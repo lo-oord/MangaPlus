@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -22,6 +24,9 @@ class AuthController extends GetxController {
   final profile = Rxn<UserProfile>();
   final emailVerificationRequired = false.obs;
   final verificationCooldown = 0.obs;
+  final usernameAvailability = UsernameAvailability.idle.obs;
+  Timer? _usernameDebounce;
+  int _usernameRequest = 0;
 
   static const countries = <ArabCountry>[
     ArabCountry('DZ', 'الجزائر'), ArabCountry('BH', 'البحرين'),
@@ -41,6 +46,7 @@ class AuthController extends GetxController {
   void onInit() {
     super.onInit();
     profile.value = Get.arguments is UserProfile ? Get.arguments as UserProfile : null;
+    username.addListener(_onUsernameChanged);
   }
 
   @override
@@ -48,7 +54,44 @@ class AuthController extends GetxController {
     for (final controller in [email, password, confirmPassword, displayName, username, bio]) {
       controller.dispose();
     }
+    _usernameDebounce?.cancel();
     super.onClose();
+  }
+
+  void _onUsernameChanged() {
+    if (!isRegister.value) {
+      usernameAvailability.value = UsernameAvailability.idle;
+      return;
+    }
+    _usernameDebounce?.cancel();
+    final value = AuthService.normalizeUsername(username.text);
+    if (value.isEmpty) {
+      usernameAvailability.value = UsernameAvailability.idle;
+      return;
+    }
+    try {
+      AuthService.validateUsername(value);
+    } catch (_) {
+      usernameAvailability.value = UsernameAvailability.invalid;
+      return;
+    }
+    usernameAvailability.value = UsernameAvailability.checking;
+    final request = ++_usernameRequest;
+    _usernameDebounce = Timer(const Duration(milliseconds: 450), () async {
+      try {
+        final available = await service.isUsernameAvailable(value);
+        if (request == _usernameRequest && value == AuthService.normalizeUsername(username.text)) {
+          usernameAvailability.value = available ? UsernameAvailability.available : UsernameAvailability.taken;
+        }
+      } catch (_) {
+        if (request == _usernameRequest) usernameAvailability.value = UsernameAvailability.error;
+      }
+    });
+  }
+
+  void setRegisterMode(bool value) {
+    isRegister.value = value;
+    _onUsernameChanged();
   }
 
   Future<void> submit() async {
@@ -187,6 +230,7 @@ class AuthController extends GetxController {
         _message('اسم المستخدم غير صالح', '$error');
         return false;
       }
+      if (!_usernameReady()) return false;
       if (selectedCountry.value == null || birthDate.value == null) {
         _message('بيانات الحساب ناقصة', 'اختر الدولة وتاريخ الميلاد.');
         return false;
@@ -212,6 +256,7 @@ class AuthController extends GetxController {
       _message('اسم المستخدم غير صالح', '$error');
       return false;
     }
+    if (!_usernameReady()) return false;
     if (password.text != confirmPassword.text) {
       _message('كلمتا المرور غير متطابقتين', 'أعد كتابة كلمة المرور نفسها.');
       return false;
@@ -225,6 +270,17 @@ class AuthController extends GetxController {
       return false;
     }
     return true;
+  }
+
+  bool _usernameReady() {
+    if (usernameAvailability.value == UsernameAvailability.available) return true;
+    final message = usernameAvailability.value == UsernameAvailability.taken
+        ? 'اسم المستخدم مأخوذ بالفعل.'
+        : usernameAvailability.value == UsernameAvailability.checking
+            ? 'انتظر انتهاء فحص اسم المستخدم.'
+            : 'اكتب اسم مستخدم صالحًا وانتظر نتيجة الفحص.';
+    _message('تحقق من اسم المستخدم', message);
+    return false;
   }
 
   void _runCooldown() async {
@@ -242,7 +298,20 @@ class AuthController extends GetxController {
         'invalid-credential' || 'wrong-password' || 'user-not-found' => 'بيانات الدخول غير صحيحة.',
         'network-request-failed' => 'تحقق من اتصال الإنترنت.',
         'weak-password' => 'كلمة المرور ضعيفة.',
+        'operation-not-allowed' => 'طريقة التسجيل هذه غير مفعلة في Firebase Console.',
+        'too-many-requests' => 'محاولات كثيرة. انتظر قليلًا ثم حاول مجددًا.',
+        'user-disabled' => 'هذا الحساب معطل.',
+        'popup-closed-by-user' || 'sign_in_canceled' => 'تم إلغاء تسجيل الدخول.',
+        'account-exists-with-different-credential' => 'البريد مرتبط بطريقة تسجيل دخول أخرى.',
         _ => 'تعذر إكمال العملية. حاول مرة أخرى.',
+      };
+    }
+    if (error is FirebaseException) {
+      return switch (error.code) {
+        'permission-denied' => 'رفض Firebase العملية. تحقق من نشر قواعد Firestore.',
+        'unavailable' || 'network-request-failed' => 'لا يوجد اتصال بالخدمة. تحقق من الإنترنت.',
+        'failed-precondition' => 'خدمة Firebase غير مكتملة الإعداد لهذا المشروع.',
+        _ => 'تعذر الاتصال بـ Firebase (${error.code}).',
       };
     }
     return 'تعذر إكمال العملية. حاول مرة أخرى.';

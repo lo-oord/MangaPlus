@@ -23,6 +23,13 @@ class AuthService {
     return doc.exists ? UserProfile.fromFirestore(doc) : null;
   }
 
+  Future<bool> isUsernameAvailable(String username) async {
+    final normalized = normalizeUsername(username);
+    validateUsername(normalized);
+    final doc = await _firestore.collection('usernames').doc(normalized).get();
+    return !doc.exists;
+  }
+
   Future<UserProfile> registerEmail({
     required String displayName,
     required String username,
@@ -52,6 +59,7 @@ class AuthService {
       await user.sendEmailVerification();
       return (await loadProfile(user.uid))!;
     } catch (_) {
+      await _firestore.collection('usernames').doc(normalized).delete().catchError((_) {});
       await user.delete().catchError((_) {});
       rethrow;
     }

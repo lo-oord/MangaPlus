@@ -45,7 +45,7 @@ class AuthView extends GetView<AuthController> {
           if (controller.isRegister.value) ...[
             _field(controller.displayName, 'الاسم الظاهر', Icons.badge_outlined),
             const SizedBox(height: 12),
-            _field(controller.username, 'اسم المستخدم (إنجليزي وأرقام و_)', Icons.alternate_email_rounded),
+            _usernameField(),
             const SizedBox(height: 12),
           ],
           _field(controller.email, 'البريد الإلكتروني', Icons.email_outlined, keyboard: TextInputType.emailAddress),
@@ -81,7 +81,7 @@ class AuthView extends GetView<AuthController> {
           TextButton(onPressed: controller.isBusy.value ? null : controller.continueAsGuest, child: const Text('المتابعة كضيف')),
           const SizedBox(height: 8),
           TextButton(
-            onPressed: controller.isBusy.value ? null : () => controller.isRegister.toggle(),
+            onPressed: controller.isBusy.value ? null : () => controller.setRegisterMode(!controller.isRegister.value),
             child: Text(controller.isRegister.value ? 'لديك حساب؟ سجّل الدخول' : 'ليس لديك حساب؟ أنشئ حسابًا'),
           ),
         ],
@@ -110,6 +110,34 @@ class AuthView extends GetView<AuthController> {
         textDirection: TextDirection.ltr,
         decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
       );
+
+  Widget _usernameField() => Obx(() {
+        final status = controller.usernameAvailability.value;
+        final statusText = switch (status) {
+          UsernameAvailability.checking => 'جارٍ فحص الاسم...',
+          UsernameAvailability.available => 'متوفر',
+          UsernameAvailability.taken => 'مأخوذ',
+          UsernameAvailability.invalid => 'استخدم 3–24 حرفًا إنجليزيًا أو رقمًا أو _',
+          UsernameAvailability.error => 'تعذر فحص الاسم',
+          UsernameAvailability.idle => '',
+        };
+        final statusColor = status == UsernameAvailability.available
+            ? Colors.green
+            : status == UsernameAvailability.taken || status == UsernameAvailability.invalid
+                ? Colors.red
+                : AppColors.textSecondary;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _field(controller.username, 'اسم المستخدم (إنجليزي وأرقام و_)', Icons.alternate_email_rounded),
+            if (statusText.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 5, left: 12, right: 12),
+                child: Text(statusText, style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.w600)),
+              ),
+          ],
+        );
+      });
 
   Widget _passwordField(TextEditingController textController, String label, RxBool obscure) => Obx(() => TextField(
         controller: textController,
