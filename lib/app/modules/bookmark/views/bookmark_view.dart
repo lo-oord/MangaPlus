@@ -65,34 +65,52 @@ class BookmarkView extends GetView<BookmarkController> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Cover Image
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: CachedNetworkImage(
-                  imageUrl: bookmark.coverImage,
-                  httpHeaders: const {
-                    'Referer': 'https://olympustaff.com/',
-                    'User-Agent':
-                        'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
-                  },
-                  width: 85,
-                  height: 114,
-                  memCacheWidth: 255,
-                  maxWidthDiskCache: 720,
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    width: 80,
-                    height: 100,
-                    color: AppColors.background,
-                    child: const Center(child: MangaPlusLogo(size: 48)),
+              // Cover image with a persistent favorite indicator.
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: CachedNetworkImage(
+                      imageUrl: bookmark.coverImage,
+                      httpHeaders: const {
+                        'Referer': 'https://olympustaff.com/',
+                        'User-Agent':
+                            'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+                      },
+                      width: 85,
+                      height: 114,
+                      memCacheWidth: 255,
+                      maxWidthDiskCache: 720,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(
+                        width: 80,
+                        height: 100,
+                        color: AppColors.background,
+                        child: const Center(child: MangaPlusLogo(size: 48)),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        width: 80,
+                        height: 100,
+                        color: AppColors.card,
+                        child: const Center(child: MangaPlusLogo(size: 48)),
+                      ),
+                    ),
                   ),
-                  errorWidget: (context, url, error) => Container(
-                    width: 80,
-                    height: 100,
-                    color: AppColors.card,
-                    child: const Center(child: MangaPlusLogo(size: 48)),
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        shape: BoxShape.circle,
+                        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                      ),
+                      child: const Icon(Icons.favorite_rounded, color: Colors.red, size: 18),
+                    ),
                   ),
-                ),
+                ],
               ),
               const SizedBox(width: 12),
 

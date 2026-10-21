@@ -122,6 +122,23 @@ class ComicDetailView extends GetView<ComicDetailController> {
                 ),
               ),
             ),
+            Obx(() {
+              controller.bookmarkRevision.value;
+              if (!controller.isBookmarked(comic.comicId)) return const SizedBox.shrink();
+              return Positioned(
+                top: 116,
+                right: 18,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.92),
+                    shape: BoxShape.circle,
+                    boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 7)],
+                  ),
+                  child: const Icon(Icons.favorite_rounded, color: Colors.red, size: 25),
+                ),
+              );
+            }),
             Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
