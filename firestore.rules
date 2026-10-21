@@ -1,66 +1,75 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedInAs(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
     match /userProfiles/{uid} {
-      allow read: if request.auth != null && request.auth.uid == uid;
-      allow create: if request.auth != null
-        && request.auth.uid == uid
+      // بيانات الحساب لا يقرأها إلا صاحب الحساب.
+      allow get: if signedInAs(uid);
+      allow list: if false;
+
+      // إنشاء الملف مسموح لصاحبه فقط، ولا يستطيع العميل منح نفسه توثيقًا.
+      allow create: if signedInAs(uid)
         && request.resource.data.uid == uid
         && request.resource.data.isVerified == false
         && request.resource.data.isOfficialDeveloper == false;
-      allow update: if request.auth != null
-        && request.auth.uid == uid
-        && request.resource.data.uid == resource.data.uid
-        && request.resource.data.email == resource.data.email
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.isGuest == resource.data.isGuest
-        && ((!resource.data.keys().hasAll(['emailVerified'])
-              && !request.resource.data.keys().hasAll(['emailVerified']))
-            || request.resource.data.emailVerified == resource.data.emailVerified)
-        && ((!resource.data.keys().hasAll(['isVerified'])
-              && !request.resource.data.keys().hasAll(['isVerified']))
-            || (!resource.data.keys().hasAll(['isVerified'])
-              && request.resource.data.isVerified == false)
-            || request.resource.data.isVerified == resource.data.isVerified)
-        && ((!resource.data.keys().hasAll(['isOfficialDeveloper'])
-              && !request.resource.data.keys().hasAll(['isOfficialDeveloper']))
-            || (!resource.data.keys().hasAll(['isOfficialDeveloper'])
-              && request.resource.data.isOfficialDeveloper == false)
-            || request.resource.data.isOfficialDeveloper == resource.data.isOfficialDeveloper)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'displayName', 'bio', 'gender', 'privacy', 'photoUrl', 'countryCode', 'countryName'
-        ]);
-      allow delete: if request.auth != null && request.auth.uid == uid;
+
+      // الهوية والبريد والدولة والجنس وحالة التوثيق ووقت الإنشاء حقول ثابتة.
+      // يسمح للمستخدم بتغيير الاسم الظاهر والصورة وخيار المزامنة وإعدادات العرض فقط.
+      allow update: if signedInAs(uid)
+        && request.resource.data.get('uid', null) == resource.data.get('uid', null)
+        && request.resource.data.get('email', null) == resource.data.get('email', null)
+        && request.resource.data.get('username', null) == resource.data.get('username', null)
+        && request.resource.data.get('gender', null) == resource.data.get('gender', null)
+        && request.resource.data.get('countryCode', null) == resource.data.get('countryCode', null)
+        && request.resource.data.get('countryName', null) == resource.data.get('countryName', null)
+        && request.resource.data.get('createdAt', null) == resource.data.get('createdAt', null)
+        && request.resource.data.get('birthDate', null) == resource.data.get('birthDate', null)
+        && request.resource.data.get('isGuest', null) == resource.data.get('isGuest', null)
+        && request.resource.data.get('emailVerified', null) == resource.data.get('emailVerified', null)
+        && request.resource.data.get('isVerified', null) == resource.data.get('isVerified', null)
+        && request.resource.data.get('isOfficialDeveloper', null) == resource.data.get('isOfficialDeveloper', null)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoUrl', 'syncFavorites', 'settings'])
+        && (!request.resource.data.keys().hasAll(['displayName'])
+          || (request.resource.data.displayName is string && request.resource.data.displayName.size() > 0
+            && request.resource.data.displayName.size() <= 40))
+        && (!request.resource.data.keys().hasAll(['photoUrl'])
+          || (request.resource.data.photoUrl is string && request.resource.data.photoUrl.size() <= 2048))
+        && (!request.resource.data.keys().hasAll(['syncFavorites'])
+          || request.resource.data.syncFavorites is bool)
+        && (!request.resource.data.keys().hasAll(['settings'])
+          || (request.resource.data.settings is map
+            && request.resource.data.settings.keys().hasOnly(['language', 'themeMode'])
+            && request.resource.data.settings.language in ['ar_SA', 'en_US']
+            && request.resource.data.settings.themeMode in ['dark', 'light']));
+
+      // حذف الحساب من التطبيق غير متاح من خلال العميل.
+      allow delete: if false;
 
       match /private/library {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+        allow read, write: if signedInAs(uid);
       }
-
       match /private/favorites/{mangaKey} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+        allow read, write: if signedInAs(uid);
       }
-
       match /private/readingProgress/{mangaKey} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+        allow read, write: if signedInAs(uid);
       }
-
       match /private/readingHistory/{entryId} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+        allow read, write: if signedInAs(uid);
       }
-
       match /private/customLists/{listId} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+        allow read, write: if signedInAs(uid);
       }
-
       match /private/notifications/{notificationId} {
-        allow read, update: if request.auth != null && request.auth.uid == uid;
-        allow create: if request.auth != null && request.auth.uid == uid;
-        allow delete: if request.auth != null && request.auth.uid == uid;
+        allow read, create, update, delete: if signedInAs(uid);
       }
     }
 
     match /usernames/{username} {
-      // توفر الاسم معلومة عامة لازمة لنموذج التسجيل.
+      // فحص توفر الاسم مسموح، وقراءة المجموعة كاملة ممنوعة.
       allow get: if true;
       allow list: if false;
       allow create: if request.auth != null
@@ -73,6 +82,7 @@ service cloud.firestore {
       allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
     }
 
+    // إغلاق كل مسار غير مصرح به أعلاه.
     match /{document=**} {
       allow read, write: if false;
     }

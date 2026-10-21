@@ -17,9 +17,12 @@ class AccountSyncService {
     return _firestore.collection('userProfiles').doc(user.uid).collection('private').doc('library');
   }
 
-  Future<void> syncLocalData() async {
+  Future<void> syncLocalData({bool force = false}) async {
     final ref = _libraryRef;
     if (ref == null) return;
+    final user = _auth.currentUser!;
+    final profile = await _firestore.collection('userProfiles').doc(user.uid).get();
+    if (!force && profile.data()?['syncFavorites'] == false) return;
     final local = <String, dynamic>{
       'bookmarks': _mapValue(_storage.read('bookmarks')),
       'history': _mapValue(_storage.read('reading_history')),

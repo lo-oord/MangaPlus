@@ -170,28 +170,67 @@ class AuthService {
     return profile.copyWith(emailVerified: _auth.currentUser?.emailVerified == true);
   }
 
-  Future<UserProfile> updateProfile({
-    required String displayName,
-    required String bio,
-    required String gender,
-    required UserPrivacy privacy,
-  }) async {
-    final user = currentUser;
-    if (user == null || user.isAnonymous) {
-      throw const AuthException('يجب تسجيل الدخول بحساب دائم لتعديل الملف.');
-    }
-    await _profiles.doc(user.uid).update({
-      'displayName': displayName.trim(),
-      'bio': bio.trim(),
-      'gender': gender,
-      'privacy': privacy.toMap(),
-    });
-    return (await loadProfile(user.uid))!;
-  }
-
   Future<void> signOut() async {
     await _googleSignIn.signOut().catchError((_) {});
     await _auth.signOut();
+  }
+
+  Future<UserProfile> updatePhotoUrl(String photoUrl) async {
+    final user = currentUser;
+    if (user == null || user.isAnonymous) {
+      throw const AuthException('يجب تسجيل الدخول بحساب دائم لتعديل الصورة.');
+    }
+    await _profiles.doc(user.uid).update({'photoUrl': photoUrl});
+    return (await loadProfile(user.uid))!;
+  }
+
+  Future<UserProfile> updateDisplayName(String displayName) async {
+    final user = currentUser;
+    final value = displayName.trim();
+    if (user == null || user.isAnonymous || value.isEmpty || value.length > 40) {
+      throw const AuthException('الاسم الظاهر مطلوب ويجب ألا يتجاوز 40 حرفًا.');
+    }
+    await _profiles.doc(user.uid).update({'displayName': value});
+    return (await loadProfile(user.uid))!;
+  }
+
+  Future<UserProfile> setFavoritesSync(bool enabled) async {
+    final user = currentUser;
+    if (user == null || user.isAnonymous) {
+      throw const AuthException('يجب تسجيل الدخول بحساب دائم للمزامنة.');
+    }
+    await _profiles.doc(user.uid).update({'syncFavorites': enabled});
+    return (await loadProfile(user.uid))!;
+  }
+
+  Future<Map<String, dynamic>> loadSettings() async {
+    final user = currentUser;
+    if (user == null || user.isAnonymous) return const {};
+    final doc = await _profiles.doc(user.uid).get();
+    final value = doc.data()?['settings'];
+    return value is Map ? Map<String, dynamic>.from(value) : const {};
+  }
+
+  Future<void> saveSettings({required String language, required String themeMode}) async {
+    final user = currentUser;
+    if (user == null || user.isAnonymous) return;
+    await _profiles.doc(user.uid).update({
+      'settings': {'language': language, 'themeMode': themeMode},
+    });
+  }
+
+  Future<void> changePassword({required String currentPassword, required String newPassword}) async {
+    final user = currentUser;
+    final email = user?.email;
+    if (user == null || email == null || user.isAnonymous) {
+      throw const AuthException('هذا الحساب لا يدعم تغيير كلمة المرور.');
+    }
+    if (!user.providerData.any((provider) => provider.providerId == 'password')) {
+      throw const AuthException('تم إنشاء الحساب عبر مزود خارجي ولا يملك كلمة مرور محلية.');
+    }
+    final credential = EmailAuthProvider.credential(email: email, password: currentPassword);
+    await user.reauthenticateWithCredential(credential);
+    await user.updatePassword(newPassword);
   }
 
   Future<void> _reserveUsernameAndCreateProfile({

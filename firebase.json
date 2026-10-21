@@ -1,1 +1,23 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"mangaplus-c98f0","appId":"1:479859476328:android:be0325ec9db14f11e478dd","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"mangaplus-c98f0","configurations":{"android":"1:479859476328:android:be0325ec9db14f11e478dd"}}}}},"firestore":{"rules":"firestore.rules"}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "mangaplus-c98f0",
+          "appId": "1:479859476328:android:be0325ec9db14f11e478dd",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "mangaplus-c98f0",
+          "configurations": {
+            "android": "1:479859476328:android:be0325ec9db14f11e478dd"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {"rules": "firestore.rules"},
+  "storage": {"rules": "storage.rules"}
+}

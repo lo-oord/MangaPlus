@@ -1,7 +1,7 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
-import 'package:mangaplus/app/data/services/auth_service.dart';
 import 'package:mangaplus/app/data/models/user_profile.dart';
 import 'package:mangaplus/app/modules/profile/controllers/profile_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
@@ -11,357 +11,185 @@ class ProfileView extends GetView<ProfileController> {
   const ProfileView({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text('الإعدادات'.tr),
-        centerTitle: true,
+  Widget build(BuildContext context) => Scaffold(
         backgroundColor: AppColors.background,
-        foregroundColor: AppColors.textPrimary,
-        elevation: 0,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
-        children: [
-          Obx(_accountCard),
-          const SizedBox(height: 24),
-          Obx(_privacyCard),
-          const SizedBox(height: 24),
-          _sectionTitle('التفضيلات'.tr),
-          const SizedBox(height: 10),
-          _settingsCard(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                child: Row(
-                  children: [
-                    Icon(Icons.language_rounded, color: AppColors.primary),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'اللغة'.tr,
-                            style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Obx(
-                            () => DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
-                                value: controller.selectedLanguage.value,
-                                isExpanded: true,
-                                dropdownColor: AppColors.card,
-                                iconEnabledColor: AppColors.icon,
-                                style: TextStyle(color: AppColors.textPrimary),
-                                items: [
-                                  DropdownMenuItem(
-                                    value: 'ar_SA',
-                                    child: Text('العربية'.tr),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'en_US',
-                                    child: Text('الإنجليزية'.tr),
-                                  ),
-                                ],
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    controller.changeLanguage(value);
-                                  }
-                                },
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Divider(height: 1, color: AppColors.divider),
-              Obx(
-                () => SwitchListTile.adaptive(
-                  value: controller.isDarkMode.value,
-                  onChanged: controller.changeTheme,
-                  secondary: Icon(
-                    controller.isDarkMode.value
-                        ? Icons.dark_mode_rounded
-                        : Icons.light_mode_rounded,
-                    color: AppColors.primary,
-                  ),
-                  title: Text(
-                    'المظهر'.tr,
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  subtitle: Text(
-                    controller.isDarkMode.value ? 'داكن'.tr : 'فاتح'.tr,
-                    style: TextStyle(color: AppColors.textSecondary),
-                  ),
-                  activeColor: AppColors.primary,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          _sectionTitle('مكتبتي'.tr),
-          const SizedBox(height: 10),
-          _settingsCard(
-            children: [
-              _navigationRow(
-                Icons.history_rounded,
-                'سجل القراءة'.tr,
-                () => Get.toNamed(Routes.HISTORY),
-              ),
-              Divider(height: 1, color: AppColors.divider),
-              _navigationRow(
-                Icons.download_outlined,
-                'التحميلات'.tr,
-                () => Get.toNamed(Routes.DOWNLOAD),
-              ),
-              Divider(height: 1, color: AppColors.divider),
-              _navigationRow(
-                Icons.storage_rounded,
-                'التخزين المحلي'.tr,
-                () => Get.toNamed(Routes.LOCAL_LIBRARY),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          _sectionTitle('حول التطبيق'.tr),
-          const SizedBox(height: 10),
-          _settingsCard(
-            children: [
-              _navigationRow(
-                Icons.info_outline_rounded,
-                'حول التطبيق'.tr,
-                _showAboutDialog,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAboutDialog() {
-    Get.dialog(
-      AlertDialog(
-        backgroundColor: AppColors.card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: Row(
-          children: [
-            const MangaPlusLogo(size: 34),
-            const SizedBox(width: 12),
-            Text('حول التطبيق'.tr),
-          ],
-        ),
-        content: Text(
-          '${'app_name'.tr}\n${'قارئ مانجا ومانهوا'.tr}\n\n${'الإصدار'.tr}: 1.1',
-          style: TextStyle(color: AppColors.textSecondary, height: 1.6),
-        ),
-        actions: [
-          TextButton(onPressed: Get.back, child: Text('حسنًا'.tr)),
-        ],
-      ),
-    );
-  }
-
-  Widget _accountCard() {
-    if (controller.accountLoading.value) {
-      return Container(
-        height: 96,
-        decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(18)),
-        alignment: Alignment.center,
-        child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2),
+        appBar: AppBar(title: Text('الملف الشخصي'.tr), centerTitle: true,
+            backgroundColor: AppColors.background, foregroundColor: AppColors.textPrimary, elevation: 0),
+        body: Obx(() => ListView(padding: const EdgeInsets.fromLTRB(20, 12, 20, 32), children: [
+              _profileHeader(),
+              const SizedBox(height: 22),
+              if (controller.accountProfile.value != null) ...[
+                _sectionTitle('معلومات الحساب'.tr), const SizedBox(height: 10),
+                _accountInfoCard(controller.accountProfile.value!),
+                const SizedBox(height: 22), _sectionTitle('الأمان والمزامنة'.tr), const SizedBox(height: 10),
+                _settingsCard([
+                  _infoRow(Icons.mail_outline_rounded, 'البريد الإلكتروني'.tr, controller.accountProfile.value!.email),
+                  Divider(height: 1, color: AppColors.divider),
+                  ListTile(leading: Icon(Icons.key_rounded, color: AppColors.primary),
+                    title: Text('تغيير كلمة المرور'.tr, style: TextStyle(color: AppColors.textPrimary)),
+                    subtitle: Text('تأكيد كلمة المرور الحالية مطلوب'.tr, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                    trailing: Icon(Icons.chevron_right_rounded, color: AppColors.icon),
+                    onTap: controller.accountProfile.value!.isGuest ? null : _changePassword),
+                  Divider(height: 1, color: AppColors.divider),
+                  SwitchListTile.adaptive(value: controller.accountProfile.value!.syncFavorites,
+                    onChanged: controller.savingAccount.value ? null : controller.setFavoritesSync,
+                    secondary: Icon(Icons.sync_rounded, color: AppColors.primary),
+                    title: Text('مزامنة المفضلة'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                    subtitle: Text(controller.accountProfile.value!.syncFavorites
+                        ? 'يتم حفظ المفضلة وسجل القراءة سحابيًا'.tr : 'المفضلة محفوظة على هذا الجهاز فقط'.tr,
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 12)), activeColor: AppColors.primary),
+                ]),
+                const SizedBox(height: 22), _sectionTitle('التفضيلات'.tr), const SizedBox(height: 10),
+              ],
+              _settingsCard([
+                Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 4), child: Row(children: [
+                  Icon(Icons.language_rounded, color: AppColors.primary), const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('اللغة'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
+                    DropdownButtonHideUnderline(child: DropdownButton<String>(value: controller.selectedLanguage.value, isExpanded: true,
+                      dropdownColor: AppColors.card, style: TextStyle(color: AppColors.textPrimary),
+                      items: [DropdownMenuItem(value: 'ar_SA', child: Text('العربية'.tr)), DropdownMenuItem(value: 'en_US', child: Text('الإنجليزية'.tr))],
+                      onChanged: (value) { if (value != null) controller.changeLanguage(value); })),
+                  ])),
+                ])),
+                Divider(height: 1, color: AppColors.divider),
+                SwitchListTile.adaptive(value: controller.isDarkMode.value, onChanged: controller.changeTheme,
+                  secondary: Icon(controller.isDarkMode.value ? Icons.dark_mode_rounded : Icons.light_mode_rounded, color: AppColors.primary),
+                  title: Text('المظهر'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                  subtitle: Text(controller.isDarkMode.value ? 'داكن'.tr : 'فاتح'.tr, style: TextStyle(color: AppColors.textSecondary)), activeColor: AppColors.primary),
+              ]),
+              const SizedBox(height: 22), _sectionTitle('مكتبتي'.tr), const SizedBox(height: 10),
+              _settingsCard([
+                _navigationRow(Icons.history_rounded, 'سجل القراءة'.tr, () => Get.toNamed(Routes.HISTORY)),
+                Divider(height: 1, color: AppColors.divider),
+                _navigationRow(Icons.download_outlined, 'التحميلات'.tr, () => Get.toNamed(Routes.DOWNLOAD)),
+                Divider(height: 1, color: AppColors.divider),
+                _navigationRow(Icons.storage_rounded, 'التخزين المحلي'.tr, () => Get.toNamed(Routes.LOCAL_LIBRARY)),
+              ]),
+              if (controller.accountProfile.value != null) ...[
+                const SizedBox(height: 22),
+                _settingsCard([ListTile(leading: const Icon(Icons.logout_rounded, color: AppColors.error),
+                  title: Text('تسجيل الخروج'.tr, style: const TextStyle(color: AppColors.error, fontWeight: FontWeight.w700)), onTap: _confirmSignOut)]),
+              ],
+              const SizedBox(height: 22), _sectionTitle('حول التطبيق'.tr), const SizedBox(height: 10),
+              _settingsCard([_navigationRow(Icons.info_outline_rounded, 'حول التطبيق'.tr, _showAboutDialog)]),
+            ])),
       );
-    }
-    final service = Get.isRegistered<AuthService>() ? Get.find<AuthService>() : null;
-    final user = service?.currentUser;
+
+  Widget _profileHeader() {
+    if (controller.accountLoading.value) return Container(height: 150, decoration: _boxDecoration(), alignment: Alignment.center,
+        child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2));
     final account = controller.accountProfile.value;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.22)),
-      ),
-      child: Row(
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                padding: EdgeInsets.all(account?.isVerified == true ? 3 : 0),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: account?.isVerified == true ? Border.all(color: const Color(0xffD4A72C), width: 2.5) : null,
-                ),
-                child: CircleAvatar(
-                  radius: 22,
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.14),
-                  backgroundImage: account?.photoUrl.isNotEmpty == true ? NetworkImage(account!.photoUrl) : null,
-                  child: account?.photoUrl.isNotEmpty == true ? null : Icon(user == null ? Icons.person_outline_rounded : Icons.person_rounded, color: AppColors.primary),
-                ),
-              ),
-              if (account?.isVerified == true) Positioned(right: -3, bottom: -3, child: _verifiedBadge()),
-            ],
-          ),
-          const SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(child: Text(account?.displayName ?? (user == null ? 'حسابك وبياناتك' : (user.isAnonymous ? 'قارئ MangaPlus' : (user.email ?? 'حساب MangaPlus'))), overflow: TextOverflow.ellipsis, style: TextStyle(color: account?.isVerified == true ? const Color(0xffD4A72C) : AppColors.textPrimary, fontWeight: FontWeight.w800))),
-                    if (account?.isVerified == true) ...[
-                      const SizedBox(width: 5),
-                      _verifiedBadge(),
-                    ],
-                    if (account?.isOfficialDeveloper == true) ...[
-                      const SizedBox(width: 6),
-                      _officialBadge(),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(account?.username.isNotEmpty == true ? '@${account!.username}' : (user == null ? 'سجّل الدخول لمزامنة القراءة والمفضلة' : 'إدارة الحساب والمزامنة'), style: TextStyle(color: account?.isVerified == true ? const Color(0xffD4A72C) : AppColors.textSecondary, fontSize: 12, fontWeight: account?.isVerified == true ? FontWeight.w700 : FontWeight.normal)),
-                if (account?.isOfficialDeveloper == true) ...[
-                  const SizedBox(height: 4),
-                  _officialBadge(),
-                ],
-                if (account != null && !account.isGuest) ...[
-                  const SizedBox(height: 5),
-                  InkWell(
-                    onTap: controller.savingAccount.value ? null : () => _showGenderDialog(account!.gender),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Text(account!.gender.isEmpty ? 'اختيار الجنس' : _genderLabel(account.gender), style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w700)),
-                        const SizedBox(width: 5),
-                        Icon(Icons.edit_outlined, size: 13, color: AppColors.primary),
-                      ]),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (user != null && !user.isAnonymous)
-            TextButton(onPressed: controller.signOut, child: const Text('خروج'))
-          else
-            TextButton(onPressed: controller.openAuth, child: Text(user == null ? 'دخول' : 'ترقية')),
-        ],
-      ),
-    );
+    if (account == null) return Container(padding: const EdgeInsets.all(20), decoration: _boxDecoration(), child: Row(children: [
+      const CircleAvatar(radius: 38, child: Icon(Icons.person_outline_rounded, size: 36)), const SizedBox(width: 16),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('حسابك في MangaPlus'.tr, style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 5), Text('سجّل الدخول لمزامنة القراءة والمفضلة'.tr, style: TextStyle(color: AppColors.textSecondary)),
+        TextButton(onPressed: controller.openAuth, child: Text('تسجيل الدخول'.tr)),
+      ])),
+    ]));
+    return Container(padding: const EdgeInsets.all(20), decoration: _boxDecoration(), child: Row(children: [
+      GestureDetector(onTap: controller.savingAccount.value ? null : controller.changeAvatar,
+        child: Stack(alignment: Alignment.bottomRight, children: [
+          Container(padding: EdgeInsets.all(account.isVerified ? 3 : 0), decoration: BoxDecoration(shape: BoxShape.circle,
+            border: account.isVerified ? Border.all(color: const Color(0xffD4A72C), width: 2.5) : null),
+            child: CircleAvatar(radius: 43, backgroundColor: AppColors.primary.withValues(alpha: .15),
+              backgroundImage: account.photoUrl.isEmpty ? null : CachedNetworkImageProvider(account.photoUrl),
+              child: account.photoUrl.isEmpty ? Icon(Icons.person_rounded, size: 42, color: AppColors.primary) : null)),
+          Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: AppColors.primary, shape: BoxShape.circle, border: Border.all(color: AppColors.card, width: 2)),
+            child: const Icon(Icons.camera_alt_rounded, size: 15, color: Colors.white)),
+          if (account.isVerified) Positioned(top: 0, right: 0, child: _verifiedBadge()),
+        ])),
+      const SizedBox(width: 17),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [Flexible(child: Text('@${account.username}', overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 14, fontWeight: FontWeight.w700))),
+          if (account.isVerified) ...[const SizedBox(width: 5), _verifiedBadge()]]),
+        const SizedBox(height: 5), Row(children: [
+          Expanded(child: Text(account.displayName, maxLines: 2, overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 21, height: 1.15, fontWeight: FontWeight.w800))),
+          IconButton(tooltip: 'تعديل الاسم الظاهر'.tr, visualDensity: VisualDensity.compact,
+            onPressed: controller.savingAccount.value ? null : () => _editDisplayName(account.displayName),
+            icon: Icon(Icons.edit_outlined, size: 18, color: AppColors.primary)),
+        ]),
+        if (account.isOfficialDeveloper) ...[const SizedBox(height: 8), _officialBadge()],
+        const SizedBox(height: 7), Text('اضغط على الصورة لتغييرها'.tr, style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+      ])),
+    ]));
   }
 
-  Widget _verifiedBadge() => const Icon(Icons.verified_rounded, size: 17, color: Color(0xffD4A72C));
+  Widget _accountInfoCard(UserProfile account) => _settingsCard([
+    _infoRow(Icons.alternate_email_rounded, 'اسم المستخدم'.tr, '@${account.username}'),
+    Divider(height: 1, color: AppColors.divider),
+    _infoRow(Icons.badge_outlined, 'الاسم الظاهر'.tr, account.displayName),
+    Divider(height: 1, color: AppColors.divider),
+    _infoRow(Icons.wc_rounded, 'الجنس'.tr, _genderLabel(account.gender)),
+    Divider(height: 1, color: AppColors.divider),
+    _infoRow(Icons.public_rounded, 'الدولة'.tr, account.countryName.isEmpty ? 'غير محدد'.tr : account.countryName),
+    Divider(height: 1, color: AppColors.divider),
+    _infoRow(account.emailVerified ? Icons.mark_email_read_outlined : Icons.mark_email_unread_outlined, 'حالة البريد'.tr,
+      account.emailVerified ? 'البريد موثق'.tr : 'البريد غير موثق'.tr,
+      trailing: account.emailVerified ? const Icon(Icons.verified_rounded, color: Color(0xffD4A72C), size: 19) : null),
+    if (account.isVerified) ...[Divider(height: 1, color: AppColors.divider), _infoRow(Icons.verified_rounded, 'حالة التوثيق'.tr, 'حساب موثق رسميًا'.tr, trailing: _verifiedBadge())],
+    if (account.isOfficialDeveloper) ...[Divider(height: 1, color: AppColors.divider), _infoRow(Icons.shield_rounded, 'صاحب الحساب'.tr, 'حساب رسمي للمطور'.tr, trailing: _officialBadge())],
+  ]);
 
-  Widget _officialBadge() => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-        decoration: BoxDecoration(color: const Color(0xffD4A72C).withValues(alpha: 0.16), borderRadius: BorderRadius.circular(7), border: Border.all(color: const Color(0xffD4A72C).withValues(alpha: 0.55))),
-        child: const Text('حساب رسمي للمطور', style: TextStyle(color: Color(0xffD4A72C), fontSize: 10, fontWeight: FontWeight.w800)),
-      );
+  Widget _infoRow(IconData icon, String title, String value, {Widget? trailing}) => ListTile(
+    leading: Icon(icon, color: AppColors.primary), title: Text(title, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+    subtitle: Text(value, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)), trailing: trailing);
 
-  String _genderLabel(String gender) => gender == 'female' ? '♀️ أنثى' : '♂️ ذكر';
-
-  void _showGenderDialog(String current) {
-    var selected = current;
-    Get.dialog(
-      AlertDialog(
-        backgroundColor: AppColors.card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: const Text('الجنس'),
-        content: StatefulBuilder(builder: (context, setState) => DropdownButtonFormField<String>(
-              value: selected.isEmpty ? null : selected,
-              decoration: const InputDecoration(labelText: 'اختر الجنس'),
-              items: const [
-                DropdownMenuItem(value: 'male', child: Text('♂️ ذكر')),
-                DropdownMenuItem(value: 'female', child: Text('♀️ أنثى')),
-              ],
-              onChanged: (value) => setState(() => selected = value ?? selected),
-            )),
-        actions: [
-          TextButton(onPressed: Get.back, child: const Text('إلغاء')),
-          FilledButton(onPressed: () async { if (selected.isNotEmpty) { Get.back(); await controller.updateGender(selected); } }, child: const Text('حفظ')),
-        ],
-      ),
-    );
+  Future<void> _changePassword() async {
+    final oldPassword = TextEditingController(); final newPassword = TextEditingController(); final formKey = GlobalKey<FormState>();
+    final result = await Get.dialog<bool>(AlertDialog(backgroundColor: AppColors.card,
+      title: Text('تغيير كلمة المرور'.tr, style: TextStyle(color: AppColors.textPrimary)),
+      content: Form(key: formKey, child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextFormField(controller: oldPassword, obscureText: true, decoration: InputDecoration(labelText: 'كلمة المرور الحالية'.tr),
+          validator: (v) => (v?.isEmpty ?? true) ? 'هذا الحقل مطلوب'.tr : null),
+        const SizedBox(height: 12), TextFormField(controller: newPassword, obscureText: true, decoration: InputDecoration(labelText: 'كلمة المرور الجديدة'.tr),
+          validator: (v) => (v == null || v.length < 6) ? 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'.tr : null),
+      ])), actions: [
+        TextButton(onPressed: () => Get.back(result: false), child: Text('إلغاء'.tr)),
+        FilledButton(onPressed: () { if (formKey.currentState!.validate()) Get.back(result: true); }, child: Text('حفظ'.tr)),
+      ]));
+    if (result == true) await controller.changePassword(oldPassword.text, newPassword.text);
+    oldPassword.dispose(); newPassword.dispose();
   }
 
-  Widget _privacyCard() {
-    final privacy = controller.accountProfile.value?.privacy;
-    if (privacy == null) return const SizedBox.shrink();
-    return _settingsCard(children: [
-      ListTile(
-        leading: Icon(Icons.shield_outlined, color: AppColors.primary),
-        title: Text('الخصوصية', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
-        subtitle: Text('تحكم فيما يظهر في ملفك العام', style: TextStyle(color: AppColors.textSecondary)),
-      ),
-      _privacySwitch('إظهار النبذة', privacy.bio, (value) => controller.updatePrivacy(_privacyWith(privacy, bio: value))),
-      _privacySwitch('إظهار الدولة', privacy.country, (value) => controller.updatePrivacy(_privacyWith(privacy, country: value))),
-      _privacySwitch('إظهار إحصائيات القراءة', privacy.statistics, (value) => controller.updatePrivacy(_privacyWith(privacy, statistics: value))),
-      _privacySwitch('إظهار المفضلة', privacy.bookmarks, (value) => controller.updatePrivacy(_privacyWith(privacy, bookmarks: value))),
-      _privacySwitch('إظهار النشاط الأخير', privacy.activity, (value) => controller.updatePrivacy(_privacyWith(privacy, activity: value))),
-    ]);
+  Future<void> _editDisplayName(String current) async {
+    final name = TextEditingController(text: current);
+    final result = await Get.dialog<bool>(AlertDialog(backgroundColor: AppColors.card,
+      title: Text('الاسم الظاهر'.tr),
+      content: TextField(controller: name, maxLength: 40, autofocus: true,
+        decoration: InputDecoration(labelText: 'الاسم الظاهر'.tr)),
+      actions: [
+        TextButton(onPressed: () => Get.back(result: false), child: Text('إلغاء'.tr)),
+        FilledButton(onPressed: () {
+          if (name.text.trim().isNotEmpty && name.text.trim().length <= 40) Get.back(result: true);
+        }, child: Text('حفظ'.tr)),
+      ]));
+    if (result == true) await controller.updateDisplayName(name.text);
+    name.dispose();
   }
 
-  Widget _privacySwitch(String title, bool value, ValueChanged<bool> onChanged) => SwitchListTile.adaptive(
-        value: value,
-        onChanged: controller.savingAccount.value ? null : onChanged,
-        title: Text(title, style: TextStyle(color: AppColors.textPrimary)),
-        activeColor: AppColors.primary,
-      );
+  void _confirmSignOut() => Get.dialog(AlertDialog(backgroundColor: AppColors.card,
+    title: Text('تسجيل الخروج'.tr), content: Text('هل تريد تسجيل الخروج من هذا الحساب؟'.tr), actions: [
+      TextButton(onPressed: Get.back, child: Text('إلغاء'.tr)),
+      FilledButton(onPressed: () async { Get.back(); await controller.signOut(); }, child: Text('تسجيل الخروج'.tr)),
+    ]));
 
-  UserPrivacy _privacyWith(UserPrivacy source, {
-    bool? bio, bool? country, bool? statistics, bool? bookmarks, bool? activity,
-  }) => UserPrivacy(
-        bio: bio ?? source.bio,
-        country: country ?? source.country,
-        statistics: statistics ?? source.statistics,
-        lists: source.lists,
-        bookmarks: bookmarks ?? source.bookmarks,
-        completed: source.completed,
-        activity: activity ?? source.activity,
-        achievements: source.achievements,
-        customLists: source.customLists,
-      );
-  Widget _sectionTitle(String title) => Padding(
-        padding: const EdgeInsetsDirectional.only(start: 4),
-        child: Text(
-          title,
-          style: TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      );
+  void _showAboutDialog() => Get.dialog(AlertDialog(backgroundColor: AppColors.card,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+    title: Row(children: [const MangaPlusLogo(size: 34), const SizedBox(width: 12), Text('حول التطبيق'.tr)]),
+    content: Text('${'app_name'.tr}\n${'قارئ مانجا ومانهوا'.tr}\n\n${'الإصدار'.tr}: 1.1', style: TextStyle(color: AppColors.textSecondary, height: 1.6)),
+    actions: [TextButton(onPressed: Get.back, child: Text('حسنًا'.tr))]));
 
-  Widget _settingsCard({required List<Widget> children}) => Container(
-        decoration: BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.divider.withValues(alpha: 0.72)),
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: children),
-      );
-
-  Widget _navigationRow(IconData icon, String label, VoidCallback onTap) =>
-      ListTile(
-        leading: Icon(icon, color: AppColors.primary),
-        title: Text(label, style: TextStyle(color: AppColors.textPrimary)),
-        trailing: Icon(Icons.chevron_right_rounded, color: AppColors.icon),
-        onTap: onTap,
-      );
+  Widget _verifiedBadge() => const Icon(Icons.verified_rounded, size: 19, color: Color(0xffD4A72C));
+  Widget _officialBadge() => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    decoration: BoxDecoration(color: const Color(0xffD4A72C).withValues(alpha: .14), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xffD4A72C).withValues(alpha: .5))),
+    child: Text('حساب رسمي للمطور'.tr, style: const TextStyle(color: Color(0xffD4A72C), fontSize: 10, fontWeight: FontWeight.w800)));
+  String _genderLabel(String gender) => gender == 'female' ? 'أنثى'.tr : gender == 'male' ? 'ذكر'.tr : 'غير محدد'.tr;
+  Widget _sectionTitle(String title) => Padding(padding: const EdgeInsetsDirectional.only(start: 4), child: Text(title, style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w700)));
+  BoxDecoration _boxDecoration() => BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.primary.withValues(alpha: .18)));
+  Widget _settingsCard(List<Widget> children) => Container(decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.divider.withValues(alpha: .72))), child: Column(mainAxisSize: MainAxisSize.min, children: children));
+  Widget _navigationRow(IconData icon, String label, VoidCallback onTap) => ListTile(leading: Icon(icon, color: AppColors.primary), title: Text(label, style: TextStyle(color: AppColors.textPrimary)), trailing: Icon(Icons.chevron_right_rounded, color: AppColors.icon), onTap: onTap);
 }

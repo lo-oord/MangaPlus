@@ -30,6 +30,7 @@ dependencies:
   firebase_analytics: ^11.5.0
   firebase_auth: ^5.5.4
   firebase_core: ^3.13.0
+  firebase_storage: ^12.4.7
   firebase_crashlytics: ^4.3.7
   firebase_messaging: ^15.2.9
   flutter:
@@ -42,6 +43,7 @@ dependencies:
   get_storage: ^2.1.1
   google_sign_in: ^6.2.2
   html: ^0.15.6
+  image_picker: ^1.1.2
   http: ^1.4.0
   iconsax_flutter: ^1.0.0
   path_provider: ^2.1.2

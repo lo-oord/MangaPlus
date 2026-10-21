@@ -17,6 +17,7 @@ class UserProfile {
     this.emailVerified = false,
     this.isVerified = false,
     this.isOfficialDeveloper = false,
+    this.syncFavorites = true,
     this.privacy = const UserPrivacy(),
   });
 
@@ -35,6 +36,7 @@ class UserProfile {
   final bool emailVerified;
   final bool isVerified;
   final bool isOfficialDeveloper;
+  final bool syncFavorites;
   final UserPrivacy privacy;
 
   factory UserProfile.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -55,6 +57,7 @@ class UserProfile {
       emailVerified: data['emailVerified'] == true,
       isVerified: data['isVerified'] == true,
       isOfficialDeveloper: data['isOfficialDeveloper'] == true,
+      syncFavorites: data['syncFavorites'] != false,
       privacy: UserPrivacy.fromMap(data['privacy']),
     );
   }
@@ -75,6 +78,7 @@ class UserProfile {
         'emailVerified': emailVerified,
         'isVerified': isVerified,
         'isOfficialDeveloper': isOfficialDeveloper,
+        'syncFavorites': syncFavorites,
         'privacy': privacy.toMap(),
       };
 
@@ -84,6 +88,8 @@ class UserProfile {
     String? bio,
     UserPrivacy? privacy,
     bool? emailVerified,
+    String? photoUrl,
+    bool? syncFavorites,
   }) => UserProfile(
         uid: uid,
         email: email,
@@ -95,11 +101,12 @@ class UserProfile {
         birthDate: birthDate,
         gender: gender,
         bio: bio ?? this.bio,
-        photoUrl: photoUrl,
+        photoUrl: photoUrl ?? this.photoUrl,
         isGuest: isGuest,
         emailVerified: emailVerified ?? this.emailVerified,
         isVerified: isVerified,
         isOfficialDeveloper: isOfficialDeveloper,
+        syncFavorites: syncFavorites ?? this.syncFavorites,
         privacy: privacy ?? this.privacy,
       );
 
