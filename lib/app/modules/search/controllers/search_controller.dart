@@ -15,6 +15,7 @@ class SearchController extends GetxController {
   final RxBool hasError = false.obs;
   final RxString query = ''.obs;
   Timer? _debounce;
+  int _requestId = 0;
 
   @override
   void onInit() {
@@ -48,18 +49,28 @@ class SearchController extends GetxController {
 
     isLoading.value = true;
     hasError.value = false;
-    _debounce = Timer(const Duration(milliseconds: 280), () async {
+    comicsList.clear();
+    final requestId = ++_requestId;
+    _debounce = Timer(const Duration(milliseconds: 220), () async {
       try {
-        final data = await _comicService.searchComics(normalized);
-        if (query.value == normalized) comicsList.assignAll(data.comicsList);
+        await _comicService.searchComics(
+          normalized,
+          onBatch: (batch) {
+            if (query.value != normalized || requestId != _requestId) return;
+            final existing = comicsList.map((item) => item.comicId).toSet();
+            comicsList.addAll(batch.where((item) => existing.add(item.comicId)));
+          },
+        );
       } catch (error) {
-        debugPrint('Team X search failed: $error');
-        if (query.value == normalized) {
+        debugPrint('Manga source search failed: $error');
+        if (query.value == normalized && requestId == _requestId && comicsList.isEmpty) {
           hasError.value = true;
-          comicsList.clear();
         }
       } finally {
-        if (query.value == normalized) isLoading.value = false;
+        if (query.value == normalized && requestId == _requestId) {
+          isLoading.value = false;
+          if (comicsList.isEmpty) hasError.value = true;
+        }
       }
     });
   }

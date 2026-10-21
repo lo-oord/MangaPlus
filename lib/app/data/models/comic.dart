@@ -60,6 +60,7 @@ class ComicsList {
   final String latestChapterDate;
   final List<String> genres;
   final String totalChapters;
+  final String source;
 
   ComicsList({
     required this.comicId,
@@ -73,6 +74,7 @@ class ComicsList {
     this.latestChapterDate = '',
     this.genres = const [],
     this.totalChapters = '',
+    this.source = '',
   });
 
   factory ComicsList.fromJson(Map<String, dynamic> json) => ComicsList(
@@ -90,6 +92,7 @@ class ComicsList {
             : const [],
         totalChapters:
             json["totalChapters"]?.toString() ?? json["total_chapters"]?.toString() ?? '',
+        source: json["source"]?.toString() ?? '',
       );
 
   Map<String, dynamic> toJson() => {
@@ -104,6 +107,7 @@ class ComicsList {
         "latestChapterDate": latestChapterDate,
         "genres": genres,
         "totalChapters": totalChapters,
+        "source": source,
       };
 }
 

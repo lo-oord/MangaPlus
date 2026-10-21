@@ -84,7 +84,7 @@ class SearchView extends GetView<search_controller.SearchController> {
                   items: controller.suggestions,
                 );
               }
-              if (controller.isLoading.value) {
+              if (controller.isLoading.value && controller.comicsList.isEmpty) {
                 return BrandState(title: 'جارٍ البحث'.tr, loading: true);
               }
               if (controller.hasError.value) {
@@ -100,6 +100,7 @@ class SearchView extends GetView<search_controller.SearchController> {
               return _comicList(
                 title: 'النتائج'.tr,
                 items: controller.comicsList,
+                isLoadingMore: controller.isLoading.value,
               );
             }),
           ),
@@ -108,11 +109,15 @@ class SearchView extends GetView<search_controller.SearchController> {
     );
   }
 
-  Widget _comicList({required String title, required List<ComicsList> items}) {
+  Widget _comicList({
+    required String title,
+    required List<ComicsList> items,
+    bool isLoadingMore = false,
+  }) {
     return ListView.separated(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 2, 16, 20),
-      itemCount: items.length + 1,
+      itemCount: items.length + 1 + (isLoadingMore ? 1 : 0),
       separatorBuilder: (_, index) => SizedBox(height: index == 0 ? 10 : 9),
       itemBuilder: (context, index) {
         if (index == 0) {
@@ -139,6 +144,12 @@ class SearchView extends GetView<search_controller.SearchController> {
                 ),
               ],
             ),
+          );
+        }
+        if (index == items.length + 1) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 18),
+            child: Center(child: CircularProgressIndicator()),
           );
         }
         return _SearchComicTile(comic: items[index - 1]);
@@ -257,6 +268,19 @@ class _SearchComicTile extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+                    if (comic.source.trim().isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        comic.source,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 9),
                     Wrap(
                       spacing: 6,

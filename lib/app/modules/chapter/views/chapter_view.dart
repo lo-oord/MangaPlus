@@ -421,13 +421,9 @@ class ChapterView extends GetView<ChapterController> {
                   child: Icon(Icons.broken_image_outlined, color: Colors.white70),
                 ),
               )
-            : CachedNetworkImage(
+              : CachedNetworkImage(
                 imageUrl: imageUrl,
-                httpHeaders: const {
-                  'Referer': 'https://olympustaff.com/',
-                  'User-Agent':
-                      'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
-                },
+                httpHeaders: _imageHeaders(imageUrl),
                 imageBuilder: (context, imageProvider) => Image(
                   image: imageProvider,
                   width: double.infinity,
@@ -489,11 +485,7 @@ class ChapterView extends GetView<ChapterController> {
         await precacheImage(
           CachedNetworkImageProvider(
             url,
-            headers: const {
-              'Referer': 'https://olympustaff.com/',
-              'User-Agent':
-                  'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
-            },
+            headers: _imageHeaders(url),
           ),
           context,
         );
@@ -501,5 +493,16 @@ class ChapterView extends GetView<ChapterController> {
         debugPrint('Unable to preload Team X page: $error');
       }
     }
+  }
+
+  Map<String, String> _imageHeaders(String imageUrl) {
+    final uri = Uri.tryParse(imageUrl);
+    return {
+      'Referer': uri == null || uri.host.isEmpty
+          ? 'https://olympustaff.com/'
+          : '${uri.scheme}://${uri.host}/',
+      'User-Agent':
+          'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+    };
   }
 }

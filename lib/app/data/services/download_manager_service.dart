@@ -260,8 +260,16 @@ class DownloadManagerService extends GetxService {
         final current = _task(task.id);
         if (current?.status == DownloadTaskStatus.paused ||
             current?.status == DownloadTaskStatus.cancelled) return;
+        final imageUri = Uri.parse(data.chapter.images[index]);
+        final headers = imageUri.host.contains('olympustaff.com')
+            ? source.imageRequestHeaders
+            : <String, String>{
+                'Referer': '${imageUri.scheme}://${imageUri.host}/',
+                'User-Agent':
+                    'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+              };
         final response = await http
-            .get(Uri.parse(data.chapter.images[index]), headers: source.imageRequestHeaders)
+            .get(imageUri, headers: headers)
             .timeout(const Duration(seconds: 35));
         if (response.statusCode < 200 || response.statusCode >= 300) {
           throw HttpException('HTTP ${response.statusCode}');
