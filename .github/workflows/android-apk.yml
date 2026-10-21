@@ -1,4 +1,4 @@
-name: Android APK (temporary signing)
+name: Android APK (release signing)
 
 on:
   push:
@@ -25,24 +25,15 @@ jobs:
           flutter-version: '3.27.1'
           channel: stable
           cache: true
-      - name: Create temporary signing key
+      - name: Decode release signing key
         shell: bash
         run: |
           set -euo pipefail
-          STORE_PASS="$(openssl rand -hex 24)"
-          KEY_PASS="$(openssl rand -hex 24)"
-          echo "KEYSTORE_PASSWORD=$STORE_PASS" >> "$GITHUB_ENV"
-          echo "KEY_PASSWORD=$KEY_PASS" >> "$GITHUB_ENV"
-          keytool -genkeypair -v \
-            -keystore "$RUNNER_TEMP/android-test.jks" \
-            -storetype JKS \
-            -storepass "$STORE_PASS" \
-            -keypass "$KEY_PASS" \
-            -alias androidtest \
-            -keyalg RSA -keysize 2048 -validity 30 \
-            -dname "CN=Temporary Test,O=GitHub Actions,C=US"
-          echo "KEYSTORE_PATH=$RUNNER_TEMP/android-test.jks" >> "$GITHUB_ENV"
-          echo "KEY_ALIAS=androidtest" >> "$GITHUB_ENV"
+          printf '%s' "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/mangaplus-release.jks"
+          echo "KEYSTORE_PATH=$RUNNER_TEMP/mangaplus-release.jks" >> "$GITHUB_ENV"
+          echo "KEYSTORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
+          echo "KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}" >> "$GITHUB_ENV"
+          echo "KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}" >> "$GITHUB_ENV"
       - name: Install dependencies
         run: flutter pub get
       - name: Build one signed release APK
