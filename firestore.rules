@@ -5,7 +5,8 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.uid == uid;
       allow create: if request.auth != null
         && request.auth.uid == uid
-        && request.resource.data.uid == uid;
+        && request.resource.data.uid == uid
+        && request.resource.data.isVerified == false;
       allow update: if request.auth != null
         && request.auth.uid == uid
         && request.resource.data.uid == resource.data.uid
@@ -13,13 +14,36 @@ service cloud.firestore {
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.isGuest == resource.data.isGuest
         && request.resource.data.emailVerified == resource.data.emailVerified
+        && request.resource.data.isVerified == resource.data.isVerified
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'displayName', 'bio', 'privacy', 'photoUrl', 'countryCode', 'countryName'
         ]);
       allow delete: if request.auth != null && request.auth.uid == uid;
 
-      match /private/{document} {
+      match /private/library {
         allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+
+      match /private/favorites/{mangaKey} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+
+      match /private/readingProgress/{mangaKey} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+
+      match /private/readingHistory/{entryId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+
+      match /private/customLists/{listId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+
+      match /private/notifications/{notificationId} {
+        allow read, update: if request.auth != null && request.auth.uid == uid;
+        allow create: if request.auth != null && request.auth.uid == uid;
+        allow delete: if request.auth != null && request.auth.uid == uid;
       }
     }
 

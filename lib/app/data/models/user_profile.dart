@@ -14,6 +14,7 @@ class UserProfile {
     this.photoUrl = '',
     this.isGuest = false,
     this.emailVerified = false,
+    this.isVerified = false,
     this.privacy = const UserPrivacy(),
   });
 
@@ -29,6 +30,7 @@ class UserProfile {
   final String photoUrl;
   final bool isGuest;
   final bool emailVerified;
+  final bool isVerified;
   final UserPrivacy privacy;
 
   factory UserProfile.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -46,6 +48,7 @@ class UserProfile {
       photoUrl: '${data['photoUrl'] ?? ''}',
       isGuest: data['isGuest'] == true,
       emailVerified: data['emailVerified'] == true,
+      isVerified: data['isVerified'] == true,
       privacy: UserPrivacy.fromMap(data['privacy']),
     );
   }
@@ -63,6 +66,7 @@ class UserProfile {
         'photoUrl': photoUrl,
         'isGuest': isGuest,
         'emailVerified': emailVerified,
+        'isVerified': isVerified,
         'privacy': privacy.toMap(),
       };
 
@@ -84,6 +88,7 @@ class UserProfile {
         photoUrl: photoUrl,
         isGuest: isGuest,
         emailVerified: emailVerified,
+        isVerified: isVerified,
         privacy: privacy ?? this.privacy,
       );
 

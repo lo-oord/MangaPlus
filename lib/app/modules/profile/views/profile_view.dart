@@ -187,19 +187,34 @@ class ProfileView extends GetView<ProfileController> {
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 25,
-            backgroundColor: AppColors.primary.withValues(alpha: 0.14),
-            child: Icon(user == null ? Icons.person_outline_rounded : Icons.verified_user_outlined, color: AppColors.primary),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              CircleAvatar(
+                radius: 25,
+                backgroundColor: AppColors.primary.withValues(alpha: 0.14),
+                child: Icon(user == null ? Icons.person_outline_rounded : Icons.person_rounded, color: AppColors.primary),
+              ),
+              if (account?.isVerified == true)
+                Positioned(right: -2, bottom: -2, child: _verifiedBadge()),
+            ],
           ),
           const SizedBox(width: 13),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(account?.displayName ?? (user == null ? 'حسابك وبياناتك' : (user.isAnonymous ? 'قارئ MangaPlus' : (user.email ?? 'حساب MangaPlus'))), style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800)),
+                Row(
+                  children: [
+                    Flexible(child: Text(account?.displayName ?? (user == null ? 'حسابك وبياناتك' : (user.isAnonymous ? 'قارئ MangaPlus' : (user.email ?? 'حساب MangaPlus'))), overflow: TextOverflow.ellipsis, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800))),
+                    if (account?.isVerified == true) ...[
+                      const SizedBox(width: 5),
+                      _verifiedBadge(),
+                    ],
+                  ],
+                ),
                 const SizedBox(height: 4),
-                Text(user == null ? 'سجّل الدخول لمزامنة القراءة والمفضلة' : 'إدارة الحساب والمزامنة', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                Text(account?.username.isNotEmpty == true ? '@${account!.username}' : (user == null ? 'سجّل الدخول لمزامنة القراءة والمفضلة' : 'إدارة الحساب والمزامنة'), style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
               ],
             ),
           ),
@@ -211,6 +226,8 @@ class ProfileView extends GetView<ProfileController> {
       ),
     );
   }
+
+  Widget _verifiedBadge() => const Icon(Icons.verified_rounded, size: 17, color: Color(0xff3e8cf5));
 
   Widget _privacyCard() {
     final privacy = controller.accountProfile.value?.privacy;
