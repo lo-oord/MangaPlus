@@ -220,6 +220,17 @@ class AuthController extends GetxController {
     }
   }
 
+  Future<String?> resetPasswordForEmail(String value) async {
+    final normalized = value.trim();
+    if (!GetUtils.isEmail(normalized)) return 'أدخل بريدًا إلكترونيًا صالحًا.';
+    try {
+      await service.sendPasswordReset(normalized);
+      return null;
+    } catch (error) {
+      return _friendlyError(error);
+    }
+  }
+
   bool _validate() {
     final completingGoogle = isRegister.value &&
         profile.value != null &&
@@ -334,3 +345,5 @@ class ArabCountry {
   final String code;
   final String name;
 }
+
+enum UsernameAvailability { idle, checking, available, taken, invalid, error }
