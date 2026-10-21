@@ -49,9 +49,9 @@
 |:-------:|:--------:|:-------:|
 | ![chapter](assets/screenshots/chapter.png) | ![download](assets/screenshots/download.png) | ![history](assets/screenshots/history.png) |
 
-| Login | Profile | Search |
-|:-----:|:-------:|:------:|
-| ![login](assets/screenshots/login.png) | ![profile](assets/screenshots/profile.png) | ![search](assets/screenshots/search.png) |
+| Profile | Search |
+|:-------:|:------:|
+| ![profile](assets/screenshots/profile.png) | ![search](assets/screenshots/search.png) |
 
 ---
 

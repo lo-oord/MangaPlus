@@ -51,7 +51,4 @@ const Map<String, String> idID = {
 
   // history
   'history_title': 'Riwayat Baca',
-  // login
-  'login': 'Login',
-  'login_slogan': 'Login dan nikmati komik favoritmu',
 };

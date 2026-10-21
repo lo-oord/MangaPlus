@@ -48,7 +48,4 @@ const Map<String, String> enUS = {
   'error_fetch': 'Failed to fetch data: %s',
   // history
   'history_title': 'History',
-  // auth
-  'login': 'Login',
-  'login_slogan': 'Login to Komikaze',
 };

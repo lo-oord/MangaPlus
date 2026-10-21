@@ -13,7 +13,6 @@ abstract class Routes {
   static const MAIN = _Paths.MAIN;
   static const SEARCH = _Paths.SEARCH;
   static const PROFILE = _Paths.PROFILE;
-  static const LOGIN = _Paths.LOGIN;
   static const HISTORY = _Paths.HISTORY;
   static const DOWNLOAD = _Paths.DOWNLOAD;
   static const BOOKMARK = _Paths.BOOKMARK;
@@ -29,7 +28,6 @@ abstract class _Paths {
   static const MAIN = '/main';
   static const SEARCH = '/search';
   static const PROFILE = '/profile';
-  static const LOGIN = '/login';
   static const HISTORY = '/history';
   static const DOWNLOAD = '/download';
   static const BOOKMARK = '/bookmark';

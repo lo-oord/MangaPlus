@@ -1,14 +1,14 @@
 import 'package:get/get.dart';
 import 'package:komikaze/app/data/models/bookmark.dart';
-import 'package:komikaze/app/data/services/firebase_service.dart';
+import 'package:komikaze/app/data/services/app_data_service.dart';
 
 class BookmarkController extends GetxController {
-  final _firebaseService = FirebaseService();
+  final _appDataService = AppDataService();
   final RxList<BookmarkItem> bookmarks = <BookmarkItem>[].obs;
 
   Future<void> getBookmark() async {
     try {
-      final bookmark = await _firebaseService.getBookmarks();
+      final bookmark = await _appDataService.getBookmarks();
       if (bookmark != null) {
         bookmarks.value = bookmark;
       }
@@ -19,7 +19,7 @@ class BookmarkController extends GetxController {
 
   Future<BookmarkItem> addBookmark(BookmarkItem bookmark) async {
     try {
-      await _firebaseService.addBookmark(bookmark);
+      await _appDataService.addBookmark(bookmark);
       return bookmark;
     } catch (e) {
       Get.snackbar('Error', e.toString());
@@ -29,7 +29,7 @@ class BookmarkController extends GetxController {
 
   Future<void> deleteBookmark(String comicId) async {
     try {
-      await _firebaseService.deleteBookmark(comicId);
+      await _appDataService.deleteBookmark(comicId);
       getBookmark();
     } catch (e) {
       Get.snackbar('Error', e.toString());

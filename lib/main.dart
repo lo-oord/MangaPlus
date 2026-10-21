@@ -1,5 +1,4 @@
 import 'dart:ui';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -125,7 +124,6 @@ void main() async {
     });
   }
 
-  final user = FirebaseAuth.instance.currentUser;
   runApp(
     GetMaterialApp(
       debugShowCheckedModeBanner: false,
@@ -134,7 +132,7 @@ void main() async {
       translations: AppTranslations(),
       locale: const Locale('en', 'US'),
       fallbackLocale: const Locale('en', 'US'),
-      initialRoute: user == null ? Routes.LOGIN : Routes.MAIN,
+      initialRoute: Routes.MAIN,
       getPages: AppPages.routes,
     ),
   );
