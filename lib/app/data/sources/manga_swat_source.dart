@@ -25,7 +25,7 @@ class MangaSwatSource extends ContentSource {
   @override
   Future<List<Map<String, dynamic>>> nextPage({String query = '', int page = 2}) async =>
       query.trim().isEmpty
-          ? latest(page: page)
+          ? await latest(page: page)
           : _seriesList(await _json('$_api/series/?search=${Uri.encodeQueryComponent(query.trim())}&page=$page'));
 
   @override
