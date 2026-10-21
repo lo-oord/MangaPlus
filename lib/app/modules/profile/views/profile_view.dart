@@ -107,13 +107,15 @@ class ProfileView extends GetView<ProfileController> {
         Row(children: [Flexible(child: Text('@${account.username}', overflow: TextOverflow.ellipsis,
           style: TextStyle(color: AppColors.textSecondary, fontSize: 14, fontWeight: FontWeight.w700))),
           if (account.isVerified) ...[const SizedBox(width: 5), _verifiedBadge()]]),
-        const SizedBox(height: 5), Row(children: [
-          Expanded(child: Text(account.displayName, maxLines: 2, overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 21, height: 1.15, fontWeight: FontWeight.w800))),
-          IconButton(tooltip: 'تعديل الاسم الظاهر'.tr, visualDensity: VisualDensity.compact,
-            onPressed: controller.savingAccount.value ? null : () => _editDisplayName(account.displayName),
-            icon: Icon(Icons.edit_outlined, size: 18, color: AppColors.primary)),
-        ]),
+        const SizedBox(height: 5), InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: controller.savingAccount.value ? null : () => _editDisplayName(account.displayName),
+          child: Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Row(children: [
+            Expanded(child: Text(account.displayName, maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 21, height: 1.15, fontWeight: FontWeight.w800))),
+            const SizedBox(width: 5), Icon(Icons.edit_outlined, size: 16, color: AppColors.primary),
+          ])),
+        ),
         if (account.isOfficialDeveloper) ...[const SizedBox(height: 8), _officialBadge()],
         const SizedBox(height: 7), Text('اضغط على الصورة لتغييرها'.tr, style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
       ])),
@@ -133,7 +135,6 @@ class ProfileView extends GetView<ProfileController> {
       account.emailVerified ? 'البريد موثق'.tr : 'البريد غير موثق'.tr,
       trailing: account.emailVerified ? const Icon(Icons.verified_rounded, color: Color(0xffD4A72C), size: 19) : null),
     if (account.isVerified) ...[Divider(height: 1, color: AppColors.divider), _infoRow(Icons.verified_rounded, 'حالة التوثيق'.tr, 'حساب موثق رسميًا'.tr, trailing: _verifiedBadge())],
-    if (account.isOfficialDeveloper) ...[Divider(height: 1, color: AppColors.divider), _infoRow(Icons.shield_rounded, 'صاحب الحساب'.tr, 'حساب رسمي للمطور'.tr, trailing: _officialBadge())],
   ]);
 
   Widget _bioCard(UserProfile account) => _settingsCard([
