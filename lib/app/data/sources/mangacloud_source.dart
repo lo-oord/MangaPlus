@@ -27,18 +27,38 @@ class MangaCloudSource extends ContentSource {
 
   @override
   Future<List<Map<String, dynamic>>> search(String query) async {
-    final all = await _allManga(orderBy: 'updatedAt desc');
     final normalized = query.trim().toLowerCase();
     if (normalized.isEmpty) return const [];
-    return all.where((item) {
-      final haystack = [
-        item['title'],
-        ...(item['alternative_titles'] as List? ?? const []),
-        ...(item['genres'] as List? ?? const []),
-        item['description'],
-      ].join(' ').toLowerCase();
-      return haystack.contains(normalized);
-    }).toList(growable: false);
+    var token = '';
+    do {
+      final queryParameters = <String, String>{
+        'pageSize': '300',
+        'key': _apiKey,
+        'orderBy': 'updatedAt desc',
+        if (token.isNotEmpty) 'pageToken': token,
+      };
+      final response = await _get(_firestore, query: queryParameters);
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes, allowMalformed: true));
+      final matches = <Map<String, dynamic>>[];
+      final docs = decoded is Map && decoded['documents'] is List
+          ? decoded['documents'] as List
+          : const [];
+      for (final document in docs.whereType<Map>()) {
+        final name = '${document['name'] ?? ''}';
+        final id = name.split('/').last;
+        final item = _itemFromFields(id, _documentFields(document));
+        final haystack = [
+          item['title'],
+          ...(item['alternative_titles'] as List? ?? const []),
+          ...(item['genres'] as List? ?? const []),
+          item['description'],
+        ].join(' ').toLowerCase();
+        if (haystack.contains(normalized)) matches.add(item);
+      }
+      if (matches.isNotEmpty) return matches;
+      token = decoded is Map ? '${decoded['nextPageToken'] ?? ''}' : '';
+    } while (token.isNotEmpty);
+    return const [];
   }
 
   @override
@@ -71,7 +91,8 @@ class MangaCloudSource extends ContentSource {
   Future<Map<String, dynamic>?> chapterImages(String url) async {
     final chapterPath = _chapterPath(url);
     if (chapterPath.isEmpty) return null;
-    final response = await _get('$_firestore/${Uri.encodeComponent(chapterPath)}');
+    final encodedPath = chapterPath.split('/').map(Uri.encodeComponent).join('/');
+    final response = await _get('$_firestore/$encodedPath');
     final fields = _documentFields(response);
     final pages = _stringArray(fields['pages']).where((page) => page.startsWith('http')).toList(growable: false);
     if (pages.isEmpty) throw Exception('MangaCloud: لا توجد صفحات لهذا الفصل.');
