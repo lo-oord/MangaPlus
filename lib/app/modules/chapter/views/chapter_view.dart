@@ -26,14 +26,14 @@ class ChapterView extends GetView<ChapterController> {
       backgroundColor: AppColors.background,
       body: Stack(
         children: [
-          _buildContent(),
+          _buildContent(context),
           _buildFloatingNavigation(),
         ],
       ),
     );
   }
 
-  Widget _buildContent() {
+  Widget _buildContent(BuildContext context) {
     return Obx(() {
       if (controller.isLoading.value) {
         return BrandState(title: 'جارٍ تحميل الفصل'.tr, loading: true);
@@ -67,7 +67,10 @@ class ChapterView extends GetView<ChapterController> {
             if (notification is ScrollUpdateNotification ||
                 notification is ScrollEndNotification) {
               controller.handleScroll(notification.metrics);
-              _updateCurrentPage(notification.context);
+              final notificationContext = notification.context;
+              if (notificationContext != null) {
+                _updateCurrentPage(notificationContext);
+              }
             }
             return false;
           },

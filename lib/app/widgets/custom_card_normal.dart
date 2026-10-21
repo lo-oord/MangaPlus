@@ -112,6 +112,27 @@ class CustomCardNormal extends StatelessWidget {
                   ),
                 ),
               ),
+            if (comicId != null &&
+                (GetStorage().read<Map<dynamic, dynamic>>('bookmarks') ?? {})
+                    .containsKey(comicId))
+              Positioned(
+                top: 7,
+                right: 7,
+                child: Container(
+                  width: 29,
+                  height: 29,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.52),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.favorite_rounded,
+                    color: Color(0xffef5350),
+                    size: 17,
+                  ),
+                ),
+              ),
           ],
         ),
         const SizedBox(height: 7),
@@ -142,27 +163,6 @@ class CustomCardNormal extends StatelessWidget {
                 fontSize: 9.5,
                 fontWeight: FontWeight.w500,
               ),
-            ),
-            if (comicId != null &&
-                (GetStorage().read<Map<dynamic, dynamic>>('bookmarks') ?? {})
-                    .containsKey(comicId))
-              Positioned(
-                top: 7,
-                right: 7,
-                child: Container(
-                  width: 29,
-                  height: 29,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.52),
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: const Icon(
-                    Icons.favorite_rounded,
-                    color: Color(0xffef5350),
-                    size: 17,
-                  ),
-                ),
               ),
           ),
         ],
