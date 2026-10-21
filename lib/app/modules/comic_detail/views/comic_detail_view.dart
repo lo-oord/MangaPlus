@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/models/bookmark.dart';
 import 'package:mangaplus/app/data/models/comic_detail.dart';
 import 'package:mangaplus/app/data/models/history.dart';
@@ -9,6 +10,8 @@ import 'package:mangaplus/app/modules/comic_detail/controllers/comic_detail_cont
 import 'package:mangaplus/app/modules/history/controllers/history_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:readmore/readmore.dart';
+import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:shimmer/shimmer.dart';
 
 class ComicDetailView extends GetView<ComicDetailController> {
@@ -29,6 +32,14 @@ class ComicDetailView extends GetView<ComicDetailController> {
         }
 
         final comic = controller.comicDetailData.value.comicDetail;
+        if (comic.title.isEmpty) {
+          return BrandState(
+            title: 'تفاصيل القصة غير متاحة'.tr,
+            description: 'سيُضاف مصدر المانجا في مرحلة لاحقة.'.tr,
+            actionLabel: 'عودة'.tr,
+            onAction: Get.back,
+          );
+        }
         return _buildContent(context, comic, controller);
       }),
     );
@@ -99,10 +110,10 @@ class ComicDetailView extends GetView<ComicDetailController> {
               errorBuilder: (context, error, stackTrace) {
                 return Container(
                   color: AppColors.searchBar,
-                  child: const Center(
+                  child: Center(
                     child: Icon(
                       Icons.broken_image_rounded,
-                      color: Colors.white54,
+                      color: AppColors.textSecondary.withValues(alpha: 0.66),
                       size: 64,
                     ),
                   ),
@@ -142,8 +153,8 @@ class ComicDetailView extends GetView<ComicDetailController> {
             children: [
               Text(
                 comic.title,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: AppColors.textPrimary,
                   fontSize: 30,
                   fontWeight: FontWeight.w600,
                 ),
@@ -151,8 +162,8 @@ class ComicDetailView extends GetView<ComicDetailController> {
               if (comic.nativeTitle.isNotEmpty && comic.nativeTitle != 'No Native Title')
                 Text(
                   comic.nativeTitle,
-                  style: const TextStyle(
-                    color: Colors.white38,
+                  style: TextStyle(
+                    color: AppColors.textSecondary.withValues(alpha: 0.5),
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                   ),
@@ -181,9 +192,9 @@ class ComicDetailView extends GetView<ComicDetailController> {
                 side: BorderSide.none,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 label: Text(
-                  genre,
-                  style: const TextStyle(
-                    color: Colors.white54,
+                  localizeContentGenre(genre),
+                  style: TextStyle(
+                    color: AppColors.textSecondary.withValues(alpha: 0.66),
                     fontSize: 12,
                   ),
                 ),
@@ -205,12 +216,12 @@ class ComicDetailView extends GetView<ComicDetailController> {
           comic.synopsis,
           trimLines: 3,
           trimMode: TrimMode.Line,
-          trimCollapsedText: '... المزيد',
-          trimExpandedText: ' أقل',
-          moreStyle: const TextStyle(color: AppColors.primary),
-          lessStyle: const TextStyle(color: AppColors.primary),
-          style: const TextStyle(
-            color: Colors.white70,
+          trimCollapsedText: '... المزيد'.tr,
+          trimExpandedText: ' أقل'.tr,
+          moreStyle: TextStyle(color: AppColors.primary),
+          lessStyle: TextStyle(color: AppColors.primary),
+          style: TextStyle(
+            color: AppColors.textSecondary.withValues(alpha: 0.8),
             height: 1.5,
             fontWeight: FontWeight.w500,
           ),
@@ -223,12 +234,12 @@ class ComicDetailView extends GetView<ComicDetailController> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildInfoItem('المؤلف', comic.author),
-        _buildInfoItem('سنة الإصدار', comic.releaseYear),
-        _buildInfoItem('الحالة', _arabicStatus(comic.status)),
-        _buildInfoItem('النوع', _arabicType(comic.type)),
-        _buildInfoItem('التقييم', comic.rating),
-        _buildInfoItem('آخر تحديث', comic.updatedOn),
+        _buildInfoItem('المؤلف'.tr, comic.author),
+        _buildInfoItem('سنة الإصدار'.tr, comic.releaseYear),
+        _buildInfoItem('الحالة'.tr, localizeContentStatus(comic.status)),
+        _buildInfoItem('النوع'.tr, localizeContentType(comic.type)),
+        _buildInfoItem('التقييم'.tr, comic.rating),
+        _buildInfoItem('آخر تحديث'.tr, comic.updatedOn),
       ],
     );
   }
@@ -239,8 +250,8 @@ class ComicDetailView extends GetView<ComicDetailController> {
         const SizedBox(height: 8),
         Text(
           '$label: $value',
-          style: const TextStyle(
-            color: Colors.white54,
+          style: TextStyle(
+            color: AppColors.textSecondary.withValues(alpha: 0.66),
             fontSize: 14,
           ),
         ),
@@ -256,9 +267,9 @@ class ComicDetailView extends GetView<ComicDetailController> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'الفصول',
-          style: const TextStyle(
-            color: Colors.white,
+          'الفصول'.tr,
+          style: TextStyle(
+            color: AppColors.textPrimary,
             fontSize: 20,
             fontWeight: FontWeight.bold,
           ),
@@ -266,12 +277,12 @@ class ComicDetailView extends GetView<ComicDetailController> {
         const SizedBox(height: 10),
         TextField(
           controller: searchController,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: AppColors.textPrimary),
           decoration: InputDecoration(
-            hintText: 'ابحث عن فصل...',
-            hintStyle: const TextStyle(color: Colors.white54),
+            hintText: 'ابحث عن فصل...'.tr,
+            hintStyle: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.66)),
             border: InputBorder.none,
-            icon: const Icon(Icons.search, color: Colors.white54),
+            icon: Icon(Icons.search, color: AppColors.textSecondary.withValues(alpha: 0.66)),
           ),
           onChanged: (value) {
             controller.filterChapters(value);
@@ -317,8 +328,8 @@ class ComicDetailView extends GetView<ComicDetailController> {
                                 chapter.title
                                     .replaceAll(RegExp(r'\s+'), ' ')
                                     .trim(),
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -326,8 +337,8 @@ class ComicDetailView extends GetView<ComicDetailController> {
                               const SizedBox(height: 4),
                               Text(
                                 chapter.releaseTime,
-                                style: const TextStyle(
-                                  color: Colors.white54,
+                                style: TextStyle(
+                                  color: AppColors.textSecondary.withValues(alpha: 0.66),
                                   fontSize: 12,
                                 ),
                               ),
@@ -338,13 +349,34 @@ class ComicDetailView extends GetView<ComicDetailController> {
                           final progress =
                               controller.downloadingChapters[chapter.chapterId];
                           if (progress != null) {
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 9),
-                              child: SizedBox(
-                                  width: 28,
-                                  height: 28,
-                                  child: CircularProgressIndicator(
-                                      value: progress)),
+                            return Tooltip(
+                              message: 'جارٍ التنزيل'.tr,
+                              child: Padding(
+                                padding: const EdgeInsets.only(right: 9),
+                                child: SizedBox(
+                                  width: 38,
+                                  height: 38,
+                                  child: Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      CircularProgressIndicator(
+                                        value: progress,
+                                        strokeWidth: 3,
+                                        color: AppColors.primary,
+                                        backgroundColor: AppColors.divider,
+                                      ),
+                                      Text(
+                                        '${(progress * 100).round()}%',
+                                        style: TextStyle(
+                                          color: AppColors.textPrimary,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             );
                           }
                           return IconButton(
@@ -352,7 +384,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
                               controller.isChapterDownloaded(chapter.chapterId)
                                   ? Icons.download_done
                                   : Icons.download,
-                              color: Colors.white54,
+                              color: AppColors.textSecondary.withValues(alpha: 0.66),
                             ),
                             onPressed: () {
                               if (!controller
@@ -364,15 +396,14 @@ class ComicDetailView extends GetView<ComicDetailController> {
                                   comic.coverImage,
                                 );
                               } else {
-                                Get.snackbar(
-                                    'معلومة', 'الفصل محمّل بالفعل');
+                                AppFeedback.show(title: 'معلومة'.tr, message: 'الفصل محمّل بالفعل'.tr);
                               }
                             },
                           );
                         }),
-                        const Icon(
+                        Icon(
                           Icons.chevron_right_rounded,
-                          color: Colors.white54,
+                          color: AppColors.textSecondary.withValues(alpha: 0.66),
                         ),
                       ],
                     ),
@@ -411,9 +442,9 @@ class ComicDetailView extends GetView<ComicDetailController> {
               }
             },
             child: Text(
-              'أول فصل',
-              style: const TextStyle(
-                color: Colors.white,
+              'أول فصل'.tr,
+              style: TextStyle(
+                color: AppColors.textPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
@@ -441,9 +472,9 @@ class ComicDetailView extends GetView<ComicDetailController> {
               }
             },
             child: Text(
-              'آخر فصل',
-              style: const TextStyle(
-                color: Colors.white,
+              'آخر فصل'.tr,
+              style: TextStyle(
+                color: AppColors.textPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
@@ -465,9 +496,9 @@ class ComicDetailView extends GetView<ComicDetailController> {
         ),
         child: IconButton(
           onPressed: () => Get.back(),
-          icon: const Icon(
+          icon: Icon(
             Icons.close_rounded,
-            color: Colors.white,
+            color: AppColors.textPrimary,
             size: 20,
           ),
         ),
@@ -477,9 +508,6 @@ class ComicDetailView extends GetView<ComicDetailController> {
 
   Widget _buildBookmarkButton(BuildContext context, ComicDetail comic) {
     final bookmarkController = Get.find<BookmarkController>();
-    final isBookmarked =
-        bookmarkController.bookmarks.any((b) => b.comicId == comic.comicId);
-
     return Positioned(
       top: 45,
       right: 20,
@@ -488,38 +516,44 @@ class ComicDetailView extends GetView<ComicDetailController> {
           shape: BoxShape.circle,
           color: Colors.black38,
         ),
-        child: IconButton(
-          onPressed: () {
-            if (isBookmarked) {
-              bookmarkController.deleteBookmark(comic.comicId);
-              Get.snackbar(
-                'إزالة الإشارة المرجعية',
-                '${comic.title} أُزيل من الإشارات المرجعية',
-                backgroundColor: AppColors.searchBar,
-                colorText: Colors.white,
-              );
-            } else {
-              final bookmark = BookmarkItem(
-                comicId: comic.comicId,
-                title: comic.title,
-                coverImage: comic.coverImage,
-                type: comic.type,
-              );
-              bookmarkController.addBookmark(bookmark);
-              Get.snackbar(
-                'إضافة إلى الإشارات المرجعية',
-                '${comic.title} أُضيف إلى الإشارات المرجعية',
-                backgroundColor: AppColors.searchBar,
-                colorText: Colors.white,
-              );
-            }
-          },
-          icon: Icon(
-            isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-            color: isBookmarked ? AppColors.primary : Colors.white,
-            size: 20,
-          ),
-        ),
+        child: Obx(() {
+          final isBookmarked = bookmarkController.bookmarks
+              .any((bookmark) => bookmark.comicId == comic.comicId);
+          return IconButton(
+            onPressed: () async {
+              if (isBookmarked) {
+                final removed = await bookmarkController.deleteBookmark(comic.comicId);
+                if (removed) {
+                  AppFeedback.show(
+                    title: 'إزالة الإشارة المرجعية'.tr,
+                    message: '${comic.title} ${'أُزيل من الإشارات المرجعية'.tr}',
+                    type: AppNoticeType.info,
+                  );
+                }
+              } else {
+                final bookmark = BookmarkItem(
+                  comicId: comic.comicId,
+                  title: comic.title,
+                  coverImage: comic.coverImage,
+                  type: comic.type,
+                );
+                try {
+                  await bookmarkController.addBookmark(bookmark);
+                  AppFeedback.show(
+                    title: 'إضافة إلى الإشارات المرجعية'.tr,
+                    message: '${comic.title} ${'أُضيف إلى الإشارات المرجعية'.tr}',
+                    type: AppNoticeType.success,
+                  );
+                } catch (_) {}
+              }
+            },
+            icon: Icon(
+              isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+              color: isBookmarked ? AppColors.primary : AppColors.textPrimary,
+              size: 20,
+            ),
+          );
+        }),
       ),
     );
   }

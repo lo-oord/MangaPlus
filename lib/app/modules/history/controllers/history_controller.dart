@@ -1,9 +1,11 @@
 import 'package:get/get.dart';
+import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:mangaplus/app/data/models/history.dart';
 import 'package:mangaplus/app/data/services/app_data_service.dart';
 
 class HistoryController extends GetxController {
   final _appDataService = AppDataService();
+  final RxBool isLoading = true.obs;
   final RxList<HistoryItem> histories = <HistoryItem>[].obs;
 
   Future<void> getHistory() async {
@@ -13,7 +15,9 @@ class HistoryController extends GetxController {
         histories.value = history;
       }
     } catch (e) {
-      Get.snackbar('خطأ', 'تعذر تحميل سجل القراءة. حاول مجددًا.');
+      AppFeedback.show(title: 'خطأ'.tr, message: 'تعذر تحميل سجل القراءة. حاول مجددًا.'.tr, type: AppNoticeType.error);
+    } finally {
+      isLoading.value = false;
     }
   }
 
@@ -23,7 +27,7 @@ class HistoryController extends GetxController {
       getHistory();
       return history;
     } catch (e) {
-      Get.snackbar('خطأ', 'تعذر حفظ سجل القراءة. حاول مجددًا.');
+      AppFeedback.show(title: 'خطأ'.tr, message: 'تعذر حفظ سجل القراءة. حاول مجددًا.'.tr, type: AppNoticeType.error);
       rethrow;
     }
   }

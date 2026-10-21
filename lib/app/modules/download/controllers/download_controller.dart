@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:mangaplus/app/data/models/downloaded_chapter.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:path_provider/path_provider.dart';
@@ -7,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 class DownloadController extends GetxController {
   final GetStorage _storage = GetStorage();
   var downloadedChapters = <DownloadedChapter>[].obs;
+  final RxBool isLoading = true.obs;
   var _lastStorageValue = <dynamic>[];
 
   @override
@@ -26,7 +28,8 @@ class DownloadController extends GetxController {
     super.onInit();
   }
 
-  void loadDownloadedChapters() async {
+  Future<void> loadDownloadedChapters() async {
+    isLoading.value = true;
     try {
       final chapters = _storage.read<List<dynamic>>('downloadedChapters') ?? [];
       print('Loaded chapters from storage: $chapters');
@@ -62,8 +65,9 @@ class DownloadController extends GetxController {
     } catch (e) {
       print('Error loading downloaded chapters: $e');
       downloadedChapters.clear();
-      Get.snackbar('خطأ', 'تعذر تحميل قائمة التنزيلات.',
-          duration: const Duration(seconds: 3));
+      AppFeedback.show(title: 'خطأ'.tr, message: 'تعذر تحميل قائمة التنزيلات.'.tr, type: AppNoticeType.error);
+    } finally {
+      isLoading.value = false;
     }
   }
 
@@ -99,8 +103,8 @@ class DownloadController extends GetxController {
             chapters.add(DownloadedChapter(
               comicId: comicId,
               chapterId: chapterId,
-              comicTitle: 'كوميكس غير معروف', // Placeholder, update if metadata available
-              chapterTitle: 'الفصل $chapterId',
+              comicTitle: 'كوميكس غير معروف'.tr, // Placeholder, update if metadata available
+              chapterTitle: '${'الفصل'.tr} $chapterId',
               coverImage: '',
               localImagePaths: imagePaths,
               downloadedAt: DateTime.now(),
@@ -127,10 +131,10 @@ class DownloadController extends GetxController {
       await _storage.write('downloadedChapters', downloadedChapters.map((c) => c.toJson()).toList());
       await _storage.save();
       print('Updated storage after deletion: ${downloadedChapters.length} chapters remaining');
-      Get.snackbar('نجاح', 'تم حذف الفصل بنجاح');
+      AppFeedback.show(title: 'نجاح'.tr, message: 'تم حذف الفصل بنجاح'.tr, type: AppNoticeType.success);
     } catch (e) {
       print('Error deleting chapter: $e');
-      Get.snackbar('خطأ', 'تعذر حذف الفصل. حاول مجددًا.');
+      AppFeedback.show(title: 'خطأ'.tr, message: 'تعذر حذف الفصل. حاول مجددًا.'.tr, type: AppNoticeType.error);
     }
   }
 

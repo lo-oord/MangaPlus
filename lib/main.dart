@@ -4,12 +4,14 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/core/theme/theme.dart';
+import 'package:mangaplus/app/data/services/notification_presentation.dart';
 import 'package:mangaplus/app/core/translations/app_translations.dart';
 
 import 'package:mangaplus/firebase_options.dart';
@@ -30,19 +32,18 @@ late AndroidNotificationChannel channel;
 
 bool isFlutterLocalNotificationsInitialized = false;
 
-Future<void> setupFlutterNotifications() async {
+Future<void> setupFlutterNotifications({required String languageCode}) async {
   if (isFlutterLocalNotificationsInitialized) {
     return;
   }
-  channel = const AndroidNotificationChannel(
-    'high_importance_channel', // id
-    'الإشعارات المهمة', // title
-    description:
-        'تُستخدم هذه القناة للتنبيهات المهمة.', // description
-    importance: Importance.high,
-  );
+  channel = NotificationPresentation.channelFor(languageCode);
 
   flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+  await flutterLocalNotificationsPlugin.initialize(
+    const InitializationSettings(
+      android: AndroidInitializationSettings('ic_stat_mangaplus'),
+    ),
+  );
 
   /// Create an Android Notification Channel.
   ///
@@ -53,13 +54,6 @@ Future<void> setupFlutterNotifications() async {
           AndroidFlutterLocalNotificationsPlugin>()
       ?.createNotificationChannel(channel);
 
-  /// Update the iOS foreground notification presentation options to allow
-  /// heads up notifications.
-  await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
-    alert: true,
-    badge: true,
-    sound: true,
-  );
   isFlutterLocalNotificationsInitialized = true;
 }
 
@@ -80,9 +74,10 @@ void showFlutterNotification(RemoteMessage message) {
           channel.id,
           channel.name,
           channelDescription: channel.description,
-          // TODO add a proper drawable resource to android, for now using
-          //      one that already exists in example app.
           icon: 'ic_stat_mangaplus',
+          color: const Color(0xff5b9bd5),
+          importance: Importance.high,
+          priority: Priority.high,
         ),
       ),
     );
@@ -111,14 +106,16 @@ void main() async {
     DeviceOrientation.portraitUp,
   ]);
   await GetStorage.init();
-  // Test GetStorage write and read
   final storage = GetStorage();
-  await storage.write('test_key', 'test_value');
-  await storage.save();
+  final savedLanguage = storage.read('language') as String? ?? 'ar_SA';
+  final savedTheme = storage.read('themeMode') as String? ?? 'dark';
+  final initialLocale = savedLanguage == 'en_US'
+      ? const Locale('en', 'US')
+      : const Locale('ar', 'SA');
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   if (!kIsWeb) {
-    await setupFlutterNotifications();
+    await setupFlutterNotifications(languageCode: savedLanguage);
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       showFlutterNotification(message);
     });
@@ -128,11 +125,18 @@ void main() async {
     GetMaterialApp(
       debugShowCheckedModeBanner: false,
       title: "MangaPlus",
-      theme: AppTheme.darkTheme,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: savedTheme == 'light' ? ThemeMode.light : ThemeMode.dark,
+      themeAnimationDuration: const Duration(milliseconds: 280),
+      themeAnimationCurve: Curves.easeInOutCubic,
+      defaultTransition: Transition.fadeIn,
+      transitionDuration: const Duration(milliseconds: 260),
       translations: AppTranslations(),
-      locale: const Locale('ar', 'SA'),
+      locale: initialLocale,
       fallbackLocale: const Locale('ar', 'SA'),
-      supportedLocales: const [Locale('ar', 'SA')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      supportedLocales: const [Locale('ar', 'SA'), Locale('en', 'US')],
       builder: (context, child) => Directionality(
         textDirection: TextDirection.ltr,
         child: child ?? const SizedBox.shrink(),

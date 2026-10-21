@@ -5,6 +5,7 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/modules/home/controllers/home_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/custom_card_normal.dart';
+import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
@@ -15,23 +16,43 @@ class HomeView extends GetView<HomeController> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildHeroImage(context),
-            const SizedBox(height: 20),
-            const KomikCardsSection(),
-          ],
-        ),
-      ),
+      body: Obx(() {
+        if (controller.isLoading.value) {
+          return BrandState(
+            title: 'جارٍ تجهيز المحتوى'.tr,
+            loading: true,
+          );
+        }
+        final hasContent = controller.heroComics.isNotEmpty ||
+            controller.comicData.value.comicsList.isNotEmpty ||
+            controller.popularKomikData.value.popularManga.isNotEmpty;
+        if (!hasContent) {
+          return BrandState(
+            title: 'مصدر المحتوى غير مضاف بعد'.tr,
+            description:
+                'سيُضاف مصدر المانجا في مرحلة لاحقة. لا يتصل التطبيق حاليًا بأي API للمحتوى.'
+                    .tr,
+          );
+        }
+        return SingleChildScrollView(
+          child: Column(
+            children: [
+              _buildHeroImage(context),
+              const SizedBox(height: 20),
+              const KomikCardsSection(),
+            ],
+          ),
+        );
+      }),
     );
   }
 
   Widget _buildHeroImage(BuildContext context) {
     return Obx(() {
       if (controller.isLoading.value) {
-        return _buildHeroImageSkeleton();
+        return BrandState(title: 'جارٍ تجهيز المحتوى'.tr, loading: true);
       }
+      if (controller.heroComics.isEmpty) return const SizedBox.shrink();
       return Column(
         children: [
           SizedBox(
@@ -88,19 +109,19 @@ class HomeView extends GetView<HomeController> {
                           child: Column(
                             children: [
                               Text(
-                                comic['subtitle']!.toUpperCase(),
-                                style: const TextStyle(
-                                  color: Colors.white70,
+                                comic['subtitle']!.tr.toUpperCase(),
+                                style: TextStyle(
+                                  color: AppColors.textSecondary.withValues(alpha: 0.8),
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
                               const SizedBox(height: 0),
                               Text(
-                                comic['title']!,
+                                comic['title']!.tr,
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
                                   fontSize: 22,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -113,8 +134,8 @@ class HomeView extends GetView<HomeController> {
                                       Routes.COMIC_DETAIL,
                                       arguments: comic['comicId']),
                                   style: OutlinedButton.styleFrom(),
-                                  child: const Text(
-                                    'اقرأ الآن',
+                                  child: Text(
+                                    'اقرأ الآن'.tr,
                                   ),
                                 ),
                               ),
@@ -183,9 +204,9 @@ class KomikCardsSection extends GetView<HomeController> {
       }
       if (controller.comicData.value.comicsList.isEmpty &&
           controller.popularKomikData.value.popularManga.isEmpty) {
-        return const Center(
-            child: Text('لا توجد قصص مصورة متاحة',
-                style: TextStyle(color: Colors.white)));
+        return Center(
+            child: Text('لا توجد قصص مصورة متاحة'.tr,
+                style: TextStyle(color: AppColors.textPrimary)));
       }
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -194,15 +215,15 @@ class KomikCardsSection extends GetView<HomeController> {
           children: [
             _buildHistorySection(context),
             const SizedBox(height: 16),
-            _buildSectionTitle(context, "الأكثر شعبية"),
+            _buildSectionTitle(context, "الأكثر شعبية".tr),
             const SizedBox(height: 8),
             _buildPopularGrid(context),
             const SizedBox(height: 12),
-            _buildSectionTitle(context, "اختيار التصنيف"),
+            _buildSectionTitle(context, "اختيار التصنيف".tr),
             const SizedBox(height: 8),
             _buildGenreChips(context),
             const SizedBox(height: 12),
-            _buildSectionTitle(context, "الأحدث"),
+            _buildSectionTitle(context, "الأحدث".tr),
             const SizedBox(height: 8),
             _buildTerbaruGrid(context),
             const SizedBox(height: 12),
@@ -228,7 +249,7 @@ class KomikCardsSection extends GetView<HomeController> {
                 margin: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 20),
@@ -237,7 +258,7 @@ class KomikCardsSection extends GetView<HomeController> {
               Container(
                 height: 20,
                 width: 150,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 margin: const EdgeInsets.only(bottom: 8),
               ),
               const SizedBox(height: 8),
@@ -258,20 +279,20 @@ class KomikCardsSection extends GetView<HomeController> {
                             height: 150,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(8),
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 8),
                           Container(
                             height: 12,
                             width: 100,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                           ),
                           const SizedBox(height: 4),
                           Container(
                             height: 10,
                             width: 60,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                           ),
                         ],
                       ),
@@ -286,7 +307,7 @@ class KomikCardsSection extends GetView<HomeController> {
               Container(
                 height: 20,
                 width: 150,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 margin: const EdgeInsets.only(bottom: 8),
               ),
               const SizedBox(height: 8),
@@ -304,7 +325,7 @@ class KomikCardsSection extends GetView<HomeController> {
                       margin: const EdgeInsets.only(right: 8),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(8),
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     );
                   },
@@ -317,7 +338,7 @@ class KomikCardsSection extends GetView<HomeController> {
               Container(
                 height: 20,
                 width: 150,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 margin: const EdgeInsets.only(bottom: 8),
               ),
               const SizedBox(height: 8),
@@ -342,19 +363,19 @@ class KomikCardsSection extends GetView<HomeController> {
                         height: 144,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(8),
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Container(
                         height: 12,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                       const SizedBox(height: 4),
                       Container(
                         height: 10,
                         width: 60,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ],
                   );
@@ -405,17 +426,17 @@ class KomikCardsSection extends GetView<HomeController> {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               Text(
-                "آخر ما تمت قراءته",
-                style: const TextStyle(
-                  color: Colors.white70,
+                "آخر ما تمت قراءته".tr,
+                style: TextStyle(
+                  color: AppColors.textSecondary.withValues(alpha: 0.8),
                   fontSize: 12,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 histories.first.title,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: AppColors.textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
@@ -428,15 +449,15 @@ class KomikCardsSection extends GetView<HomeController> {
                   Get.toNamed(Routes.COMIC_DETAIL,
                       arguments: histories.first.comicId);
                 },
-                icon: const Icon(
+                icon: Icon(
                   Icons.play_circle_outline,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   size: 20,
                 ),
                 label: Text(
-                  'متابعة القراءة',
-                  style: const TextStyle(
-                    color: Colors.white,
+                  'متابعة القراءة'.tr,
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
                     fontSize: 14,
                   ),
                 ),
@@ -478,7 +499,7 @@ class KomikCardsSection extends GetView<HomeController> {
               },
               child: CustomCardNormal(
                 title: comic.title,
-                chapter: 'الترتيب ${comic.rank}',
+                chapter: 'الترتيب'.tr + ' ${comic.rank}',
                 imageUrl: comic.image,
               ),
             ),
@@ -538,8 +559,8 @@ class KomikCardsSection extends GetView<HomeController> {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               label: Text(
                 genre.name,
-                style: const TextStyle(
-                  color: Colors.white54,
+                style: TextStyle(
+                  color: AppColors.textSecondary.withValues(alpha: 0.66),
                   fontSize: 12,
                 ),
               ),
@@ -559,19 +580,19 @@ class KomikCardsSection extends GetView<HomeController> {
       children: [
         Text(
           title,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: AppColors.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w700,
           ),
         ),
-        if (title == "الأكثر شعبية" || title == "الأحدث")
+        if (title == "الأكثر شعبية".tr || title == "الأحدث".tr)
           GestureDetector(
             onTap: () {
               // Navigate to full list
             },
-            child: const Text(
-              "عرض الكل",
+            child: Text(
+              "عرض الكل".tr,
               style: TextStyle(
                 color: AppColors.primary,
                 fontSize: 17,

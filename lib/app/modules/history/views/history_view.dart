@@ -2,9 +2,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/models/history.dart';
 import 'package:mangaplus/app/modules/history/controllers/history_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
+import 'package:mangaplus/app/widgets/brand_state.dart';
 
 class HistoryView extends GetView<HistoryController> {
   const HistoryView({super.key});
@@ -14,12 +16,16 @@ class HistoryView extends GetView<HistoryController> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('سجل القراءة'),
+        title: Text('سجل القراءة'.tr),
         centerTitle: true,
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.textPrimary,
         elevation: 0,
       ),
       body: Obx(() {
+        if (controller.isLoading.value) {
+          return BrandState(title: 'جارٍ تحميل سجل القراءة'.tr, loading: true);
+        }
         final histories = controller.histories;
 
         if (histories.isEmpty) {
@@ -39,36 +45,10 @@ class HistoryView extends GetView<HistoryController> {
     );
   }
 
-  Widget _buildEmptyHistory() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.history,
-            size: 64,
-            color: Colors.grey[600],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'لا يوجد سجل قراءة بعد',
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey[500],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'ابدأ القراءة ليظهر سجلك هنا',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildEmptyHistory() => BrandState(
+        title: 'لا يوجد سجل قراءة بعد'.tr,
+        description: 'ابدأ القراءة ليظهر سجلك هنا'.tr,
+      );
 
   Widget _buildHistoryItem(HistoryItem history) {
     return Card(
@@ -100,14 +80,13 @@ class HistoryView extends GetView<HistoryController> {
                     width: 80,
                     height: 100,
                     color: AppColors.background,
-                    child: const Center(
-                        child: CircularProgressIndicator(strokeWidth: 2)),
+                    child: const Center(child: MangaPlusLogo(size: 48)),
                   ),
                   errorWidget: (context, url, error) => Container(
                     width: 80,
                     height: 100,
                     color: AppColors.card,
-                    child: const Icon(Icons.broken_image),
+                    child: const Center(child: MangaPlusLogo(size: 48)),
                   ),
                 ),
               ),
@@ -121,10 +100,10 @@ class HistoryView extends GetView<HistoryController> {
                     // Comic Title
                     Text(
                       history.title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -133,10 +112,10 @@ class HistoryView extends GetView<HistoryController> {
 
                     // Type (now as plain text above time)
                     Text(
-                      history.type.capitalize ?? '',
+                      localizeContentType(history.type),
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey[400],
+                        color: AppColors.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -147,14 +126,14 @@ class HistoryView extends GetView<HistoryController> {
                         Icon(
                           Icons.access_time,
                           size: 14,
-                          color: Colors.grey[500],
+                          color: AppColors.textSecondary,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           _formatTime(history.lastRead),
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey[500],
+                            color: AppColors.textSecondary,
                           ),
                         ),
                       ],
@@ -187,9 +166,9 @@ class HistoryView extends GetView<HistoryController> {
                               .trim(),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                           ),
                         ),
                       ),
@@ -209,15 +188,16 @@ class HistoryView extends GetView<HistoryController> {
     final difference = now.difference(date);
 
     if (difference.inMinutes < 1) {
-      return 'منذ لحظات';
+      return 'منذ لحظات'.tr;
     } else if (difference.inMinutes < 60) {
       return _formatArabicDuration(
-          difference.inMinutes, 'دقيقة', 'دقيقتين', 'دقائق');
+          difference.inMinutes, 'دقيقة'.tr, 'دقيقتين'.tr, 'دقائق'.tr);
     } else if (difference.inHours < 24) {
       return _formatArabicDuration(
-          difference.inHours, 'ساعة', 'ساعتين', 'ساعات');
+          difference.inHours, 'ساعة'.tr, 'ساعتين'.tr, 'ساعات'.tr);
     } else if (difference.inDays < 7) {
-      return _formatArabicDuration(difference.inDays, 'يوم', 'يومين', 'أيام');
+      return _formatArabicDuration(
+          difference.inDays, 'يوم'.tr, 'يومين'.tr, 'أيام'.tr);
     } else {
       return '${date.day}/${date.month}/${date.year}';
     }
@@ -226,11 +206,17 @@ class HistoryView extends GetView<HistoryController> {
   String _formatArabicDuration(
       int value, String singular, String dual, String plural) {
     if (value == 2) {
-      return 'منذ $dual';
+      return 'منذ @duration'.trParams({'duration': dual});
     }
     if (value >= 3 && value <= 10) {
-      return 'منذ $value $plural';
+      return 'منذ @value @unit'.trParams({
+        'value': '$value',
+        'unit': plural,
+      });
     }
-    return 'منذ $value $singular';
+    return 'منذ @value @unit'.trParams({
+      'value': '$value',
+      'unit': singular,
+    });
   }
 }

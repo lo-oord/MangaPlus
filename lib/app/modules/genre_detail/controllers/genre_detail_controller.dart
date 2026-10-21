@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:mangaplus/app/data/models/comic.dart';
 import 'package:mangaplus/app/data/services/genre_service.dart';
 
@@ -27,7 +28,7 @@ class GenreDetailController extends GetxController {
       currentPage.value = page;
       hasMoreData.value = data.pagination?.nextPage != null;
     } catch (e) {
-      Get.snackbar('خطأ', 'تعذر تحميل قصص هذا التصنيف. حاول مجددًا.');
+      AppFeedback.show(title: 'خطأ'.tr, message: 'تعذر تحميل قصص هذا التصنيف. حاول مجددًا.'.tr, type: AppNoticeType.error);
     } finally {
       if (page == 1) {
         isLoading(false);

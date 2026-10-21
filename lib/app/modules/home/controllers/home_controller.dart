@@ -1,7 +1,6 @@
-import 'dart:async';
-
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:mangaplus/app/data/models/comic.dart';
 import 'package:mangaplus/app/data/models/popular_comic.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
@@ -13,32 +12,9 @@ class HomeController extends GetxController {
   final GenreController genreController = Get.find();
   final HistoryController historyController = Get.find();
   PageController pageController = PageController(initialPage: 0);
-  Timer? _timer;
   final currentPage = 0.obs;
 
-  final heroComics = [
-    {
-      "comicId": "omniscient-readers-viewpoint",
-      "title": "وجهة نظر القارئ العليم",
-      "subtitle": "أفضل مانهوا الفانتازيا",
-      "image":
-          "https://i.pinimg.com/736x/84/5f/9d/845f9dab7240d5f249efc289dde4d7af.jpg",
-    },
-    {
-      "comicId": "solo-leveling",
-      "title": "التسوية المنفردة",
-      "subtitle": "أفضل مانهوا الأكشن",
-      "image":
-          "https://i.pinimg.com/736x/12/76/3d/12763d6cc85d5c00e20dd20052187138.jpg",
-    },
-    {
-      "comicId": "legend-of-the-northern-blade",
-      "title": "أسطورة النصل الشمالي",
-      "subtitle": "أفضل مانهوا الموريم",
-      "image":
-          "https://i.pinimg.com/736x/af/5a/0d/af5a0d7373b41b607e0588f34ae1d5c7.jpg",
-    }
-  ];
+  final List<Map<String, String>> heroComics = <Map<String, String>>[];
 
   var comicData = ComicData(
     comicsList: [],
@@ -50,7 +26,7 @@ class HomeController extends GetxController {
     source: "",
   ).obs;
 
-  var isLoading = false.obs;
+  var isLoading = true.obs;
   var popularKomikData = PopularKomikData(popularManga: [], source: "").obs;
 
   Future<void> fetchComics() async {
@@ -59,7 +35,7 @@ class HomeController extends GetxController {
       comicData.value = await _comicService.fetchComics();
     } catch (e) {
       print('error cuy: $e');
-      Get.snackbar('خطأ', 'حدث خطأ غير متوقع. يرجى المحاولة مجددًا.');
+      AppFeedback.show(title: 'خطأ'.tr, message: 'حدث خطأ غير متوقع. يرجى المحاولة مجددًا.'.tr, type: AppNoticeType.error);
     } finally {
       isLoading(false);
     }
@@ -70,33 +46,14 @@ class HomeController extends GetxController {
       isLoading(true);
       popularKomikData.value = await _comicService.fetchPopularComics();
     } catch (e) {
-      Get.snackbar('خطأ', 'تعذر تحميل القصص المصورة الشائعة. حاول مجددًا.');
+      AppFeedback.show(title: 'خطأ'.tr, message: 'تعذر تحميل القصص المصورة الشائعة. حاول مجددًا.'.tr, type: AppNoticeType.error);
     } finally {
       isLoading(false);
     }
   }
 
-  void _startAutoScroll() {
-    _timer = Timer.periodic(const Duration(seconds: 6), (timer) {
-      int nextPage = currentPage.value + 1;
-      if (nextPage >= heroComics.length) {
-        nextPage = 0;
-      }
-
-      pageController.animateToPage(
-        nextPage,
-        duration: const Duration(milliseconds: 1000),
-        curve: Curves.easeInOut,
-      );
-
-      currentPage.value = nextPage;
-    });
-  }
-
   @override
   void onInit() {
-    genreController.fetchGenres();
-
     fetchComics();
     fetchPopularComics();
 
@@ -107,16 +64,11 @@ class HomeController extends GetxController {
   @override
   void onReady() {
     super.onReady();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (pageController.hasClients) {
-        _startAutoScroll();
-      }
-    });
   }
 
   @override
   void onClose() {
-    _timer?.cancel();
+    pageController.dispose();
     super.onClose();
   }
 }

@@ -1,22 +1,25 @@
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:mangaplus/app/modules/download/views/download_view.dart';
-import 'package:mangaplus/app/modules/genre/views/genre_view.dart';
-import 'package:mangaplus/app/modules/history/views/history_view.dart';
-import 'package:mangaplus/app/modules/home/views/home_view.dart';
-import 'package:mangaplus/app/modules/profile/views/profile_view.dart';
 
 class MainController extends GetxController {
-  var index = 0.obs;
+  final RxInt index = 0.obs;
+  final PageController pageController = PageController();
 
   void changeIndex(int newIndex) {
+    if (newIndex == index.value) return;
     index.value = newIndex;
+    if (pageController.hasClients) {
+      pageController.animateToPage(
+        newIndex,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOutCubic,
+      );
+    }
   }
 
-  List<dynamic> pages = [
-    const HomeView(),
-    const GenreView(),
-    const HistoryView(),
-    const DownloadView(),
-    const ProfileView(),
-  ];
+  @override
+  void onClose() {
+    pageController.dispose();
+    super.onClose();
+  }
 }

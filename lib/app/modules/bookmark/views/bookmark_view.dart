@@ -2,9 +2,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/models/bookmark.dart';
 import 'package:mangaplus/app/modules/bookmark/controllers/bookmark_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
+import 'package:mangaplus/app/widgets/brand_state.dart';
 
 class BookmarkView extends GetView<BookmarkController> {
   const BookmarkView({super.key});
@@ -14,12 +16,16 @@ class BookmarkView extends GetView<BookmarkController> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('الإشارات المرجعية'),
+        title: Text('الإشارات المرجعية'.tr),
         centerTitle: true,
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.textPrimary,
         elevation: 0,
       ),
       body: Obx(() {
+        if (controller.isLoading.value) {
+          return BrandState(title: 'جارٍ تحميل المفضلة'.tr, loading: true);
+        }
         final bookmarks = controller.bookmarks;
 
         if (bookmarks.isEmpty) {
@@ -37,36 +43,10 @@ class BookmarkView extends GetView<BookmarkController> {
     );
   }
 
-  Widget _buildEmptyBookmark() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.bookmark,
-            size: 64,
-            color: Colors.grey[600],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'لا توجد إشارات مرجعية بعد',
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey[500],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'أضف كوميكسك المفضلة إلى الإشارات المرجعية لتظهر هنا',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildEmptyBookmark() => BrandState(
+        title: 'لا توجد إشارات مرجعية بعد'.tr,
+        description: 'أضف كوميكسك المفضلة إلى الإشارات المرجعية لتظهر هنا'.tr,
+      );
 
   Widget _buildBookmarkItem(BookmarkItem bookmark) {
     return Card(
@@ -98,14 +78,13 @@ class BookmarkView extends GetView<BookmarkController> {
                     width: 80,
                     height: 100,
                     color: AppColors.background,
-                    child: const Center(
-                        child: CircularProgressIndicator(strokeWidth: 2)),
+                    child: const Center(child: MangaPlusLogo(size: 48)),
                   ),
                   errorWidget: (context, url, error) => Container(
                     width: 80,
                     height: 100,
                     color: AppColors.card,
-                    child: const Icon(Icons.broken_image),
+                    child: const Center(child: MangaPlusLogo(size: 48)),
                   ),
                 ),
               ),
@@ -119,10 +98,10 @@ class BookmarkView extends GetView<BookmarkController> {
                     // Comic Title
                     Text(
                       bookmark.title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -131,10 +110,10 @@ class BookmarkView extends GetView<BookmarkController> {
 
                     // Type
                     Text(
-                      bookmark.type.capitalize ?? '',
+                      localizeContentType(bookmark.type),
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey[400],
+                        color: AppColors.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -146,7 +125,7 @@ class BookmarkView extends GetView<BookmarkController> {
                     //   bookmark.status ?? '',
                     //   style: TextStyle(
                     //     fontSize: 12,
-                    //     color: Colors.grey[400],
+                    //     color: AppColors.textSecondary,
                     //   ),
                     // ),
                   ],

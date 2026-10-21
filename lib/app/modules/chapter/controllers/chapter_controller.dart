@@ -53,7 +53,6 @@ class ChapterController extends GetxController {
         chapterData.value = await _comicService.fetchChapter(chapterId);
       }
     } catch (e) {
-      // Get.snackbar('خطأ', 'فشل جلب الفصل: $e');
       print('Error fetching chapter: $e');
     } finally {
       isLoading(false);

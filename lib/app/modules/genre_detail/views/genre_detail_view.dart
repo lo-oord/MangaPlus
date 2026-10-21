@@ -4,6 +4,7 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/modules/genre_detail/controllers/genre_detail_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/custom_card_normal.dart';
+import 'package:mangaplus/app/widgets/brand_state.dart';
 
 
 class GenreDetailView extends GetView<GenreDetailController> {
@@ -26,31 +27,30 @@ class GenreDetailView extends GetView<GenreDetailController> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.textPrimary,
         elevation: 0,
         title: Text(
-          Get.arguments ?? 'التصنيف',
-          style: const TextStyle(
-            color: Colors.white,
+          Get.arguments ?? 'التصنيف'.tr,
+          style: TextStyle(
+            color: AppColors.textPrimary,
             fontSize: 22,
             fontWeight: FontWeight.bold,
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => Get.back(),
         ),
       ),
       body: Obx(() {
         if (controller.isLoading.value) {
-          return const Center(child: CircularProgressIndicator());
+          return BrandState(title: 'جارٍ تحميل التصنيف'.tr, loading: true);
         }
         if (controller.comicsList.isEmpty) {
-          return const Center(
-            child: Text(
-              'لا توجد قصص مصورة لهذا التصنيف',
-              style: TextStyle(color: Colors.white),
-            ),
+          return BrandState(
+            title: 'لا توجد قصص مصورة لهذا التصنيف'.tr,
+            description: 'سيُضاف مصدر المانجا في مرحلة لاحقة.'.tr,
           );
         }
         return Padding(

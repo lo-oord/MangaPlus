@@ -6,6 +6,7 @@ import 'package:mangaplus/app/data/services/comic_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
+import 'package:mangaplus/app/widgets/app_feedback.dart';
 
 class ComicDetailController extends GetxController {
   final ComicService _comicService = ComicService();
@@ -51,7 +52,7 @@ class ComicDetailController extends GetxController {
       fetchComicDetail(comicId);
     } else {
       print('Error: No comicId provided');
-      Get.snackbar('خطأ', 'لم يتم تقديم معرّف الكوميكس');
+      AppFeedback.show(title: 'خطأ'.tr, message: 'لم يتم تقديم معرّف الكوميكس'.tr, type: AppNoticeType.error);
     }
   }
 
@@ -70,7 +71,7 @@ class ComicDetailController extends GetxController {
       print('Fetched comic: ${comicDetailData.value.comicDetail.title}');
     } catch (e) {
       print('Error fetching comic detail: $e');
-      Get.snackbar('خطأ', 'تعذر تحميل البيانات. تحقق من اتصال الإنترنت وحاول مجددًا.');
+      AppFeedback.show(title: 'خطأ'.tr, message: 'تعذر تحميل البيانات. تحقق من اتصال الإنترنت وحاول مجددًا.'.tr, type: AppNoticeType.error);
     } finally {
       isLoading(false);
     }
@@ -106,6 +107,14 @@ class ComicDetailController extends GetxController {
       final chapterData = await _comicService.fetchChapter(chapter.chapterId);
       final images = chapterData.chapter.images;
       print('Fetched chapter data with ${images.length} images');
+      if (images.isEmpty) {
+        AppFeedback.show(
+          title: 'معلومة'.tr,
+          message: 'لا توجد صور متاحة'.tr,
+          type: AppNoticeType.info,
+        );
+        return;
+      }
 
       final dir = await getApplicationDocumentsDirectory();
       final chapterDir =
@@ -151,8 +160,11 @@ class ComicDetailController extends GetxController {
           print('Verified storage after save: $savedData');
         } catch (e) {
           print('Error saving to GetStorage: $e');
-          Get.snackbar(
-              'خطأ', 'تعذر حفظ البيانات على الجهاز.');
+          AppFeedback.show(
+            title: 'خطأ'.tr,
+            message: 'تعذر حفظ البيانات على الجهاز.'.tr,
+            type: AppNoticeType.error,
+          );
           return;
         }
       } else {
@@ -160,10 +172,10 @@ class ComicDetailController extends GetxController {
             'Chapter ${chapter.chapterId} already exists in storage, skipping');
       }
 
-      Get.snackbar('نجاح', 'تم تنزيل الفصل بنجاح');
+      AppFeedback.show(title: 'نجاح'.tr, message: 'تم تنزيل الفصل بنجاح'.tr, type: AppNoticeType.success);
     } catch (e) {
       print('Error downloading chapter: $e');
-      Get.snackbar('خطأ', 'تعذر تنزيل الفصل. تحقق من مساحة التخزين وحاول مجددًا.');
+      AppFeedback.show(title: 'خطأ'.tr, message: 'تعذر تنزيل الفصل. تحقق من مساحة التخزين وحاول مجددًا.'.tr, type: AppNoticeType.error);
     } finally {
       downloadingChapters.remove(chapter.chapterId);
       await _storage.write('downloadingChapters', downloadingChapters);

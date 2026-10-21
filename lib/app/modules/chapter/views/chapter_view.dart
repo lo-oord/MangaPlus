@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:mangaplus/app/modules/chapter/controllers/chapter_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
+import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'dart:io';
 
 class ChapterView extends GetView<ChapterController> {
@@ -32,12 +33,13 @@ class ChapterView extends GetView<ChapterController> {
   Widget _buildContent() {
     return Obx(() {
       if (controller.isLoading.value) {
-        return const Center(child: CircularProgressIndicator());
+        return BrandState(title: 'جارٍ تحميل الفصل'.tr, loading: true);
       }
       if (controller.chapterData.value.chapter.images.isEmpty) {
-        return const Center(
-            child: Text('لا توجد صور متاحة',
-                style: TextStyle(color: Colors.white)));
+        return BrandState(
+          title: 'لا توجد صور متاحة'.tr,
+          description: 'سيُضاف مصدر المانجا في مرحلة لاحقة.'.tr,
+        );
       }
       final chapter = controller.chapterData.value.chapter;
       return GestureDetector(
@@ -89,7 +91,7 @@ class ChapterView extends GetView<ChapterController> {
                     icon: const Icon(Icons.chevron_left, size: 30),
                     color: chapter.previousChapter.isNotEmpty &&
                             !controller.isOffline.value
-                        ? Colors.white
+                        ? AppColors.textPrimary
                         : Colors.grey,
                     onPressed: () {
                       if (chapter.previousChapter.isEmpty ||
@@ -109,8 +111,8 @@ class ChapterView extends GetView<ChapterController> {
                     child: Center(
                       child: Text(
                         controller.chapterData.value.chapter.chapterId,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -123,7 +125,7 @@ class ChapterView extends GetView<ChapterController> {
                     icon: const Icon(Icons.chevron_right, size: 30),
                     color: chapter.nextChapter != null &&
                             !controller.isOffline.value
-                        ? Colors.white
+                        ? AppColors.textPrimary
                         : Colors.grey,
                     onPressed: () {
                       // if (chapter.nextChapter == null ||
@@ -162,24 +164,30 @@ class ChapterView extends GetView<ChapterController> {
           : CachedNetworkImage(
               imageUrl: imageUrl,
               fit: BoxFit.contain,
-              placeholder: (context, url) => const Center(
+              placeholder: (context, url) => Center(
                 child: SizedBox(
                   height: 200,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      CircularProgressIndicator(),
+                      MangaPlusLogo(size: 52),
+                      SizedBox(height: 8),
+                      SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
                       SizedBox(height: 8),
                       Text(
-                        'جارٍ تحميل الصورة...',
-                        style: TextStyle(color: Colors.white70),
+                        'جارٍ تحميل الصورة...'.tr,
+                        style: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.8)),
                       ),
                     ],
                   ),
                 ),
               ),
-              errorWidget: (context, url, error) => const Center(
-                child: Icon(Icons.error, color: Colors.red),
+              errorWidget: (context, url, error) => Center(
+                child: MangaPlusLogo(size: 60),
               ),
             )),
     );

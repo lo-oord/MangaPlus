@@ -1,31 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:mangaplus/app/data/services/notification_presentation.dart';
 
 class ProfileController extends GetxController {
   final GetStorage _storage = GetStorage();
-  var selectedLanguage = 'ar_SA'.obs;
-
-  final RxList<String> downloads = <String>[
-    'سولو ليفلينغ - الفصول 210–215',
-    'برج الإله - الفصول 120–123',
-    'البداية بعد النهاية - الفصول 145–150',
-    'القارئ العليم - الفصول 100–104',
-  ].obs;
+  final RxString selectedLanguage = 'ar_SA'.obs;
+  final RxBool isDarkMode = true.obs;
 
   @override
   void onInit() {
+    selectedLanguage.value = _storage.read<String>('language') ?? 'ar_SA';
+    final savedTheme = _storage.read<String>('themeMode') ?? 'dark';
+    isDarkMode.value = savedTheme == 'dark';
     super.onInit();
-    selectedLanguage.value = 'ar_SA';
-    _storage.write('language', 'ar_SA');
-    Future.delayed(Duration.zero, () {
-      Get.updateLocale(const Locale('ar', 'SA'));
-    });
   }
 
-  void changeLanguage(String languageCode) {
-    selectedLanguage.value = 'ar_SA';
-    _storage.write('language', 'ar_SA');
-    Get.updateLocale(const Locale('ar', 'SA'));
+  Future<void> changeLanguage(String languageCode) async {
+    if (languageCode != 'ar_SA' && languageCode != 'en_US') return;
+    selectedLanguage.value = languageCode;
+    Get.updateLocale(languageCode == 'en_US'
+        ? const Locale('en', 'US')
+        : const Locale('ar', 'SA'));
+    await _storage.write('language', languageCode);
+    try {
+      await NotificationPresentation.updateLanguage(languageCode);
+    } catch (_) {
+      // Language selection remains available even if the OS channel cannot update.
+    }
+  }
+
+  Future<void> changeTheme(bool darkMode) async {
+    isDarkMode.value = darkMode;
+    final mode = darkMode ? ThemeMode.dark : ThemeMode.light;
+    Get.changeThemeMode(mode);
+    await _storage.write('themeMode', darkMode ? 'dark' : 'light');
   }
 }

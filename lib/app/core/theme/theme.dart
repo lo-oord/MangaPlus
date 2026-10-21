@@ -4,19 +4,19 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 class AppTheme {
   // Warna Utama
   static const Color _primaryColorLight = Color(0xFF4D91CC);
-  static const Color _primaryColorDark = AppColors.primary;
+  static const Color _primaryColorDark = Color(0xff5b9bd5);
 
   // Warna Aksen
   static const Color _accentColorLight = Color(0xFF76A9D6);
-  static const Color _accentColorDark = AppColors.accent;
+  static const Color _accentColorDark = Color(0xff83b8e5);
 
   // Background
   static const Color _backgroundLight = Colors.white;
-  static const Color _backgroundDark = AppColors.background;
+  static const Color _backgroundDark = Color(0xff101a28);
 
   // Surface
   static const Color _surfaceLight = Color(0xFFF5F5F5);
-  static const Color _surfaceDark = AppColors.card;
+  static const Color _surfaceDark = Color(0xff18283a);
 
   // Error
   static const Color _errorLight = Color(0xFFE53935);
@@ -25,8 +25,8 @@ class AppTheme {
   // Text
   static const Color _textPrimaryLight = Color(0xFF212121);
   static const Color _textSecondaryLight = Color(0xFF757575);
-  static const Color _textPrimaryDark = AppColors.textPrimary;
-  static const Color _textSecondaryDark = AppColors.textSecondary;
+  static const Color _textPrimaryDark = Color(0xfff2f6fa);
+  static const Color _textSecondaryDark = Color(0xffb5c5d4);
 
   // Success dan Attendance Colors
   static const Color _presentColor = Color(0xFF43A047); // Hijau

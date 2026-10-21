@@ -4,6 +4,7 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/modules/search/controllers/search_controller.dart'
     as search_controller;
 import 'package:mangaplus/app/routes/app_pages.dart';
+import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/custom_card_normal.dart';
 
 class SearchView extends GetView<search_controller.SearchController> {
@@ -11,72 +12,57 @@ class SearchView extends GetView<search_controller.SearchController> {
 
   @override
   Widget build(BuildContext context) {
-    final TextEditingController textController = TextEditingController();
-
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.textPrimary,
         elevation: 0,
-        title: const Text(
-          'بحث',
-          style: TextStyle(
-            color: Colors.white,
-          ),
-        ),
+        title: Text('بحث'.tr),
       ),
       body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: TextField(
-              controller: textController,
-              autofocus: true,
-              style: const TextStyle(color: Colors.white),
+              controller: controller.textController,
+              style: TextStyle(color: AppColors.textPrimary),
               decoration: InputDecoration(
-                hintText: 'ابحث عن الكوميكس (مثال: ناروتو)',
-                hintStyle: const TextStyle(color: Colors.white54),
+                hintText: 'ابحث عن الكوميكس (مثال: ناروتو)'.tr,
+                hintStyle: TextStyle(color: AppColors.textSecondary),
                 filled: true,
                 fillColor: AppColors.searchBar,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
+                prefixIcon: Icon(Icons.search_rounded, color: AppColors.icon),
                 suffixIcon: Obx(() => controller.query.value.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.clear, color: Colors.white54),
-                        onPressed: () {
-                          textController.clear();
-                          controller.clearSearch();
-                        },
+                        icon: Icon(Icons.clear, color: AppColors.icon),
+                        onPressed: controller.clearSearch,
                       )
                     : const SizedBox.shrink()),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
               ),
-              onSubmitted: (value) {
-                controller.searchComics(value.trim());
-              },
+              onChanged: controller.searchComics,
+              onSubmitted: controller.searchComics,
             ),
           ),
-          const SizedBox(height: 8),
           Expanded(
             child: Obx(() {
               if (controller.isLoading.value) {
-                return const Center(child: CircularProgressIndicator());
+                return BrandState(title: 'جارٍ البحث'.tr, loading: true);
               }
               if (controller.query.value.isEmpty) {
-                return const Center(
-                  child: Text(
-                    'أدخل عبارة بحث للعثور على الكوميكس',
-                    style: TextStyle(color: Colors.white),
-                  ),
+                return BrandState(
+                  title: 'أدخل عبارة بحث للعثور على الكوميكس'.tr,
+                  description: 'سيُضاف مصدر المانجا في مرحلة لاحقة.'.tr,
                 );
               }
               if (controller.comicsList.isEmpty) {
-                return const Center(
-                  child: Text(
-                    'لم يتم العثور على كوميكس لهذه العبارة',
-                    style: TextStyle(color: Colors.white),
-                  ),
+                return BrandState(
+                  title: 'لم يتم العثور على كوميكس لهذه العبارة'.tr,
+                  description: 'سيُضاف مصدر المانجا في مرحلة لاحقة.'.tr,
                 );
               }
               return Padding(
@@ -93,10 +79,10 @@ class SearchView extends GetView<search_controller.SearchController> {
                   itemBuilder: (context, index) {
                     final comic = controller.comicsList[index];
                     return GestureDetector(
-                      onTap: () {
-                        Get.toNamed(Routes.COMIC_DETAIL,
-                            arguments: comic.comicId);
-                      },
+                      onTap: () => Get.toNamed(
+                        Routes.COMIC_DETAIL,
+                        arguments: comic.comicId,
+                      ),
                       child: CustomCardNormal(
                         title: comic.title,
                         chapter: comic.chapter,
