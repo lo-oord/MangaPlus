@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/modules/chapter/controllers/chapter_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
+import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 
 class ChapterView extends GetView<ChapterController> {
@@ -54,10 +55,21 @@ class ChapterView extends GetView<ChapterController> {
       return GestureDetector(
         onTap: controller.toggleNavigationVisibility,
         behavior: HitTestBehavior.opaque,
-        child: ListView.builder(
-          cacheExtent: 1000,
-          itemCount: chapter.images.length,
-          itemBuilder: (context, index) => _buildImage(chapter.images[index]),
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            if (notification is ScrollUpdateNotification) {
+              controller.handleScroll(notification.metrics);
+            }
+            return false;
+          },
+          child: ListView.builder(
+            cacheExtent: 1200,
+            itemCount: chapter.images.length,
+            itemBuilder: (context, index) {
+              controller.currentPage.value = index;
+              return _buildImage(chapter.images[index]);
+            },
+          ),
         ),
       );
     });
@@ -65,71 +77,298 @@ class ChapterView extends GetView<ChapterController> {
 
   Widget _buildFloatingNavigation() {
     return Obx(() {
-      if (!controller.showNavigation.value) return const SizedBox.shrink();
       final chapter = controller.chapterData.value.chapter;
       final canNavigate = !controller.isOffline.value;
       return Positioned(
         bottom: 0,
         left: 0,
         right: 0,
-        child: SafeArea(
-          minimum: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          child: Container(
-            height: 58,
-            decoration: BoxDecoration(
-              color: AppColors.card.withValues(alpha: 0.94),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: AppColors.divider),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.24),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                IconButton(
-                  tooltip: 'الفصل السابق'.tr,
-                  icon: const Icon(Icons.chevron_left, size: 30),
-                  color: chapter.previousChapter.isNotEmpty && canNavigate
-                      ? AppColors.primary
-                      : AppColors.icon.withValues(alpha: 0.35),
-                  onPressed: chapter.previousChapter.isEmpty || !canNavigate
-                      ? null
-                      : () => controller.navigateToChapter(chapter.previousChapter),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      chapter.title.isNotEmpty ? chapter.title : 'الفصل'.tr,
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+        child: AnimatedSlide(
+          offset: controller.showNavigation.value
+              ? Offset.zero
+              : const Offset(0, 1.35),
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          child: IgnorePointer(
+            ignoring: !controller.showNavigation.value,
+            child: SafeArea(
+              minimum: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 70),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.card.withValues(alpha: 0.96),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: AppColors.divider),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.28),
+                      blurRadius: 18,
+                      offset: const Offset(0, 5),
                     ),
-                  ),
+                  ],
                 ),
-                IconButton(
-                  tooltip: 'الفصل التالي'.tr,
-                  icon: const Icon(Icons.chevron_right, size: 30),
-                  color: chapter.nextChapter != null && canNavigate
-                      ? AppColors.primary
-                      : AppColors.icon.withValues(alpha: 0.35),
-                  onPressed: chapter.nextChapter == null || !canNavigate
-                      ? null
-                      : () => controller.navigateToChapter(chapter.nextChapter),
+                child: Row(
+                  children: [
+                    _readerIconButton(
+                      icon: Icons.settings_rounded,
+                      tooltip: 'إعدادات القارئ'.tr,
+                      onPressed: _openReaderSettings,
+                    ),
+                    _readerIconButton(
+                      icon: Icons.list_alt_rounded,
+                      tooltip: 'قائمة الفصول'.tr,
+                      onPressed: controller.canUseChapterList
+                          ? _openChapterList
+                          : () => AppFeedback.show(
+                                title: 'قائمة الفصول'.tr,
+                                message: 'لا توجد قائمة فصول متاحة'.tr,
+                              ),
+                    ),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _openChapterList,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              chapter.title.isNotEmpty
+                                  ? chapter.title
+                                  : 'الفصل'.tr,
+                              style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${controller.currentPage.value + 1} / ${chapter.images.length}',
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    _readerIconButton(
+                      icon: Icons.chevron_left_rounded,
+                      tooltip: 'الفصل السابق'.tr,
+                      onPressed: chapter.previousChapter.isNotEmpty && canNavigate
+                          ? () => controller.navigateToChapter(chapter.previousChapter)
+                          : null,
+                    ),
+                    _readerIconButton(
+                      icon: Icons.chevron_right_rounded,
+                      tooltip: 'الفصل التالي'.tr,
+                      onPressed: chapter.nextChapter != null && canNavigate
+                          ? () => controller.navigateToChapter(chapter.nextChapter)
+                          : null,
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
       );
     });
+  }
+
+  Widget _readerIconButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback? onPressed,
+  }) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: Icon(icon),
+      color: onPressed == null
+          ? AppColors.icon.withValues(alpha: 0.35)
+          : AppColors.primary,
+      iconSize: 22,
+      visualDensity: VisualDensity.compact,
+    );
+  }
+
+  BoxFit _imageFit(String value) {
+    switch (value) {
+      case 'height':
+        return BoxFit.fitHeight;
+      case 'natural':
+        return BoxFit.none;
+      default:
+        return BoxFit.fitWidth;
+    }
+  }
+
+  Future<void> _openReaderSettings() async {
+    await Get.bottomSheet(
+      Obx(
+        () => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.divider,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'إعدادات القارئ'.tr,
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text('ملاءمة الصور'.tr,
+                    style: TextStyle(color: AppColors.textSecondary)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    _fitChoice('width', 'ملاءمة العرض'.tr),
+                    _fitChoice('height', 'ملاءمة الارتفاع'.tr),
+                    _fitChoice('natural', 'الحجم الطبيعي'.tr),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: controller.continuousNavigation.value,
+                  onChanged: controller.setContinuousNavigation,
+                  title: Text('التنقل المتصل بين الفصول'.tr,
+                      style: TextStyle(color: AppColors.textPrimary)),
+                  subtitle: Text('الانتقال التلقائي عند نهاية الفصل'.tr,
+                      style: TextStyle(color: AppColors.textSecondary)),
+                  activeColor: AppColors.primary,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      backgroundColor: AppColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      isScrollControlled: true,
+    );
+  }
+
+  Widget _fitChoice(String value, String label) {
+    final selected = controller.readerFit.value == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => controller.setReaderFit(value),
+      selectedColor: AppColors.primary.withValues(alpha: 0.22),
+      labelStyle: TextStyle(
+        color: selected ? AppColors.primary : AppColors.textSecondary,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+
+  Future<void> _openChapterList() async {
+    final chapters = controller.chapterData.value.chapter.chapters;
+    if (chapters.isEmpty) return;
+    await Get.bottomSheet(
+      SafeArea(
+        child: SizedBox(
+          height: Get.height * 0.68,
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text('الفصول'.tr,
+                          style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800)),
+                    ),
+                    Text('${chapters.length}',
+                        style: TextStyle(color: AppColors.textSecondary)),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 18),
+                  itemCount: chapters.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 6),
+                  itemBuilder: (context, index) {
+                    final item = chapters[index];
+                    final current = item.chapterId == controller.chapterId;
+                    return ListTile(
+                      dense: true,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      tileColor: current
+                          ? AppColors.primary.withValues(alpha: 0.14)
+                          : AppColors.searchBar,
+                      leading: Icon(
+                        current
+                            ? Icons.play_circle_filled_rounded
+                            : Icons.menu_book_rounded,
+                        color: current ? AppColors.primary : AppColors.icon,
+                      ),
+                      title: Text(item.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: current
+                                  ? FontWeight.w800
+                                  : FontWeight.w600)),
+                      onTap: current
+                          ? null
+                          : () {
+                              Get.back();
+                              controller.navigateToChapter(item.chapterId);
+                            },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      backgroundColor: AppColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      isScrollControlled: true,
+    );
   }
 
   Widget _buildImage(String imageUrl) {
@@ -141,7 +380,7 @@ class ChapterView extends GetView<ChapterController> {
             ? Image.file(
                 File(imageUrl),
                 width: double.infinity,
-                fit: BoxFit.fitWidth,
+                fit: _imageFit(controller.readerFit.value),
                 filterQuality: FilterQuality.medium,
                 errorBuilder: (context, error, stackTrace) => const Center(
                   child: Icon(Icons.broken_image_outlined, color: Colors.white70),
@@ -157,7 +396,7 @@ class ChapterView extends GetView<ChapterController> {
                 imageBuilder: (context, imageProvider) => Image(
                   image: imageProvider,
                   width: double.infinity,
-                  fit: BoxFit.fitWidth,
+                  fit: _imageFit(controller.readerFit.value),
                   filterQuality: FilterQuality.medium,
                   gaplessPlayback: true,
                 ),

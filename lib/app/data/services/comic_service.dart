@@ -108,6 +108,15 @@ class ComicService {
         .map((image) => image.toString())
         .where((image) => image.isNotEmpty)
         .toList(growable: false);
+    final chapterItems = (raw['chapters'] as List? ?? const [])
+        .whereType<Map>()
+        .map((item) => ChapterElement(
+              chapterId: '${item['chapterId'] ?? item['url'] ?? ''}',
+              title: '${item['title'] ?? ''}',
+              url: '${item['url'] ?? item['chapterId'] ?? ''}',
+            ))
+        .where((item) => item.chapterId.isNotEmpty)
+        .toList(growable: false);
     return ChapterData(
       chapter: DataChapter(
         chapterId: chapterId,
@@ -115,7 +124,7 @@ class ComicService {
         images: images,
         previousChapter: '${raw['previousChapter'] ?? ''}',
         nextChapter: raw['nextChapter']?.toString(),
-        chapters: const [],
+        chapters: chapterItems,
       ),
       source: sourceName,
     );

@@ -432,9 +432,18 @@ class TeamXSource extends ContentSource {
     if (pages.isEmpty) throw Exception('Team X: لا توجد صور قراءة في صفحة الفصل.');
     var previousChapter = '';
     String? nextChapter;
+    List<Map<String, dynamic>> chapterEntries = const [];
     if (seriesUrl.isNotEmpty) {
       final chapters = _chapterCache[seriesUrl] ??
           await _chapters(await _document(seriesUrl), seriesUrl);
+      chapterEntries = chapters
+          .map((chapter) => {
+                'chapterId': '${chapter['url'] ?? ''}',
+                'title': '${chapter['title'] ?? ''}',
+                'url': '${chapter['url'] ?? ''}',
+              })
+          .where((chapter) => '${chapter['chapterId']}'.isNotEmpty)
+          .toList(growable: false);
       final index = chapters.indexWhere(
         (chapter) => _chapterUrl('${chapter['url'] ?? ''}') == chapterUrl,
       );
@@ -458,6 +467,7 @@ class TeamXSource extends ContentSource {
       'url': chapterUrl,
       'previousChapter': previousChapter,
       'nextChapter': nextChapter,
+      'chapters': chapterEntries,
     };
   }
 

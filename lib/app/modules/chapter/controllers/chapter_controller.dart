@@ -87,7 +87,8 @@ class ChapterController extends GetxController {
   }
 
   void navigateToChapter(String? id) {
-    if (id != null && id.isNotEmpty) {
+    if (id != null && id.isNotEmpty && !isNavigating.value) {
+      isNavigating.value = true;
       Get.offNamed(Routes.CHAPTER, arguments: {
         'chapterId': id,
         'comicId': arguments['comicId'],
@@ -97,8 +98,47 @@ class ChapterController extends GetxController {
     }
   }
 
-  final showNavigation = true.obs;
+  final showNavigation = false.obs;
   final showChapterList = false.obs;
+  final currentPage = 0.obs;
+  final readerFit = 'width'.obs;
+  final continuousNavigation = true.obs;
+  final isNavigating = false.obs;
+  bool endNoticeShown = false;
+
+  bool get canUseChapterList => chapterData.value.chapter.chapters.isNotEmpty;
+
+  void _loadReaderPreferences() {
+    readerFit.value = _storage.read<String>('reader_fit') ?? 'width';
+    continuousNavigation.value =
+        _storage.read<bool>('reader_continuous_navigation') ?? true;
+  }
+
+  Future<void> setReaderFit(String value) async {
+    readerFit.value = value;
+    await _storage.write('reader_fit', value);
+  }
+
+  Future<void> setContinuousNavigation(bool value) async {
+    continuousNavigation.value = value;
+    await _storage.write('reader_continuous_navigation', value);
+  }
+
+  Future<void> handleScroll(ScrollMetrics metrics) async {
+    if (!continuousNavigation.value || isNavigating.value || isOffline.value) {
+      return;
+    }
+    final next = chapterData.value.chapter.nextChapter;
+    if (metrics.extentAfter <= 28 && next != null && next.isNotEmpty) {
+      navigateToChapter(next);
+    } else if (metrics.extentAfter <= 28 && !endNoticeShown) {
+      endNoticeShown = true;
+      AppFeedback.show(
+        title: 'نهاية الفصل'.tr,
+        message: 'لا توجد فصول أخرى'.tr,
+      );
+    }
+  }
 
   void toggleNavigationVisibility() {
     showNavigation.toggle();
@@ -113,6 +153,7 @@ class ChapterController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    _loadReaderPreferences();
     fetchChapter(chapterId);
   }
 }
