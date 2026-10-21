@@ -161,17 +161,21 @@ class HomeView extends GetView<HomeController> {
         children: [
           SizedBox(
             width: double.infinity,
-            height: 390,
+            height: 374,
             child: PageView.builder(
               controller: controller.pageController,
               itemCount: controller.heroComics.length,
               onPageChanged: (value) => controller.currentPage.value = value,
               itemBuilder: (context, index) {
                 final comic = controller.heroComics[index];
-                return SizedBox(
-                  width: double.infinity,
-                  height: 390,
-                  child: Stack(
+                return ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(28),
+                  ),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 374,
+                    child: Stack(
                     children: [
                       Positioned.fill(
                         child: CachedNetworkImage(
@@ -199,12 +203,12 @@ class HomeView extends GetView<HomeController> {
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                               colors: [
+                                Colors.black.withValues(alpha: 0.12),
                                 Colors.transparent,
-                                Colors.transparent,
-                                AppColors.background.withOpacity(0.8),
+                                AppColors.background.withValues(alpha: 0.72),
                                 AppColors.background,
                               ],
-                              stops: const [0.0, 0.4, 0.75, 1.0],
+                              stops: const [0.0, 0.28, 0.72, 1.0],
                             ),
                           ),
                         ),
@@ -212,11 +216,30 @@ class HomeView extends GetView<HomeController> {
                       Positioned(
                         left: 0,
                         right: 0,
-                        bottom: 1,
+                        bottom: 16,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 40),
                           child: Column(
                             children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withValues(alpha: 0.88),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  'اختيار اليوم'.tr,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
                               if ((comic['subtitle'] ?? '').trim().isNotEmpty)
                                 Text(
                                   comic['subtitle']!.tr.toUpperCase(),
@@ -226,7 +249,6 @@ class HomeView extends GetView<HomeController> {
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                              const SizedBox(height: 0),
                               Text(
                                 comic['title']!.tr,
                                 textAlign: TextAlign.center,
@@ -236,9 +258,9 @@ class HomeView extends GetView<HomeController> {
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 12),
                               SizedBox(
-                                width: 200,
+                                width: 184,
                                 child: OutlinedButton(
                                   onPressed: () => Get.toNamed(
                                       Routes.COMIC_DETAIL,

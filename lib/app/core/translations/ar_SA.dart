@@ -43,6 +43,7 @@ const Map<String, String> arSA = {
   'history': 'سجل القراءة',
   'profile': 'الملف الشخصي',
   'settings': 'الإعدادات',
+  'اختيار اليوم': 'اختيار اليوم',
   'browse_comics': 'استكشف المانجا',
   'no_data': 'لا توجد بيانات',
   'top_10_popular': 'الكتالوج',

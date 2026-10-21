@@ -3,20 +3,20 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 
 class AppTheme {
   // Warna Utama
-  static const Color _primaryColorLight = Color(0xFF4D91CC);
-  static const Color _primaryColorDark = Color(0xff5b9bd5);
+  static const Color _primaryColorLight = Color(0xFF55758C);
+  static const Color _primaryColorDark = Color(0xff6F8FA1);
 
   // Warna Aksen
-  static const Color _accentColorLight = Color(0xFF76A9D6);
-  static const Color _accentColorDark = Color(0xff83b8e5);
+  static const Color _accentColorLight = Color(0xFF7895A5);
+  static const Color _accentColorDark = Color(0xff8AA8B7);
 
   // Background
   static const Color _backgroundLight = Colors.white;
-  static const Color _backgroundDark = Color(0xff101a28);
+  static const Color _backgroundDark = Color(0xff171B20);
 
   // Surface
   static const Color _surfaceLight = Color(0xFFF5F5F5);
-  static const Color _surfaceDark = Color(0xff18283a);
+  static const Color _surfaceDark = Color(0xff20262D);
 
   // Error
   static const Color _errorLight = Color(0xFFE53935);

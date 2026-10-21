@@ -24,7 +24,7 @@ class ComicService {
         : nameNumber;
     final chapter = chapterNumber == null
         ? ''
-        : '${'الفصل'.tr} $chapterNumber';
+        : chapterNumber.toString();
     return ComicsList(
       comicId: id,
       title: title,

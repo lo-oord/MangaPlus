@@ -2,7 +2,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
-import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 
 class CustomCardNormal extends StatelessWidget {
@@ -89,13 +88,14 @@ class CustomCardNormal extends StatelessWidget {
             ),
             if (chapter.trim().isNotEmpty)
               Positioned(
-                left: 7,
-                top: 7,
+                left: 8,
+                bottom: 8,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                  constraints: const BoxConstraints(maxWidth: 88),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.72),
-                    borderRadius: BorderRadius.circular(7),
+                    color: Colors.black.withValues(alpha: 0.76),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     chapter,
@@ -104,27 +104,6 @@ class CustomCardNormal extends StatelessWidget {
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-            if (type != null && type!.trim().isNotEmpty)
-              Positioned(
-                right: 7,
-                top: 7,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.card.withValues(alpha: 0.92),
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                  child: Text(
-                    localizeContentType(type!),
-                    maxLines: 1,
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 9,
                       fontWeight: FontWeight.w700,
                     ),
                   ),

@@ -48,6 +48,7 @@ const Map<String, String> enUS = {
   'history': 'Reading history',
   'profile': 'Profile',
   'settings': 'Settings',
+  'اختيار اليوم': "Editor's pick",
   'browse_comics': 'Browse manga',
   'no_data': 'No data',
   'top_10_popular': 'Catalog',

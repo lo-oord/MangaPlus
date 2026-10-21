@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/modules/profile/controllers/profile_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
+import 'package:mangaplus/app/widgets/brand_state.dart';
 
 class ProfileView extends GetView<ProfileController> {
   const ProfileView({super.key});
@@ -104,6 +105,18 @@ class ProfileView extends GetView<ProfileController> {
             ],
           ),
           const SizedBox(height: 24),
+          _sectionTitle('حول التطبيق'.tr),
+          const SizedBox(height: 10),
+          _settingsCard(
+            children: [
+              _navigationRow(
+                Icons.info_outline_rounded,
+                'حول التطبيق'.tr,
+                _showAboutDialog,
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
           _sectionTitle('مكتبتي'.tr),
           const SizedBox(height: 10),
           _settingsCard(
@@ -126,6 +139,28 @@ class ProfileView extends GetView<ProfileController> {
     );
   }
 
+  void _showAboutDialog() {
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: AppColors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Row(
+          children: [
+            const MangaPlusLogo(size: 34),
+            const SizedBox(width: 12),
+            Text('حول التطبيق'.tr),
+          ],
+        ),
+        content: Text(
+          '${'app_name'.tr}\n${'قارئ مانجا ومانهوا'.tr}\n\n${'الإصدار'.tr}: 1.1',
+          style: TextStyle(color: AppColors.textSecondary, height: 1.6),
+        ),
+        actions: [
+          TextButton(onPressed: Get.back, child: Text('حسنًا'.tr)),
+        ],
+      ),
+    );
+  }
   Widget _sectionTitle(String title) => Padding(
         padding: const EdgeInsetsDirectional.only(start: 4),
         child: Text(
