@@ -11,12 +11,12 @@ class GenreView extends GetView<GenreController> {
     print('genraa ${controller.genreData.value.genres}');
     return Scaffold(
       appBar: AppBar(
-        title: const Text('GenreView'),
+        title: const Text('التصنيفات'),
         centerTitle: true,
       ),
       body: const Center(
         child: Text(
-          'GenreView is working',
+          'واجهة التصنيفات تعمل',
           style: TextStyle(fontSize: 20),
         ),
       ),

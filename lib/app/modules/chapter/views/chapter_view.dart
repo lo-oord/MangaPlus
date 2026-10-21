@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:get/get.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:komikaze/app/modules/chapter/controllers/chapter_controller.dart';
-import 'package:komikaze/app/routes/app_pages.dart';
+import 'package:mangaplus/app/modules/chapter/controllers/chapter_controller.dart';
+import 'package:mangaplus/app/routes/app_pages.dart';
 import 'dart:io';
 
 class ChapterView extends GetView<ChapterController> {
@@ -18,7 +19,7 @@ class ChapterView extends GetView<ChapterController> {
     });
 
     return Scaffold(
-      backgroundColor: const Color(0xff121012),
+      backgroundColor: AppColors.background,
       body: Stack(
         children: [
           _buildContent(),
@@ -35,7 +36,7 @@ class ChapterView extends GetView<ChapterController> {
       }
       if (controller.chapterData.value.chapter.images.isEmpty) {
         return const Center(
-            child: Text('No images available',
+            child: Text('لا توجد صور متاحة',
                 style: TextStyle(color: Colors.white)));
       }
       final chapter = controller.chapterData.value.chapter;
@@ -170,7 +171,7 @@ class ChapterView extends GetView<ChapterController> {
                       CircularProgressIndicator(),
                       SizedBox(height: 8),
                       Text(
-                        'Loading image...',
+                        'جارٍ تحميل الصورة...',
                         style: TextStyle(color: Colors.white70),
                       ),
                     ],

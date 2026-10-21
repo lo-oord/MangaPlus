@@ -1,6 +1,6 @@
 import 'package:get/get.dart';
-import 'package:komikaze/app/data/models/history.dart';
-import 'package:komikaze/app/data/services/app_data_service.dart';
+import 'package:mangaplus/app/data/models/history.dart';
+import 'package:mangaplus/app/data/services/app_data_service.dart';
 
 class HistoryController extends GetxController {
   final _appDataService = AppDataService();
@@ -13,7 +13,7 @@ class HistoryController extends GetxController {
         histories.value = history;
       }
     } catch (e) {
-      Get.snackbar('Error', e.toString());
+      Get.snackbar('خطأ', 'تعذر تحميل سجل القراءة. حاول مجددًا.');
     }
   }
 
@@ -23,7 +23,7 @@ class HistoryController extends GetxController {
       getHistory();
       return history;
     } catch (e) {
-      Get.snackbar('Error', e.toString());
+      Get.snackbar('خطأ', 'تعذر حفظ سجل القراءة. حاول مجددًا.');
       rethrow;
     }
   }

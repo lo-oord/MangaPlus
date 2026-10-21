@@ -9,10 +9,10 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:komikaze/app/core/theme/theme.dart';
-import 'package:komikaze/app/core/translations/app_translations.dart';
+import 'package:mangaplus/app/core/theme/theme.dart';
+import 'package:mangaplus/app/core/translations/app_translations.dart';
 
-import 'package:komikaze/firebase_options.dart';
+import 'package:mangaplus/firebase_options.dart';
 
 import 'app/routes/app_pages.dart';
 
@@ -36,9 +36,9 @@ Future<void> setupFlutterNotifications() async {
   }
   channel = const AndroidNotificationChannel(
     'high_importance_channel', // id
-    'High Importance Notifications', // title
+    'الإشعارات المهمة', // title
     description:
-        'This channel is used for important notifications.', // description
+        'تُستخدم هذه القناة للتنبيهات المهمة.', // description
     importance: Importance.high,
   );
 
@@ -82,7 +82,7 @@ void showFlutterNotification(RemoteMessage message) {
           channelDescription: channel.description,
           // TODO add a proper drawable resource to android, for now using
           //      one that already exists in example app.
-          icon: 'launch_background',
+          icon: 'ic_stat_mangaplus',
         ),
       ),
     );
@@ -127,11 +127,16 @@ void main() async {
   runApp(
     GetMaterialApp(
       debugShowCheckedModeBanner: false,
-      title: "Application",
+      title: "MangaPlus",
       theme: AppTheme.darkTheme,
       translations: AppTranslations(),
-      locale: const Locale('en', 'US'),
-      fallbackLocale: const Locale('en', 'US'),
+      locale: const Locale('ar', 'SA'),
+      fallbackLocale: const Locale('ar', 'SA'),
+      supportedLocales: const [Locale('ar', 'SA')],
+      builder: (context, child) => Directionality(
+        textDirection: TextDirection.ltr,
+        child: child ?? const SizedBox.shrink(),
+      ),
       initialRoute: Routes.MAIN,
       getPages: AppPages.routes,
     ),

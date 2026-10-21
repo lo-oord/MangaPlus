@@ -1,6 +1,6 @@
 import 'package:get_storage/get_storage.dart';
-import 'package:komikaze/app/data/models/bookmark.dart';
-import 'package:komikaze/app/data/models/history.dart';
+import 'package:mangaplus/app/data/models/bookmark.dart';
+import 'package:mangaplus/app/data/models/history.dart';
 
 /// Device-local reading data. No account or authentication is required.
 class AppDataService {

@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:komikaze/app/core/config/config.dart';
-import 'package:komikaze/app/data/models/chapter.dart';
-import 'package:komikaze/app/data/models/comic.dart';
-import 'package:komikaze/app/data/models/comic_detail.dart';
-import 'package:komikaze/app/data/models/popular_comic.dart';
+import 'package:mangaplus/app/core/config/config.dart';
+import 'package:mangaplus/app/data/models/chapter.dart';
+import 'package:mangaplus/app/data/models/comic.dart';
+import 'package:mangaplus/app/data/models/comic_detail.dart';
+import 'package:mangaplus/app/data/models/popular_comic.dart';
 
 class ComicService {
   Future<ComicData> fetchComics() async {
@@ -15,10 +15,10 @@ class ComicService {
         final jsonData = jsonDecode(response.body);
         return ComicData.fromJson(jsonData['data']);
       } else {
-        throw Exception('Failed to fetch comics: ${response.statusCode}');
+        throw Exception('تعذّر جلب القصص المصورة: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Error fetching comics: $e');
+      throw Exception('تعذر جلب القصص المصورة. حاول مجددًا.');
     }
   }
 
@@ -31,10 +31,11 @@ class ComicService {
         final jsonData = jsonDecode(response.body);
         return ComicDetailData.fromJson(jsonData['data']);
       } else {
-        throw Exception('Failed to fetch comic detail: ${response.statusCode}');
+        throw Exception(
+            'تعذّر جلب تفاصيل القصة المصورة: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Error fetching comic detail: $e');
+      throw Exception('تعذر جلب تفاصيل القصة المصورة. حاول مجددًا.');
     }
   }
 
@@ -46,10 +47,10 @@ class ComicService {
         final jsonData = jsonDecode(response.body);
         return ChapterData.fromJson(jsonData['data']);
       } else {
-        throw Exception('Failed to fetch chapter: ${response.statusCode}');
+        throw Exception('تعذّر جلب الفصل: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Error fetching chapter: $e');
+      throw Exception('تعذر جلب الفصل. حاول مجددًا.');
     }
   }
 
@@ -63,11 +64,11 @@ class ComicService {
         return PopularKomikData.fromJson(jsonData['data']);
       } else {
         throw Exception(
-            'Failed to fetch popular comics: ${response.statusCode}');
+            'تعذّر جلب القصص المصورة الشائعة: ${response.statusCode}');
       }
     } catch (e) {
       print('popular komik: $e');
-      throw Exception('Error fetching popular comics: $e');
+      throw Exception('تعذر جلب القصص المصورة الشائعة. حاول مجددًا.');
     }
   }
 
@@ -81,10 +82,10 @@ class ComicService {
         return ComicData.fromJson(jsonData['data']);
       } else {
         throw Exception(
-            'Failed to fetch search results: ${response.statusCode}');
+            'تعذّر جلب نتائج البحث: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Error fetching search results: $e');
+      throw Exception('تعذر جلب نتائج البحث. حاول مجددًا.');
     }
   }
 }

@@ -1,6 +1,6 @@
 import 'package:get/get.dart';
-import 'package:komikaze/app/data/models/comic.dart';
-import 'package:komikaze/app/data/services/genre_service.dart';
+import 'package:mangaplus/app/data/models/comic.dart';
+import 'package:mangaplus/app/data/services/genre_service.dart';
 
 class GenreDetailController extends GetxController {
   final GenreService _genreService = GenreService();
@@ -27,7 +27,7 @@ class GenreDetailController extends GetxController {
       currentPage.value = page;
       hasMoreData.value = data.pagination?.nextPage != null;
     } catch (e) {
-      Get.snackbar('Error', 'Failed to fetch genre comics: $e');
+      Get.snackbar('خطأ', 'تعذر تحميل قصص هذا التصنيف. حاول مجددًا.');
     } finally {
       if (page == 1) {
         isLoading(false);

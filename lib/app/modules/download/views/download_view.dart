@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:komikaze/app/core/constants/colors.dart';
-import 'package:komikaze/app/modules/download/controllers/download_controller.dart';
-import 'package:komikaze/app/routes/app_pages.dart';
+import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/modules/download/controllers/download_controller.dart';
+import 'package:mangaplus/app/routes/app_pages.dart';
 
 class DownloadView extends GetView<DownloadController> {
   const DownloadView({super.key});
@@ -15,7 +15,7 @@ class DownloadView extends GetView<DownloadController> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
-          'downloads'.tr,
+          'التنزيلات',
           style: const TextStyle(
             color: Colors.white,
           ),
@@ -34,12 +34,12 @@ class DownloadView extends GetView<DownloadController> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'no_downloaded_chapters'.tr,
+                  'لا توجد فصول منزّلة',
                   style: const TextStyle(color: Colors.white, fontSize: 18),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'download_instruction'.tr,
+                  'نزّل الفصول من تفاصيل الكوميكس لقراءتها دون اتصال',
                   style: const TextStyle(color: Colors.white54, fontSize: 14),
                   textAlign: TextAlign.center,
                 ),
@@ -52,7 +52,7 @@ class DownloadView extends GetView<DownloadController> {
                   ),
                   onPressed: () => Get.toNamed(Routes.MAIN),
                   child: Text(
-                    'browse_comics'.tr,
+                    'تصفّح الكوميكس',
                     style: const TextStyle(color: Colors.white),
                   ),
                 ),
@@ -100,19 +100,18 @@ class DownloadView extends GetView<DownloadController> {
                   icon: const Icon(Icons.delete, color: Colors.white54),
                   onPressed: () {
                     Get.defaultDialog(
-                      title: 'delete_chapter'.tr,
-                      content: Text('confirm_delete'
-                          .trParams({'chapter': chapter.chapterTitle})),
+                      title: 'حذف الفصل',
+                      content: Text('هل أنت متأكد من حذف الفصل "${chapter.chapterTitle}"؟'),
                       confirm: TextButton(
                         onPressed: () {
                           controller.deleteChapter(chapter);
                           Get.back();
                         },
-                        child: Text('delete'.tr),
+                        child: Text('حذف'),
                       ),
                       cancel: TextButton(
                         onPressed: () => Get.back(),
-                        child: Text('cancel'.tr),
+                        child: Text('إلغاء'),
                       ),
                     );
                   },

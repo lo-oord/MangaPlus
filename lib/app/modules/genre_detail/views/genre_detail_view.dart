@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:komikaze/app/core/constants/colors.dart';
-import 'package:komikaze/app/modules/genre_detail/controllers/genre_detail_controller.dart';
-import 'package:komikaze/app/routes/app_pages.dart';
-import 'package:komikaze/app/widgets/custom_card_normal.dart';
+import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/modules/genre_detail/controllers/genre_detail_controller.dart';
+import 'package:mangaplus/app/routes/app_pages.dart';
+import 'package:mangaplus/app/widgets/custom_card_normal.dart';
 
 
 class GenreDetailView extends GetView<GenreDetailController> {
@@ -29,7 +29,7 @@ class GenreDetailView extends GetView<GenreDetailController> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
-          Get.arguments ?? 'Genre',
+          Get.arguments ?? 'التصنيف',
           style: const TextStyle(
             color: Colors.white,
             fontSize: 22,
@@ -48,7 +48,7 @@ class GenreDetailView extends GetView<GenreDetailController> {
         if (controller.comicsList.isEmpty) {
           return const Center(
             child: Text(
-              'No comics available for this genre',
+              'لا توجد قصص مصورة لهذا التصنيف',
               style: TextStyle(color: Colors.white),
             ),
           );

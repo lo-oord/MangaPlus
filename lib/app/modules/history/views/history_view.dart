@@ -1,10 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:komikaze/app/core/constants/colors.dart';
-import 'package:komikaze/app/data/models/history.dart';
-import 'package:komikaze/app/modules/history/controllers/history_controller.dart';
-import 'package:komikaze/app/routes/app_pages.dart';
+import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/data/models/history.dart';
+import 'package:mangaplus/app/modules/history/controllers/history_controller.dart';
+import 'package:mangaplus/app/routes/app_pages.dart';
 
 class HistoryView extends GetView<HistoryController> {
   const HistoryView({super.key});
@@ -14,7 +14,7 @@ class HistoryView extends GetView<HistoryController> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('history_title'.tr),
+        title: Text('سجل القراءة'),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -51,7 +51,7 @@ class HistoryView extends GetView<HistoryController> {
           ),
           const SizedBox(height: 16),
           Text(
-            'No reading history yet',
+            'لا يوجد سجل قراءة بعد',
             style: TextStyle(
               fontSize: 18,
               color: Colors.grey[500],
@@ -59,7 +59,7 @@ class HistoryView extends GetView<HistoryController> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Start reading to see your history here',
+            'ابدأ القراءة ليظهر سجلك هنا',
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey[600],
@@ -99,14 +99,14 @@ class HistoryView extends GetView<HistoryController> {
                   placeholder: (context, url) => Container(
                     width: 80,
                     height: 100,
-                    color: Colors.grey[900],
+                    color: AppColors.background,
                     child: const Center(
                         child: CircularProgressIndicator(strokeWidth: 2)),
                   ),
                   errorWidget: (context, url, error) => Container(
                     width: 80,
                     height: 100,
-                    color: Colors.grey[800],
+                    color: AppColors.card,
                     child: const Icon(Icons.broken_image),
                   ),
                 ),
@@ -208,14 +208,29 @@ class HistoryView extends GetView<HistoryController> {
     final now = DateTime.now();
     final difference = now.difference(date);
 
-    if (difference.inMinutes < 60) {
-      return '${difference.inMinutes} min ago';
+    if (difference.inMinutes < 1) {
+      return 'منذ لحظات';
+    } else if (difference.inMinutes < 60) {
+      return _formatArabicDuration(
+          difference.inMinutes, 'دقيقة', 'دقيقتين', 'دقائق');
     } else if (difference.inHours < 24) {
-      return '${difference.inHours} hour${difference.inHours > 1 ? 's' : ''} ago';
+      return _formatArabicDuration(
+          difference.inHours, 'ساعة', 'ساعتين', 'ساعات');
     } else if (difference.inDays < 7) {
-      return '${difference.inDays} day${difference.inDays > 1 ? 's' : ''} ago';
+      return _formatArabicDuration(difference.inDays, 'يوم', 'يومين', 'أيام');
     } else {
       return '${date.day}/${date.month}/${date.year}';
     }
+  }
+
+  String _formatArabicDuration(
+      int value, String singular, String dual, String plural) {
+    if (value == 2) {
+      return 'منذ $dual';
+    }
+    if (value >= 3 && value <= 10) {
+      return 'منذ $value $plural';
+    }
+    return 'منذ $value $singular';
   }
 }

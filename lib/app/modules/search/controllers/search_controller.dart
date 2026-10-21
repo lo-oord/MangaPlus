@@ -1,6 +1,6 @@
 import 'package:get/get.dart';
-import 'package:komikaze/app/data/models/comic.dart';
-import 'package:komikaze/app/data/services/comic_service.dart';
+import 'package:mangaplus/app/data/models/comic.dart';
+import 'package:mangaplus/app/data/services/comic_service.dart';
 
 class SearchController extends GetxController {
   final ComicService _comicService = ComicService();
@@ -20,7 +20,7 @@ class SearchController extends GetxController {
       final data = await _comicService.searchComics(searchQuery);
       comicsList.assignAll(data.comicsList);
     } catch (e) {
-      Get.snackbar('Error', 'Failed to fetch search results: $e');
+      Get.snackbar('خطأ', 'تعذر تحميل نتائج البحث. حاول مجددًا.');
     } finally {
       isLoading(false);
     }

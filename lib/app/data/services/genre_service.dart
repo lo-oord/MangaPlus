@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
-import 'package:komikaze/app/core/config/config.dart';
-import 'package:komikaze/app/data/models/comic.dart';
-import 'package:komikaze/app/data/models/genre.dart';
+import 'package:mangaplus/app/core/config/config.dart';
+import 'package:mangaplus/app/data/models/comic.dart';
+import 'package:mangaplus/app/data/models/genre.dart';
 
 class GenreService extends GetxService {
   Future<GenreData> fetchGenres() async {
@@ -14,12 +14,12 @@ class GenreService extends GetxService {
         final jsonData = jsonDecode(response.body);
         return GenreData.fromJson(jsonData['data']);
       } else {
-        throw Exception('Failed to fetch genres: ${response.statusCode}');
+        throw Exception('تعذّر جلب الأنواع: ${response.statusCode}');
       }
     } catch (e) {
       print('errorrr$e');
 
-      throw Exception('Error fetching genres: $e');
+      throw Exception('تعذر جلب التصنيفات. حاول مجددًا.');
     }
   }
 
@@ -32,11 +32,11 @@ class GenreService extends GetxService {
         print('genre rororo:${jsonData['data']}');
         return ComicData.fromJson(jsonData['data']);
       } else {
-        throw Exception('Failed to fetch comics: ${response.statusCode}');
+        throw Exception('تعذّر جلب القصص المصورة: ${response.statusCode}');
       }
     } catch (e) {
       print('errorrr$e');
-      throw Exception('Error fetching comics: $e');
+      throw Exception('تعذر جلب القصص المصورة. حاول مجددًا.');
     }
   }
 }

@@ -1,7 +1,7 @@
 import 'package:get/get.dart';
-import 'package:komikaze/app/data/models/chapter.dart';
-import 'package:komikaze/app/data/services/comic_service.dart';
-import 'package:komikaze/app/routes/app_pages.dart';
+import 'package:mangaplus/app/data/models/chapter.dart';
+import 'package:mangaplus/app/data/services/comic_service.dart';
+import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:get_storage/get_storage.dart';
 
 class ChapterController extends GetxController {
@@ -53,7 +53,7 @@ class ChapterController extends GetxController {
         chapterData.value = await _comicService.fetchChapter(chapterId);
       }
     } catch (e) {
-      // Get.snackbar('Error', 'Failed to fetch chapter: $e');
+      // Get.snackbar('خطأ', 'فشل جلب الفصل: $e');
       print('Error fetching chapter: $e');
     } finally {
       isLoading(false);

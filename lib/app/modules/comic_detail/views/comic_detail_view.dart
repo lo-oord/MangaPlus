@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:komikaze/app/core/constants/colors.dart';
-import 'package:komikaze/app/data/models/bookmark.dart';
-import 'package:komikaze/app/data/models/comic_detail.dart';
-import 'package:komikaze/app/data/models/history.dart';
-import 'package:komikaze/app/modules/bookmark/controllers/bookmark_controller.dart';
-import 'package:komikaze/app/modules/comic_detail/controllers/comic_detail_controller.dart';
-import 'package:komikaze/app/modules/history/controllers/history_controller.dart';
-import 'package:komikaze/app/routes/app_pages.dart';
+import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/data/models/bookmark.dart';
+import 'package:mangaplus/app/data/models/comic_detail.dart';
+import 'package:mangaplus/app/data/models/history.dart';
+import 'package:mangaplus/app/modules/bookmark/controllers/bookmark_controller.dart';
+import 'package:mangaplus/app/modules/comic_detail/controllers/comic_detail_controller.dart';
+import 'package:mangaplus/app/modules/history/controllers/history_controller.dart';
+import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:readmore/readmore.dart';
 import 'package:shimmer/shimmer.dart';
 
@@ -148,7 +148,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              if (comic.nativeTitle != 'No Native Title')
+              if (comic.nativeTitle.isNotEmpty && comic.nativeTitle != 'No Native Title')
                 Text(
                   comic.nativeTitle,
                   style: const TextStyle(
@@ -205,6 +205,8 @@ class ComicDetailView extends GetView<ComicDetailController> {
           comic.synopsis,
           trimLines: 3,
           trimMode: TrimMode.Line,
+          trimCollapsedText: '... المزيد',
+          trimExpandedText: ' أقل',
           moreStyle: const TextStyle(color: AppColors.primary),
           lessStyle: const TextStyle(color: AppColors.primary),
           style: const TextStyle(
@@ -221,12 +223,12 @@ class ComicDetailView extends GetView<ComicDetailController> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildInfoItem('author'.tr, comic.author),
-        _buildInfoItem('released'.tr, comic.releaseYear),
-        _buildInfoItem('status'.tr, comic.status),
-        _buildInfoItem('type'.tr, comic.type),
-        _buildInfoItem('rating'.tr, comic.rating),
-        _buildInfoItem('updated'.tr, comic.updatedOn),
+        _buildInfoItem('المؤلف', comic.author),
+        _buildInfoItem('سنة الإصدار', comic.releaseYear),
+        _buildInfoItem('الحالة', _arabicStatus(comic.status)),
+        _buildInfoItem('النوع', _arabicType(comic.type)),
+        _buildInfoItem('التقييم', comic.rating),
+        _buildInfoItem('آخر تحديث', comic.updatedOn),
       ],
     );
   }
@@ -254,7 +256,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'chapters'.tr,
+          'الفصول',
           style: const TextStyle(
             color: Colors.white,
             fontSize: 20,
@@ -266,7 +268,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
           controller: searchController,
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
-            hintText: 'search_chapters'.tr,
+            hintText: 'ابحث عن فصل...',
             hintStyle: const TextStyle(color: Colors.white54),
             border: InputBorder.none,
             icon: const Icon(Icons.search, color: Colors.white54),
@@ -363,7 +365,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
                                 );
                               } else {
                                 Get.snackbar(
-                                    'Info', 'chapter_already_downloaded'.tr);
+                                    'معلومة', 'الفصل محمّل بالفعل');
                               }
                             },
                           );
@@ -409,7 +411,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
               }
             },
             child: Text(
-              'first_chapter'.tr,
+              'أول فصل',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,
@@ -439,7 +441,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
               }
             },
             child: Text(
-              'last_chapter'.tr,
+              'آخر فصل',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,
@@ -491,8 +493,8 @@ class ComicDetailView extends GetView<ComicDetailController> {
             if (isBookmarked) {
               bookmarkController.deleteBookmark(comic.comicId);
               Get.snackbar(
-                'Bookmark Removed',
-                '${comic.title} removed from bookmarks',
+                'إزالة الإشارة المرجعية',
+                '${comic.title} أُزيل من الإشارات المرجعية',
                 backgroundColor: AppColors.searchBar,
                 colorText: Colors.white,
               );
@@ -505,8 +507,8 @@ class ComicDetailView extends GetView<ComicDetailController> {
               );
               bookmarkController.addBookmark(bookmark);
               Get.snackbar(
-                'Bookmark Added',
-                '${comic.title} added to bookmarks',
+                'إضافة إلى الإشارات المرجعية',
+                '${comic.title} أُضيف إلى الإشارات المرجعية',
                 backgroundColor: AppColors.searchBar,
                 colorText: Colors.white,
               );
@@ -551,7 +553,7 @@ class ComicDetailSkeletonLoader extends StatelessWidget {
       child: Shimmer.fromColors(
         direction: ShimmerDirection.ltr,
         baseColor: AppColors.searchBar,
-        highlightColor: Color(0xff5B4563),
+        highlightColor: AppColors.searchBar,
         child: Column(
           children: [
             _buildCoverImageSkeleton(),

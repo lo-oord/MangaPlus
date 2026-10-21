@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:get/get.dart';
-import 'package:komikaze/app/data/models/downloaded_chapter.dart';
+import 'package:mangaplus/app/data/models/downloaded_chapter.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -62,7 +62,7 @@ class DownloadController extends GetxController {
     } catch (e) {
       print('Error loading downloaded chapters: $e');
       downloadedChapters.clear();
-      Get.snackbar('Error', 'error_load_downloads'.trParams({'error': e.toString()}),
+      Get.snackbar('خطأ', 'تعذر تحميل قائمة التنزيلات.',
           duration: const Duration(seconds: 3));
     }
   }
@@ -99,8 +99,8 @@ class DownloadController extends GetxController {
             chapters.add(DownloadedChapter(
               comicId: comicId,
               chapterId: chapterId,
-              comicTitle: 'Unknown Comic', // Placeholder, update if metadata available
-              chapterTitle: 'Chapter $chapterId',
+              comicTitle: 'كوميكس غير معروف', // Placeholder, update if metadata available
+              chapterTitle: 'الفصل $chapterId',
               coverImage: '',
               localImagePaths: imagePaths,
               downloadedAt: DateTime.now(),
@@ -127,10 +127,10 @@ class DownloadController extends GetxController {
       await _storage.write('downloadedChapters', downloadedChapters.map((c) => c.toJson()).toList());
       await _storage.save();
       print('Updated storage after deletion: ${downloadedChapters.length} chapters remaining');
-      Get.snackbar('Success', 'success_delete'.tr);
+      Get.snackbar('نجاح', 'تم حذف الفصل بنجاح');
     } catch (e) {
       print('Error deleting chapter: $e');
-      Get.snackbar('Error', 'error_delete'.trParams({'error': e.toString()}));
+      Get.snackbar('خطأ', 'تعذر حذف الفصل. حاول مجددًا.');
     }
   }
 

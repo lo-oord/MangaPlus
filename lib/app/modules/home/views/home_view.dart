@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:get/get.dart';
-import 'package:komikaze/app/core/constants/colors.dart';
-import 'package:komikaze/app/modules/home/controllers/home_controller.dart';
-import 'package:komikaze/app/routes/app_pages.dart';
-import 'package:komikaze/app/widgets/custom_card_normal.dart';
+import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/modules/home/controllers/home_controller.dart';
+import 'package:mangaplus/app/routes/app_pages.dart';
+import 'package:mangaplus/app/widgets/custom_card_normal.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
@@ -114,7 +114,7 @@ class HomeView extends GetView<HomeController> {
                                       arguments: comic['comicId']),
                                   style: OutlinedButton.styleFrom(),
                                   child: const Text(
-                                    'Read Now',
+                                    'اقرأ الآن',
                                   ),
                                 ),
                               ),
@@ -152,7 +152,7 @@ class HomeView extends GetView<HomeController> {
     return Shimmer.fromColors(
       direction: ShimmerDirection.ltr,
       baseColor: AppColors.searchBar,
-      highlightColor: const Color(0xff5B4563),
+      highlightColor: AppColors.searchBar,
       child: Column(
         children: [
           Container(
@@ -184,7 +184,7 @@ class KomikCardsSection extends GetView<HomeController> {
       if (controller.comicData.value.comicsList.isEmpty &&
           controller.popularKomikData.value.popularManga.isEmpty) {
         return const Center(
-            child: Text('No comics available',
+            child: Text('لا توجد قصص مصورة متاحة',
                 style: TextStyle(color: Colors.white)));
       }
       return Padding(
@@ -194,15 +194,15 @@ class KomikCardsSection extends GetView<HomeController> {
           children: [
             _buildHistorySection(context),
             const SizedBox(height: 16),
-            _buildSectionTitle(context, "top_10_popular".tr),
+            _buildSectionTitle(context, "الأكثر شعبية"),
             const SizedBox(height: 8),
             _buildPopularGrid(context),
             const SizedBox(height: 12),
-            _buildSectionTitle(context, "genre_selection".tr),
+            _buildSectionTitle(context, "اختيار التصنيف"),
             const SizedBox(height: 8),
             _buildGenreChips(context),
             const SizedBox(height: 12),
-            _buildSectionTitle(context, "latest".tr),
+            _buildSectionTitle(context, "الأحدث"),
             const SizedBox(height: 8),
             _buildTerbaruGrid(context),
             const SizedBox(height: 12),
@@ -215,7 +215,7 @@ class KomikCardsSection extends GetView<HomeController> {
   Widget _buildLoadingSkeleton() {
     return Shimmer.fromColors(
       baseColor: AppColors.searchBar,
-      highlightColor: Color(0xff5B4563),
+      highlightColor: AppColors.searchBar,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         child: SingleChildScrollView(
@@ -405,7 +405,7 @@ class KomikCardsSection extends GetView<HomeController> {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               Text(
-                "last_read".tr,
+                "آخر ما تمت قراءته",
                 style: const TextStyle(
                   color: Colors.white70,
                   fontSize: 12,
@@ -434,7 +434,7 @@ class KomikCardsSection extends GetView<HomeController> {
                   size: 20,
                 ),
                 label: Text(
-                  'continue'.tr,
+                  'متابعة القراءة',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,
@@ -478,7 +478,7 @@ class KomikCardsSection extends GetView<HomeController> {
               },
               child: CustomCardNormal(
                 title: comic.title,
-                chapter: 'Rank ${comic.rank}',
+                chapter: 'الترتيب ${comic.rank}',
                 imageUrl: comic.image,
               ),
             ),
@@ -565,15 +565,13 @@ class KomikCardsSection extends GetView<HomeController> {
             fontWeight: FontWeight.w700,
           ),
         ),
-        if (title == "Completed" ||
-            title == "Terbaru" ||
-            title == "Top 10 Popular")
+        if (title == "الأكثر شعبية" || title == "الأحدث")
           GestureDetector(
             onTap: () {
               // Navigate to full list
             },
             child: const Text(
-              "See all",
+              "عرض الكل",
               style: TextStyle(
                 color: AppColors.primary,
                 fontSize: 17,

@@ -1,10 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:komikaze/app/core/constants/colors.dart';
-import 'package:komikaze/app/data/models/bookmark.dart';
-import 'package:komikaze/app/modules/bookmark/controllers/bookmark_controller.dart';
-import 'package:komikaze/app/routes/app_pages.dart';
+import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/data/models/bookmark.dart';
+import 'package:mangaplus/app/modules/bookmark/controllers/bookmark_controller.dart';
+import 'package:mangaplus/app/routes/app_pages.dart';
 
 class BookmarkView extends GetView<BookmarkController> {
   const BookmarkView({super.key});
@@ -14,7 +14,7 @@ class BookmarkView extends GetView<BookmarkController> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('bookmark_title'.tr),
+        title: Text('الإشارات المرجعية'),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -49,7 +49,7 @@ class BookmarkView extends GetView<BookmarkController> {
           ),
           const SizedBox(height: 16),
           Text(
-            'No bookmarks yet',
+            'لا توجد إشارات مرجعية بعد',
             style: TextStyle(
               fontSize: 18,
               color: Colors.grey[500],
@@ -57,7 +57,7 @@ class BookmarkView extends GetView<BookmarkController> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Bookmark your favorite comics to see them here',
+            'أضف كوميكسك المفضلة إلى الإشارات المرجعية لتظهر هنا',
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey[600],
@@ -97,14 +97,14 @@ class BookmarkView extends GetView<BookmarkController> {
                   placeholder: (context, url) => Container(
                     width: 80,
                     height: 100,
-                    color: Colors.grey[900],
+                    color: AppColors.background,
                     child: const Center(
                         child: CircularProgressIndicator(strokeWidth: 2)),
                   ),
                   errorWidget: (context, url, error) => Container(
                     width: 80,
                     height: 100,
-                    color: Colors.grey[800],
+                    color: AppColors.card,
                     child: const Icon(Icons.broken_image),
                   ),
                 ),

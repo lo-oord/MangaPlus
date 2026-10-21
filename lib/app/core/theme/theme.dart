@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:komikaze/app/core/constants/colors.dart';
+import 'package:mangaplus/app/core/constants/colors.dart';
 
 class AppTheme {
   // Warna Utama
-  static const Color _primaryColorLight = Color(0xFF1E88E5); // Biru Muda
+  static const Color _primaryColorLight = Color(0xFF4D91CC);
   static const Color _primaryColorDark = AppColors.primary;
 
   // Warna Aksen
-  static const Color _accentColorLight = Color(0xFF26A69A); // Hijau Teal
-  static const Color _accentColorDark = Color(0xFF4DB6AC); // Hijau Teal Terang
+  static const Color _accentColorLight = Color(0xFF76A9D6);
+  static const Color _accentColorDark = AppColors.accent;
 
   // Background
   static const Color _backgroundLight = Colors.white;
-  static const Color _backgroundDark = Color(0xFF121212);
+  static const Color _backgroundDark = AppColors.background;
 
   // Surface
   static const Color _surfaceLight = Color(0xFFF5F5F5);
-  static const Color _surfaceDark = Color(0xFF1E1E1E);
+  static const Color _surfaceDark = AppColors.card;
 
   // Error
   static const Color _errorLight = Color(0xFFE53935);
@@ -25,14 +25,14 @@ class AppTheme {
   // Text
   static const Color _textPrimaryLight = Color(0xFF212121);
   static const Color _textSecondaryLight = Color(0xFF757575);
-  static const Color _textPrimaryDark = Color(0xFFE0E0E0);
-  static const Color _textSecondaryDark = Color(0xFFB0B0B0);
+  static const Color _textPrimaryDark = AppColors.textPrimary;
+  static const Color _textSecondaryDark = AppColors.textSecondary;
 
   // Success dan Attendance Colors
   static const Color _presentColor = Color(0xFF43A047); // Hijau
   static const Color _absentColor = Color(0xFFE53935); // Merah
   static const Color _lateColor = Color(0xFFFFA000); // Amber
-  static const Color _leaveColor = Color(0xFF8E24AA); // Ungu
+  static const Color _leaveColor = Color(0xFF668CB2);
 
   // Card Elevation
   static const double _cardElevation = 2.0;
@@ -431,7 +431,7 @@ class AppTheme {
     primaryColor: _primaryColorDark,
     colorScheme: const ColorScheme.dark(
       primary: _primaryColorDark,
-      onPrimary: Colors.black,
+      onPrimary: Colors.white,
       secondary: _accentColorDark,
       onSecondary: Colors.black,
       surface: _surfaceDark,
@@ -469,7 +469,7 @@ class AppTheme {
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: _primaryColorDark,
-        foregroundColor: Colors.black,
+        foregroundColor: Colors.white,
         elevation: 2,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(_buttonRadius),
@@ -533,7 +533,7 @@ class AppTheme {
     // FloatingActionButton Theme
     floatingActionButtonTheme: FloatingActionButtonThemeData(
       backgroundColor: _primaryColorDark,
-      foregroundColor: Colors.black,
+      foregroundColor: Colors.white,
       elevation: 4,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(_borderRadius),

@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:get/get.dart';
-import 'package:komikaze/app/data/models/comic_detail.dart';
-import 'package:komikaze/app/data/models/downloaded_chapter.dart';
-import 'package:komikaze/app/data/services/comic_service.dart';
+import 'package:mangaplus/app/data/models/comic_detail.dart';
+import 'package:mangaplus/app/data/models/downloaded_chapter.dart';
+import 'package:mangaplus/app/data/services/comic_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
@@ -51,7 +51,7 @@ class ComicDetailController extends GetxController {
       fetchComicDetail(comicId);
     } else {
       print('Error: No comicId provided');
-      Get.snackbar('Error', 'no_comic_id'.tr);
+      Get.snackbar('خطأ', 'لم يتم تقديم معرّف الكوميكس');
     }
   }
 
@@ -70,7 +70,7 @@ class ComicDetailController extends GetxController {
       print('Fetched comic: ${comicDetailData.value.comicDetail.title}');
     } catch (e) {
       print('Error fetching comic detail: $e');
-      Get.snackbar('Error', 'error_fetch'.trParams({'error': e.toString()}));
+      Get.snackbar('خطأ', 'تعذر تحميل البيانات. تحقق من اتصال الإنترنت وحاول مجددًا.');
     } finally {
       isLoading(false);
     }
@@ -152,7 +152,7 @@ class ComicDetailController extends GetxController {
         } catch (e) {
           print('Error saving to GetStorage: $e');
           Get.snackbar(
-              'Error', 'error_save_storage'.trParams({'error': e.toString()}));
+              'خطأ', 'تعذر حفظ البيانات على الجهاز.');
           return;
         }
       } else {
@@ -160,10 +160,10 @@ class ComicDetailController extends GetxController {
             'Chapter ${chapter.chapterId} already exists in storage, skipping');
       }
 
-      Get.snackbar('Success', 'success_download'.tr);
+      Get.snackbar('نجاح', 'تم تنزيل الفصل بنجاح');
     } catch (e) {
       print('Error downloading chapter: $e');
-      Get.snackbar('Error', 'error_download'.trParams({'error': e.toString()}));
+      Get.snackbar('خطأ', 'تعذر تنزيل الفصل. تحقق من مساحة التخزين وحاول مجددًا.');
     } finally {
       downloadingChapters.remove(chapter.chapterId);
       await _storage.write('downloadingChapters', downloadingChapters);

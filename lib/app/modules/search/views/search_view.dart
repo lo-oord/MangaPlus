@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:komikaze/app/core/constants/colors.dart';
-import 'package:komikaze/app/modules/search/controllers/search_controller.dart'
+import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/modules/search/controllers/search_controller.dart'
     as search_controller;
-import 'package:komikaze/app/routes/app_pages.dart';
-import 'package:komikaze/app/widgets/custom_card_normal.dart';
+import 'package:mangaplus/app/routes/app_pages.dart';
+import 'package:mangaplus/app/widgets/custom_card_normal.dart';
 
 class SearchView extends GetView<search_controller.SearchController> {
   const SearchView({super.key});
@@ -19,7 +19,7 @@ class SearchView extends GetView<search_controller.SearchController> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text(
-          'Search',
+          'بحث',
           style: TextStyle(
             color: Colors.white,
           ),
@@ -34,7 +34,7 @@ class SearchView extends GetView<search_controller.SearchController> {
               autofocus: true,
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
-                hintText: 'Search for comics (e.g., Naruto)',
+                hintText: 'ابحث عن الكوميكس (مثال: ناروتو)',
                 hintStyle: const TextStyle(color: Colors.white54),
                 filled: true,
                 fillColor: AppColors.searchBar,
@@ -66,7 +66,7 @@ class SearchView extends GetView<search_controller.SearchController> {
               if (controller.query.value.isEmpty) {
                 return const Center(
                   child: Text(
-                    'Enter a search query to find comics',
+                    'أدخل عبارة بحث للعثور على الكوميكس',
                     style: TextStyle(color: Colors.white),
                   ),
                 );
@@ -74,7 +74,7 @@ class SearchView extends GetView<search_controller.SearchController> {
               if (controller.comicsList.isEmpty) {
                 return const Center(
                   child: Text(
-                    'No comics found for this query',
+                    'لم يتم العثور على كوميكس لهذه العبارة',
                     style: TextStyle(color: Colors.white),
                   ),
                 );
