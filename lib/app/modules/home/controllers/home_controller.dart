@@ -58,7 +58,7 @@ class HomeController extends GetxController {
       debugPrint('Team X latest feed failed: $error');
       AppFeedback.show(
         title: 'خطأ'.tr,
-        message: 'تعذر تحميل محتوى Team X. تحقق من اتصال الإنترنت وحاول مجددًا.'.tr,
+        message: 'تعذر تحميل المحتوى'.tr,
         type: AppNoticeType.error,
       );
     }
@@ -71,7 +71,7 @@ class HomeController extends GetxController {
       debugPrint('Team X catalog failed: $error');
       AppFeedback.show(
         title: 'خطأ'.tr,
-        message: 'تعذر تحميل كتالوج Team X. تحقق من اتصال الإنترنت وحاول مجددًا.'.tr,
+        message: 'تعذر تحميل المحتوى'.tr,
         type: AppNoticeType.error,
       );
     }

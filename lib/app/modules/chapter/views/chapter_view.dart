@@ -38,8 +38,7 @@ class ChapterView extends GetView<ChapterController> {
       }
       if (controller.hasError.value) {
         return BrandState(
-          title: 'تعذر تحميل الفصل من Team X'.tr,
-          description: 'تحقق من اتصال الإنترنت ثم حاول مجددًا.'.tr,
+          title: 'تعذر تحميل الفصل'.tr,
           actionLabel: 'إعادة المحاولة'.tr,
           onAction: () => controller.fetchChapter(controller.chapterId),
         );
@@ -48,7 +47,6 @@ class ChapterView extends GetView<ChapterController> {
       if (chapter.images.isEmpty) {
         return BrandState(
           title: 'لا توجد صور متاحة'.tr,
-          description: 'قد يكون الفصل غير متاح أو يتطلب صلاحية من المصدر.'.tr,
           actionLabel: 'إعادة المحاولة'.tr,
           onAction: () => controller.fetchChapter(controller.chapterId),
         );

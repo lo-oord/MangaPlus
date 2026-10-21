@@ -30,7 +30,6 @@ class DownloadView extends GetView<DownloadController> {
         if (controller.downloadedChapters.isEmpty) {
           return BrandState(
             title: 'لا توجد فصول منزّلة'.tr,
-            description: 'نزّل الفصول من تفاصيل الكوميكس لقراءتها دون اتصال'.tr,
           );
         }
         return ListView.separated(

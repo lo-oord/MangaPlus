@@ -26,8 +26,7 @@ class GenreView extends GetView<GenreController> {
         final genres = controller.genreData.value.genres;
         if (genres.isEmpty) {
           return BrandState(
-            title: 'تعذر تحميل التصنيفات من Team X'.tr,
-            description: 'تحقق من اتصال الإنترنت ثم حاول مجددًا.'.tr,
+            title: 'تعذر تحميل التصنيفات'.tr,
             actionLabel: 'إعادة المحاولة'.tr,
             onAction: controller.fetchGenres,
           );

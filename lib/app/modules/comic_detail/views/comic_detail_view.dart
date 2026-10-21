@@ -19,13 +19,21 @@ class ComicDetailView extends GetView<ComicDetailController> {
       backgroundColor: AppColors.background,
       body: Obx(() {
         if (controller.isLoading.value) {
-          return BrandState(title: 'جارٍ تحميل التفاصيل'.tr, loading: true);
+          return Center(
+            child: SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.2,
+                color: AppColors.primary,
+              ),
+            ),
+          );
         }
         final comic = controller.comicDetailData.value.comicDetail;
         if (comic.title.isEmpty) {
           return BrandState(
             title: 'تفاصيل القصة غير متاحة'.tr,
-            description: 'تعذر تحميل التفاصيل من Team X. تحقق من الاتصال وحاول مجددًا.'.tr,
             actionLabel: 'إعادة المحاولة'.tr,
             onAction: () => controller.fetchComicDetail('${Get.arguments ?? ''}'),
           );
@@ -121,10 +129,6 @@ class ComicDetailView extends GetView<ComicDetailController> {
                                     icon: Icons.radio_button_checked_rounded,
                                     text: localizeContentStatus(comic.status),
                                   ),
-                                _InfoPill(
-                                  icon: Icons.verified_rounded,
-                                  text: 'Team X',
-                                ),
                               ],
                             ),
                           ],
@@ -343,7 +347,6 @@ class _ChapterListState extends State<_ChapterList> {
         if (chapters.isEmpty)
           BrandState(
             title: 'لا توجد فصول مجانية متاحة'.tr,
-            description: 'يعرض التطبيق الفصول المفتوحة فقط من المصدر.'.tr,
           )
         else
           Obx(() {

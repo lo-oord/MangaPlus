@@ -28,7 +28,7 @@ class SearchView extends GetView<search_controller.SearchController> {
               controller: controller.textController,
               style: TextStyle(color: AppColors.textPrimary),
               decoration: InputDecoration(
-                hintText: 'ابحث في Team X'.tr,
+                hintText: 'ابحث عن المانجا'.tr,
                 hintStyle: TextStyle(color: AppColors.textSecondary),
                 filled: true,
                 fillColor: AppColors.searchBar,
@@ -55,8 +55,7 @@ class SearchView extends GetView<search_controller.SearchController> {
             child: Obx(() {
               if (controller.query.value.isEmpty) {
                 return BrandState(
-                  title: 'ابحث في كتالوج Team X'.tr,
-                  description: 'اكتب اسم المانجا أو المانهوا للعثور عليها.'.tr,
+                  title: 'ابدأ البحث'.tr,
                 );
               }
               if (controller.isLoading.value) {
@@ -64,8 +63,7 @@ class SearchView extends GetView<search_controller.SearchController> {
               }
               if (controller.hasError.value) {
                 return BrandState(
-                  title: 'تعذر تحميل نتائج البحث من Team X'.tr,
-                  description: 'تحقق من اتصال الإنترنت ثم حاول مجددًا.'.tr,
+                  title: 'تعذر تحميل نتائج البحث'.tr,
                   actionLabel: 'إعادة المحاولة'.tr,
                   onAction: () => controller.searchComics(controller.query.value),
                 );
@@ -73,7 +71,6 @@ class SearchView extends GetView<search_controller.SearchController> {
               if (controller.comicsList.isEmpty) {
                 return BrandState(
                   title: 'لم يتم العثور على نتائج'.tr,
-                  description: 'جرّب كتابة الاسم الأصلي أو جزء أقصر من الاسم.'.tr,
                 );
               }
               return Padding(

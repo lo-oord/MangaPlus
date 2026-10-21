@@ -76,7 +76,7 @@ class ComicDetailController extends GetxController {
       debugPrint('Team X details failed: $error');
       AppFeedback.show(
         title: 'خطأ'.tr,
-        message: 'تعذر تحميل البيانات من Team X. تحقق من اتصال الإنترنت وحاول مجددًا.'.tr,
+        message: 'تعذر تحميل بيانات المانجا'.tr,
         type: AppNoticeType.error,
       );
     } finally {
@@ -220,7 +220,7 @@ class ComicDetailController extends GetxController {
       debugPrint('Team X download failed: $error');
       AppFeedback.show(
         title: 'خطأ'.tr,
-        message: 'تعذر تنزيل الفصل من Team X. تحقق من الاتصال ومساحة التخزين.'.tr,
+        message: 'تعذر تنزيل الفصل'.tr,
         type: AppNoticeType.error,
       );
     } finally {

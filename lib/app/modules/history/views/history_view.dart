@@ -47,7 +47,6 @@ class HistoryView extends GetView<HistoryController> {
 
   Widget _buildEmptyHistory() => BrandState(
         title: 'لا يوجد سجل قراءة بعد'.tr,
-        description: 'ابدأ القراءة ليظهر سجلك هنا'.tr,
       );
 
   Widget _buildHistoryItem(HistoryItem history) {

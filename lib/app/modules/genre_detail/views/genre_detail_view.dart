@@ -42,7 +42,6 @@ class GenreDetailView extends GetView<GenreDetailController> {
         if (controller.comicsList.isEmpty) {
           return BrandState(
             title: 'لا توجد قصص مصورة لهذا التصنيف'.tr,
-            description: 'جرّب تصنيفًا آخر من Team X.'.tr,
           );
         }
         return NotificationListener<ScrollNotification>(

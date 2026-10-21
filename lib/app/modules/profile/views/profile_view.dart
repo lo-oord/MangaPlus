@@ -3,14 +3,12 @@ import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/modules/profile/controllers/profile_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
-import 'package:mangaplus/app/widgets/brand_state.dart';
 
 class ProfileView extends GetView<ProfileController> {
   const ProfileView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -21,39 +19,8 @@ class ProfileView extends GetView<ProfileController> {
         elevation: 0,
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
         children: [
-          Center(
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: AppColors.card,
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: AppColors.divider),
-                  ),
-                  child: const MangaPlusLogo(size: 68),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'MangaPlus',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  'قارئ مانجا ومانهوا'.tr,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 26),
           _sectionTitle('التفضيلات'.tr),
           const SizedBox(height: 10),
           _settingsCard(
@@ -68,11 +35,13 @@ class ProfileView extends GetView<ProfileController> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('اللغة'.tr,
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.w700,
-                              )),
+                          Text(
+                            'اللغة'.tr,
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                           const SizedBox(height: 8),
                           Obx(
                             () => DropdownButtonHideUnderline(
@@ -117,11 +86,13 @@ class ProfileView extends GetView<ProfileController> {
                         : Icons.light_mode_rounded,
                     color: AppColors.primary,
                   ),
-                  title: Text('المظهر'.tr,
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      )),
+                  title: Text(
+                    'المظهر'.tr,
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   subtitle: Text(
                     controller.isDarkMode.value ? 'داكن'.tr : 'فاتح'.tr,
                     style: TextStyle(color: AppColors.textSecondary),
@@ -150,52 +121,6 @@ class ProfileView extends GetView<ProfileController> {
               ),
             ],
           ),
-          const SizedBox(height: 24),
-          _sectionTitle('حول التطبيق'.tr),
-          const SizedBox(height: 10),
-          _settingsCard(
-            children: [
-              _infoRow(Icons.info_outline_rounded, 'اسم التطبيق'.tr,
-                  'MangaPlus'),
-              Divider(height: 1, color: AppColors.divider),
-              _infoRow(Icons.verified_outlined, 'الإصدار'.tr, '1.0.0'),
-              Divider(height: 1, color: AppColors.divider),
-              _infoRow(Icons.tag_rounded, 'معرّف الحزمة'.tr,
-                  'com.mangaplus.app'),
-              Divider(height: 1, color: AppColors.divider),
-              _infoRow(
-                Icons.auto_stories_outlined,
-                'مصدر المحتوى'.tr,
-                'Team X',
-              ),
-              Divider(height: 1, color: AppColors.divider),
-              _infoRow(
-                Icons.language_rounded,
-                'موقع المصدر'.tr,
-                'olympustaff.com',
-              ),
-              Divider(height: 1, color: AppColors.divider),
-              _navigationRow(
-                Icons.policy_outlined,
-                'التراخيص والإسناد'.tr,
-                () => showLicensePage(
-                  context: context,
-                  applicationName: 'MangaPlus',
-                  applicationVersion: '1.0.0',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'يُجلب محتوى القصص والفصول مباشرة من Team X على olympustaff.com. قد تتغير بعض البيانات عند تحديث الموقع.'
-                .tr,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: AppColors.textSecondary,
-              height: 1.45,
-            ),
-          ),
         ],
       ),
     );
@@ -220,30 +145,6 @@ class ProfileView extends GetView<ProfileController> {
           border: Border.all(color: AppColors.divider.withValues(alpha: 0.72)),
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: children),
-      );
-
-  Widget _infoRow(IconData icon, String label, String value) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Icon(icon, size: 20, color: AppColors.icon),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(label,
-                  style: TextStyle(color: AppColors.textSecondary)),
-            ),
-            Flexible(
-              child: Text(
-                value,
-                textAlign: TextAlign.end,
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
       );
 
   Widget _navigationRow(IconData icon, String label, VoidCallback onTap) =>

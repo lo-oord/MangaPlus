@@ -19,7 +19,7 @@ class HomeView extends GetView<HomeController> {
       body: Obx(() {
         if (controller.isLoading.value) {
           return BrandState(
-            title: 'جارٍ تجهيز المحتوى'.tr,
+            title: 'جارٍ تحميل المحتوى'.tr,
             loading: true,
           );
         }
@@ -28,8 +28,7 @@ class HomeView extends GetView<HomeController> {
             controller.popularKomikData.value.popularManga.isNotEmpty;
         if (!hasContent) {
           return BrandState(
-            title: 'تعذر تحميل محتوى Team X. تحقق من اتصال الإنترنت وحاول مجددًا.'.tr,
-            description: 'موقع المصدر'.tr + ': olympustaff.com',
+            title: 'تعذر تحميل المحتوى'.tr,
             actionLabel: 'إعادة المحاولة'.tr,
             onAction: controller.reload,
           );
@@ -50,7 +49,7 @@ class HomeView extends GetView<HomeController> {
   Widget _buildHeroImage(BuildContext context) {
     return Obx(() {
       if (controller.isLoading.value) {
-        return BrandState(title: 'جارٍ تجهيز المحتوى'.tr, loading: true);
+        return BrandState(title: 'جارٍ تحميل المحتوى'.tr, loading: true);
       }
       if (controller.heroComics.isEmpty) return const SizedBox.shrink();
       return Column(
@@ -220,7 +219,7 @@ class KomikCardsSection extends GetView<HomeController> {
           children: [
             _buildHistorySection(context),
             const SizedBox(height: 16),
-            _buildSectionTitle(context, 'كتالوج Team X'.tr),
+            _buildSectionTitle(context, 'كتالوج المانجا'.tr),
             const SizedBox(height: 8),
             _buildPopularGrid(context),
             const SizedBox(height: 12),

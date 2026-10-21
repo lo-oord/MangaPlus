@@ -45,7 +45,6 @@ class BookmarkView extends GetView<BookmarkController> {
 
   Widget _buildEmptyBookmark() => BrandState(
         title: 'لا توجد إشارات مرجعية بعد'.tr,
-        description: 'أضف كوميكسك المفضلة إلى الإشارات المرجعية لتظهر هنا'.tr,
       );
 
   Widget _buildBookmarkItem(BookmarkItem bookmark) {

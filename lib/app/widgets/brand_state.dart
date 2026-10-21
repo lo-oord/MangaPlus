@@ -2,25 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 
 class MangaPlusLogo extends StatelessWidget {
-  const MangaPlusLogo({super.key, this.size = 88, this.rounded = true});
+  const MangaPlusLogo({super.key, this.size = 72});
 
   final double size;
-  final bool rounded;
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(rounded ? size * 0.22 : 0),
-      child: Image.asset(
-        'assets/images/mangaplus_logo.png',
-        width: size,
-        height: size,
-        fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) => Icon(
-          Icons.auto_stories_rounded,
-          size: size * 0.62,
-          color: AppColors.primary,
-        ),
+    return Image.asset(
+      'assets/images/mangaplus_logo.png',
+      width: size,
+      height: size,
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) => Icon(
+        Icons.auto_stories_rounded,
+        size: size * 0.62,
+        color: AppColors.primary,
       ),
     );
   }
@@ -54,23 +50,8 @@ class BrandState extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.card,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: AppColors.divider),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.12),
-                        blurRadius: 24,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: MangaPlusLogo(size: 88),
-                ),
-                const SizedBox(height: 22),
+                MangaPlusLogo(size: 68),
+                const SizedBox(height: 18),
                 Text(
                   title,
                   textAlign: TextAlign.center,
