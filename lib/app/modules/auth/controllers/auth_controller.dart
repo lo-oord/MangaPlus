@@ -177,6 +177,22 @@ class AuthController extends GetxController {
   }
 
   bool _validate() {
+    final completingGoogle = isRegister.value &&
+        profile.value != null &&
+        service.currentUser?.providerData.any((provider) => provider.providerId == 'google.com') == true;
+    if (completingGoogle) {
+      try {
+        AuthService.validateUsername(AuthService.normalizeUsername(username.text));
+      } catch (error) {
+        _message('اسم المستخدم غير صالح', '$error');
+        return false;
+      }
+      if (selectedCountry.value == null || birthDate.value == null) {
+        _message('بيانات الحساب ناقصة', 'اختر الدولة وتاريخ الميلاد.');
+        return false;
+      }
+      return true;
+    }
     if (!GetUtils.isEmail(email.text.trim())) {
       _message('تحقق من البريد', 'أدخل بريدًا إلكترونيًا صالحًا.');
       return false;

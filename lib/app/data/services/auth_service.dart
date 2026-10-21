@@ -156,6 +156,23 @@ class AuthService {
     return profile;
   }
 
+  Future<UserProfile> updateProfile({
+    required String displayName,
+    required String bio,
+    required UserPrivacy privacy,
+  }) async {
+    final user = currentUser;
+    if (user == null || user.isAnonymous) {
+      throw const AuthException('يجب تسجيل الدخول بحساب دائم لتعديل الملف.');
+    }
+    await _profiles.doc(user.uid).update({
+      'displayName': displayName.trim(),
+      'bio': bio.trim(),
+      'privacy': privacy.toMap(),
+    });
+    return (await loadProfile(user.uid))!;
+  }
+
   Future<void> signOut() async {
     await _googleSignIn.signOut().catchError((_) {});
     await _auth.signOut();

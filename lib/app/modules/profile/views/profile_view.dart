@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/data/services/auth_service.dart';
+import 'package:mangaplus/app/data/models/user_profile.dart';
 import 'package:mangaplus/app/modules/profile/controllers/profile_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
@@ -23,7 +24,9 @@ class ProfileView extends GetView<ProfileController> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
         children: [
-          _accountCard(),
+          Obx(_accountCard),
+          const SizedBox(height: 24),
+          Obx(_privacyCard),
           const SizedBox(height: 24),
           _sectionTitle('التفضيلات'.tr),
           const SizedBox(height: 10),
@@ -174,6 +177,7 @@ class ProfileView extends GetView<ProfileController> {
   Widget _accountCard() {
     final service = Get.isRegistered<AuthService>() ? Get.find<AuthService>() : null;
     final user = service?.currentUser;
+    final account = controller.accountProfile.value;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -193,17 +197,58 @@ class ProfileView extends GetView<ProfileController> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(user == null ? 'حسابك وبياناتك' : (user.isAnonymous ? 'قارئ MangaPlus' : (user.email ?? 'حساب MangaPlus')), style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800)),
+                Text(account?.displayName ?? (user == null ? 'حسابك وبياناتك' : (user.isAnonymous ? 'قارئ MangaPlus' : (user.email ?? 'حساب MangaPlus'))), style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 4),
                 Text(user == null ? 'سجّل الدخول لمزامنة القراءة والمفضلة' : 'إدارة الحساب والمزامنة', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
               ],
             ),
           ),
-          TextButton(onPressed: () => Get.toNamed(Routes.AUTH), child: Text(user == null ? 'دخول' : 'إدارة')),
+          if (user != null && !user.isAnonymous)
+            TextButton(onPressed: controller.signOut, child: const Text('خروج'))
+          else
+            TextButton(onPressed: () => Get.toNamed(Routes.AUTH), child: Text(user == null ? 'دخول' : 'ترقية')),
         ],
       ),
     );
   }
+
+  Widget _privacyCard() {
+    final privacy = controller.accountProfile.value?.privacy;
+    if (privacy == null) return const SizedBox.shrink();
+    return _settingsCard(children: [
+      ListTile(
+        leading: Icon(Icons.shield_outlined, color: AppColors.primary),
+        title: Text('الخصوصية', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
+        subtitle: Text('تحكم فيما يظهر في ملفك العام', style: TextStyle(color: AppColors.textSecondary)),
+      ),
+      _privacySwitch('إظهار النبذة', privacy.bio, (value) => controller.updatePrivacy(_privacyWith(privacy, bio: value))),
+      _privacySwitch('إظهار الدولة', privacy.country, (value) => controller.updatePrivacy(_privacyWith(privacy, country: value))),
+      _privacySwitch('إظهار إحصائيات القراءة', privacy.statistics, (value) => controller.updatePrivacy(_privacyWith(privacy, statistics: value))),
+      _privacySwitch('إظهار المفضلة', privacy.bookmarks, (value) => controller.updatePrivacy(_privacyWith(privacy, bookmarks: value))),
+      _privacySwitch('إظهار النشاط الأخير', privacy.activity, (value) => controller.updatePrivacy(_privacyWith(privacy, activity: value))),
+    ]);
+  }
+
+  Widget _privacySwitch(String title, bool value, ValueChanged<bool> onChanged) => SwitchListTile.adaptive(
+        value: value,
+        onChanged: controller.savingAccount.value ? null : onChanged,
+        title: Text(title, style: TextStyle(color: AppColors.textPrimary)),
+        activeColor: AppColors.primary,
+      );
+
+  UserPrivacy _privacyWith(UserPrivacy source, {
+    bool? bio, bool? country, bool? statistics, bool? bookmarks, bool? activity,
+  }) => UserPrivacy(
+        bio: bio ?? source.bio,
+        country: country ?? source.country,
+        statistics: statistics ?? source.statistics,
+        lists: source.lists,
+        bookmarks: bookmarks ?? source.bookmarks,
+        completed: source.completed,
+        activity: activity ?? source.activity,
+        achievements: source.achievements,
+        customLists: source.customLists,
+      );
   Widget _sectionTitle(String title) => Padding(
         padding: const EdgeInsetsDirectional.only(start: 4),
         child: Text(

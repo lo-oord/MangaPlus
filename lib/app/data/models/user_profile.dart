@@ -66,6 +66,27 @@ class UserProfile {
         'privacy': privacy.toMap(),
       };
 
+  UserProfile copyWith({
+    String? displayName,
+    String? username,
+    String? bio,
+    UserPrivacy? privacy,
+  }) => UserProfile(
+        uid: uid,
+        email: email,
+        displayName: displayName ?? this.displayName,
+        username: username ?? this.username,
+        countryCode: countryCode,
+        countryName: countryName,
+        createdAt: createdAt,
+        birthDate: birthDate,
+        bio: bio ?? this.bio,
+        photoUrl: photoUrl,
+        isGuest: isGuest,
+        emailVerified: emailVerified,
+        privacy: privacy ?? this.privacy,
+      );
+
   static DateTime? _date(dynamic value) {
     if (value is Timestamp) return value.toDate();
     if (value is DateTime) return value;
