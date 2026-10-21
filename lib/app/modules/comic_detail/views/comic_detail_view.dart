@@ -22,13 +22,9 @@ class ComicDetailView extends GetView<ComicDetailController> {
       body: Obx(() {
         if (controller.isLoading.value) {
           return Center(
-            child: SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.2,
-                color: AppColors.primary,
-              ),
+            child: CircularProgressIndicator(
+              strokeWidth: 2.2,
+              color: AppColors.primary,
             ),
           );
         }
@@ -42,109 +38,144 @@ class ComicDetailView extends GetView<ComicDetailController> {
         }
         return CustomScrollView(
           slivers: [
-            SliverAppBar(
-              pinned: true,
-              expandedHeight: 400,
-              backgroundColor: AppColors.background,
-              foregroundColor: AppColors.textPrimary,
-              actions: [
-                IconButton(
-                  tooltip: 'إضافة إلى الإشارات المرجعية'.tr,
-                  onPressed: () => controller.toggleBookmark(comic),
-                  icon: Obx(
-                    () {
-                      controller.bookmarkRevision.value;
-                      return Icon(
-                        controller.isBookmarked(comic.comicId)
-                            ? Icons.bookmark_rounded
-                            : Icons.bookmark_border_rounded,
-                        color: AppColors.primary,
-                      );
-                    },
-                  ),
+            _buildHero(context, comic),
+            SliverToBoxAdapter(child: _buildBody(context, comic)),
+          ],
+        );
+      }),
+    );
+  }
+
+  Widget _buildHero(BuildContext context, ComicDetail comic) {
+    final history = controller.readingHistoryFor(comic.comicId);
+    final historyChapter = history == null
+        ? null
+        : comic.chapters.firstWhereOrNull(
+            (chapter) => chapter.chapterId == history.chapterId,
+          );
+    final hasRating = comic.rating.trim().isNotEmpty && comic.rating != '0.0';
+
+    return SliverAppBar(
+      pinned: true,
+      expandedHeight: 445,
+      backgroundColor: AppColors.background,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      actions: [
+        Obx(() {
+          controller.bookmarkRevision.value;
+          final bookmarked = controller.isBookmarked(comic.comicId);
+          return IconButton(
+            tooltip: bookmarked
+                ? 'إزالة الإشارة المرجعية'.tr
+                : 'إضافة إلى الإشارات المرجعية'.tr,
+            onPressed: () => controller.toggleBookmark(comic),
+            icon: Icon(
+              bookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+              color: Colors.white,
+            ),
+          );
+        }),
+      ],
+      flexibleSpace: FlexibleSpaceBar(
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (comic.coverImage.isNotEmpty)
+              CachedNetworkImage(
+                imageUrl: comic.coverImage,
+                httpHeaders: const {
+                  'Referer': 'https://olympustaff.com/',
+                  'User-Agent':
+                      'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+                },
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
+                placeholder: (_, __) => Container(color: AppColors.card),
+                errorWidget: (_, __, ___) => const Center(
+                  child: MangaPlusLogo(size: 92),
                 ),
-              ],
-              flexibleSpace: FlexibleSpaceBar(
-                background: Stack(
-                  fit: StackFit.expand,
+              )
+            else
+              const Center(child: MangaPlusLogo(size: 92)),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.34),
+                    Colors.black.withValues(alpha: 0.10),
+                    AppColors.background.withValues(alpha: 0.78),
+                    AppColors.background,
+                  ],
+                  stops: const [0.0, 0.27, 0.72, 1.0],
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    if (comic.coverImage.isNotEmpty)
-                      CachedNetworkImage(
-                        imageUrl: comic.coverImage,
-                        httpHeaders: const {
-                          'Referer': 'https://olympustaff.com/',
-                          'User-Agent':
-                              'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
-                        },
-                        fit: BoxFit.cover,
-                        placeholder: (_, __) => Container(color: AppColors.card),
-                        errorWidget: (_, __, ___) => const Center(
-                          child: MangaPlusLogo(size: 100),
-                        ),
-                      )
-                    else
-                      const Center(child: MangaPlusLogo(size: 100)),
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.black.withValues(alpha: 0.08),
-                            AppColors.background.withValues(alpha: 0.88),
-                            AppColors.background,
-                          ],
-                          stops: const [0, 0.7, 1],
-                        ),
-                      ),
-                    ),
-                    Align(
-                      alignment: Alignment.bottomCenter,
+                    _CoverThumbnail(imageUrl: comic.coverImage),
+                    const SizedBox(width: 14),
+                    Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
+                        padding: const EdgeInsets.only(bottom: 2),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               comic.title,
-                              textAlign: TextAlign.center,
                               maxLines: 3,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 26,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                height: 1.12,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
-                            const SizedBox(height: 10),
+                            if (comic.nativeTitle.trim().isNotEmpty) ...[
+                              const SizedBox(height: 5),
+                              Text(
+                                comic.nativeTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.72),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 12),
                             Wrap(
-                              alignment: WrapAlignment.center,
-                              spacing: 8,
-                              runSpacing: 6,
+                              spacing: 12,
+                              runSpacing: 8,
                               children: [
-                                _InfoPill(
+                                _Metric(
                                   icon: Icons.menu_book_rounded,
                                   text: '${comic.totalChapters} ${'الفصول'.tr}',
                                 ),
-                                if (comic.status.isNotEmpty)
-                                  _InfoPill(
-                                    icon: Icons.radio_button_checked_rounded,
-                                    text: localizeContentStatus(comic.status),
+                                if (hasRating)
+                                  _Metric(
+                                    icon: Icons.star_rounded,
+                                    text: comic.rating,
+                                  ),
+                                if (comic.type.trim().isNotEmpty)
+                                  _Metric(
+                                    icon: Icons.category_rounded,
+                                    text: localizeContentType(comic.type),
                                   ),
                               ],
                             ),
-                            if (comic.chapters.isNotEmpty) ...[
-                              const SizedBox(height: 12),
-                              SizedBox(
-                                width: double.infinity,
-                                height: 44,
-                                child: FilledButton.icon(
-                                  onPressed: () =>
-                                      _openChapter(context, comic, comic.chapters.first),
-                                  icon: const Icon(Icons.play_arrow_rounded),
-                                  label: Text('قراءة الفصل الأخير'.tr),
-                                ),
-                              ),
+                            if (comic.status.trim().isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              _StatusBadge(status: comic.status),
                             ],
                           ],
                         ),
@@ -154,59 +185,133 @@ class ComicDetailView extends GetView<ComicDetailController> {
                 ),
               ),
             ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 14, 18, 36),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (comic.genres.isNotEmpty) ...[
-                      _SectionTitle('التصنيفات'.tr),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: comic.genres
-                            .map((genre) => ActionChip(
-                                  backgroundColor: AppColors.searchBar,
-                                  side: BorderSide.none,
-                                  label: Text(localizeContentGenre(genre)),
-                                  onPressed: () => _openGenre(genre),
-                                ))
-                            .toList(),
-                      ),
-                      const SizedBox(height: 18),
-                    ],
-                    _ChapterList(comic: comic, controller: controller),
-                    const SizedBox(height: 22),
-                    if (comic.synopsis.trim().isNotEmpty) ...[
-                      _SectionTitle('القصة'.tr),
-                      const SizedBox(height: 8),
-                      ReadMoreText(
-                        comic.synopsis,
-                        trimLines: 4,
-                        trimMode: TrimMode.Line,
-                        trimCollapsedText: '... المزيد'.tr,
-                        trimExpandedText: ' أقل'.tr,
-                        moreStyle: TextStyle(color: AppColors.primary),
-                        lessStyle: TextStyle(color: AppColors.primary),
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          height: 1.55,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-                    _SectionTitle('معلومات المانجا'.tr),
-                    const SizedBox(height: 8),
-                    _MetadataCard(comic: comic),
-                  ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, ComicDetail comic) {
+    controller.bookmarkRevision.value;
+    final history = controller.readingHistoryFor(comic.comicId);
+    final historyChapter = history == null
+        ? null
+        : comic.chapters.firstWhereOrNull(
+            (chapter) => chapter.chapterId == history.chapterId,
+          );
+    final targetChapter = historyChapter ?? comic.chapters.firstOrNull;
+    final hasHistory = historyChapter != null;
+    final bookmarked = controller.isBookmarked(comic.comicId);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 36),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                flex: 6,
+                child: FilledButton.icon(
+                  onPressed: targetChapter == null
+                      ? null
+                      : () => _openChapter(context, comic, targetChapter),
+                  icon: const Icon(Icons.play_arrow_rounded),
+                  label: Text(
+                    hasHistory ? 'متابعة القراءة'.tr : 'ابدأ القراءة'.tr,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
                 ),
               ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 4,
+                child: OutlinedButton.icon(
+                  onPressed: () => controller.toggleBookmark(comic),
+                  icon: Icon(bookmarked
+                      ? Icons.bookmark_rounded
+                      : Icons.bookmark_border_rounded),
+                  label: Text(
+                    bookmarked ? 'إزالة من المفضلة'.tr : 'إضافة للمفضلة'.tr,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          if (comic.genres.isNotEmpty) ...[
+            _SectionHeading(icon: Icons.local_offer_outlined, title: 'التصنيفات'.tr),
+            const SizedBox(height: 9),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: comic.genres
+                  .map((genre) => ActionChip(
+                        label: Text(localizeContentGenre(genre)),
+                        onPressed: () => _openGenre(genre),
+                        backgroundColor: AppColors.searchBar,
+                        side: BorderSide(color: AppColors.divider.withValues(alpha: 0.7)),
+                        labelStyle: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                      ))
+                  .toList(),
             ),
+            const SizedBox(height: 20),
           ],
-        );
-      }),
+          if (comic.synopsis.trim().isNotEmpty) ...[
+            _InfoCard(
+              title: 'نبذة عن المانجا'.tr,
+              icon: Icons.menu_book_rounded,
+              child: ReadMoreText(
+                comic.synopsis,
+                trimLines: 4,
+                trimMode: TrimMode.Line,
+                trimCollapsedText: '... المزيد'.tr,
+                trimExpandedText: ' أقل'.tr,
+                moreStyle: TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+                lessStyle: TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+                style: TextStyle(color: AppColors.textSecondary, height: 1.65),
+              ),
+            ),
+            const SizedBox(height: 18),
+          ],
+          _InfoCard(
+            title: 'معلومات المانجا'.tr,
+            icon: Icons.info_outline_rounded,
+            child: _MetadataGrid(comic: comic),
+          ),
+          const SizedBox(height: 22),
+          _ChapterList(comic: comic, controller: controller),
+        ],
+      ),
     );
   }
 
@@ -240,6 +345,205 @@ class ComicDetailView extends GetView<ComicDetailController> {
       return;
     }
     Get.toNamed(Routes.GENRE_DETAIL, arguments: genre);
+  }
+}
+
+class _CoverThumbnail extends StatelessWidget {
+  const _CoverThumbnail({required this.imageUrl});
+  final String imageUrl;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 112,
+        height: 158,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: AppColors.primary, width: 1.2),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black38,
+              blurRadius: 12,
+              offset: Offset(0, 5),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: imageUrl.isEmpty
+            ? const Center(child: MangaPlusLogo(size: 52))
+            : CachedNetworkImage(
+                imageUrl: imageUrl,
+                fit: BoxFit.cover,
+                httpHeaders: const {
+                  'Referer': 'https://olympustaff.com/',
+                  'User-Agent':
+                      'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+                },
+                placeholder: (_, __) => Container(color: AppColors.card),
+                errorWidget: (_, __, ___) =>
+                    const Center(child: MangaPlusLogo(size: 52)),
+              ),
+      );
+}
+
+class _Metric extends StatelessWidget {
+  const _Metric({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: AppColors.primary),
+          const SizedBox(width: 5),
+          Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      );
+}
+
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.status});
+  final String status;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.88),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          localizeContentStatus(status),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      );
+}
+
+class _SectionHeading extends StatelessWidget {
+  const _SectionHeading({required this.icon, required this.title});
+  final IconData icon;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          Icon(icon, color: AppColors.primary, size: 21),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 19,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      );
+}
+
+class _InfoCard extends StatelessWidget {
+  const _InfoCard({required this.title, required this.icon, required this.child});
+  final String title;
+  final IconData icon;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.divider.withValues(alpha: 0.78)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _SectionHeading(icon: icon, title: title),
+            const SizedBox(height: 11),
+            child,
+          ],
+        ),
+      );
+}
+
+class _MetadataGrid extends StatelessWidget {
+  const _MetadataGrid({required this.comic});
+  final ComicDetail comic;
+
+  @override
+  Widget build(BuildContext context) {
+    final values = <(IconData, String, String)>[
+      (Icons.person_outline_rounded, 'المؤلف'.tr, comic.author),
+      (Icons.calendar_today_outlined, 'سنة الإصدار'.tr, comic.releaseYear),
+      (Icons.palette_outlined, 'النوع'.tr, localizeContentType(comic.type)),
+      (Icons.sync_rounded, 'الحالة'.tr, localizeContentStatus(comic.status)),
+      (Icons.star_outline_rounded, 'التقييم'.tr, comic.rating),
+      (Icons.update_rounded, 'آخر تحديث'.tr, comic.updatedOn),
+    ].where((entry) => entry.$3.trim().isNotEmpty && entry.$3 != '0.0').toList();
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: values
+          .map(
+            (entry) => SizedBox(
+              width: 150,
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.searchBar,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  children: [
+                    Icon(entry.$1, color: AppColors.primary, size: 18),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            entry.$2,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 10,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            entry.$3,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )
+          .toList(),
+    );
   }
 }
 

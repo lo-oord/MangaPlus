@@ -125,6 +125,20 @@ class ComicDetailController extends GetxController {
   bool isBookmarked(String comicId) =>
       (_storage.read<Map<String, dynamic>>('bookmarks') ?? {}).containsKey(comicId);
 
+  HistoryItem? readingHistoryFor(String comicId) {
+    final entries = _storage.read<Map<String, dynamic>>('reading_history') ?? {};
+    final raw = entries[comicId];
+    if (raw is! Map) return null;
+    try {
+      return HistoryItem.fromMap(
+        comicId,
+        Map<String, dynamic>.from(raw),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> toggleBookmark(ComicDetail comic) async {
     if (isBookmarked(comic.comicId)) {
       await _appDataService.deleteBookmark(comic.comicId);
