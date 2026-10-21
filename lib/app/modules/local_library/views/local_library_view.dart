@@ -37,7 +37,7 @@ class LocalLibraryView extends GetView<LocalLibraryController> {
         if (controller.groups.isEmpty) {
           return BrandState(
             title: 'لا توجد مانجا محفوظة محليًا'.tr,
-            subtitle: 'نزّل فصولًا لتظهر هنا وتقرأها دون اتصال'.tr,
+            description: 'نزّل فصولًا لتظهر هنا وتقرأها دون اتصال'.tr,
           );
         }
         return Column(

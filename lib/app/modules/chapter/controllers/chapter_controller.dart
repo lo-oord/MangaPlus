@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/data/models/chapter.dart';
+import 'package:mangaplus/app/data/models/history.dart';
+import 'package:mangaplus/app/data/services/app_data_service.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
@@ -44,6 +46,19 @@ class ChapterController extends GetxController {
 
       if (downloadedChapter != null) {
         isOffline.value = true;
+        final localChapterRecords = downloadedChapters
+            .where((item) => item is Map && item['comicId'] == arguments['comicId'])
+            .toList();
+        final localIndex = localChapterRecords.indexWhere(
+          (item) => item['chapterId'] == id,
+        );
+        final localPrevious = localIndex >= 0 &&
+                localIndex + 1 < localChapterRecords.length
+            ? '${localChapterRecords[localIndex + 1]['chapterId']}'
+            : '';
+        final localNext = localIndex > 0
+            ? '${localChapterRecords[localIndex - 1]['chapterId']}'
+            : null;
         localImages.assignAll(
           List<String>.from(downloadedChapter['localImagePaths'] ?? const []),
         );
@@ -52,9 +67,13 @@ class ChapterController extends GetxController {
             chapterId: id,
             title: '${downloadedChapter['chapterTitle'] ?? id}',
             images: localImages.toList(growable: false),
-            previousChapter: '',
-            nextChapter: null,
-            chapters: const [],
+            previousChapter: localPrevious,
+            nextChapter: localNext,
+            chapters: localChapterRecords.map((item) => ChapterElement(
+                  chapterId: '${item['chapterId'] ?? ''}',
+                  title: '${item['chapterTitle'] ?? ''}',
+                  url: '${item['chapterId'] ?? ''}',
+                )).toList(growable: false),
           ),
           source: 'local',
         );
@@ -87,6 +106,19 @@ class ChapterController extends GetxController {
     }
   }
 
+  String? get nextChapterId => chapterData.value.chapter.nextChapter;
+  String? get previousChapterId =>
+      chapterData.value.chapter.previousChapter.isEmpty
+          ? null
+          : chapterData.value.chapter.previousChapter;
+
+  String _chapterTitleFor(String id) {
+    final chapter = chapterData.value.chapter.chapters.firstWhereOrNull(
+      (item) => item.chapterId == id,
+    );
+    return chapter?.title ?? '';
+  }
+
   void navigateToChapter(String? id) {
     if (id != null && id.isNotEmpty && !isNavigating.value) {
       isNavigating.value = true;
@@ -95,6 +127,7 @@ class ChapterController extends GetxController {
         'comicId': arguments['comicId'],
         'comicTitle': arguments['comicTitle'],
         'coverImage': arguments['coverImage'],
+        'chapterTitle': _chapterTitleFor(id),
       });
     }
   }
@@ -129,7 +162,7 @@ class ChapterController extends GetxController {
     if (!continuousNavigation.value || isNavigating.value || isOffline.value) {
       return;
     }
-    final next = chapterData.value.chapter.nextChapter;
+    final next = nextChapterId;
     if (metrics.extentAfter <= 28 && next != null && next.isNotEmpty) {
       navigateToChapter(next);
     } else if (metrics.extentAfter <= 28 && !endNoticeShown) {
@@ -155,6 +188,26 @@ class ChapterController extends GetxController {
   void onInit() {
     super.onInit();
     _loadReaderPreferences();
+    _markAsRead();
     fetchChapter(chapterId);
+  }
+
+  Future<void> _markAsRead() async {
+    final readChapters = Map<String, dynamic>.from(
+      _storage.read('readChapters') ?? <String, dynamic>{},
+    );
+    readChapters[chapterId] = DateTime.now().toIso8601String();
+    await _storage.write('readChapters', readChapters);
+    final comicId = '${arguments['comicId'] ?? ''}';
+    if (comicId.isEmpty || !Get.isRegistered<AppDataService>()) return;
+    await Get.find<AppDataService>().addHistory(HistoryItem(
+          comicId: comicId,
+          title: '${arguments['comicTitle'] ?? ''}',
+          coverImage: '${arguments['coverImage'] ?? ''}',
+          chapterId: chapterId,
+          chapterTitle: '${arguments['chapterTitle'] ?? chapterId}',
+          lastRead: DateTime.now(),
+          type: 'manga',
+        ));
   }
 }

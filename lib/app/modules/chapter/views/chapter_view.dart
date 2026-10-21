@@ -11,6 +11,7 @@ import 'package:mangaplus/app/widgets/brand_state.dart';
 
 class ChapterView extends GetView<ChapterController> {
   const ChapterView({super.key});
+  static final List<GlobalKey> _pageKeys = <GlobalKey>[];
 
   @override
   Widget build(BuildContext context) {
@@ -52,33 +53,64 @@ class ChapterView extends GetView<ChapterController> {
           onAction: () => controller.fetchChapter(controller.chapterId),
         );
       }
+      if (_pageKeys.length != chapter.images.length) {
+        _pageKeys
+          ..clear()
+          ..addAll(List.generate(chapter.images.length, (_) => GlobalKey()));
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) => _updateCurrentPage(context));
       return GestureDetector(
         onTap: controller.toggleNavigationVisibility,
         behavior: HitTestBehavior.opaque,
         child: NotificationListener<ScrollNotification>(
           onNotification: (notification) {
-            if (notification is ScrollUpdateNotification) {
+            if (notification is ScrollUpdateNotification ||
+                notification is ScrollEndNotification) {
               controller.handleScroll(notification.metrics);
+              _updateCurrentPage(notification.context);
             }
             return false;
           },
           child: ListView.builder(
             cacheExtent: 1200,
             itemCount: chapter.images.length,
-            itemBuilder: (context, index) {
-              controller.currentPage.value = index;
-              return _buildImage(chapter.images[index]);
-            },
+            itemBuilder: (context, index) => KeyedSubtree(
+              key: _pageKeys[index],
+              child: _buildImage(chapter.images[index]),
+            ),
           ),
         ),
       );
     });
   }
 
+  void _updateCurrentPage(BuildContext context) {
+    final screenCenter = MediaQuery.sizeOf(context).height / 2;
+    var bestIndex = controller.currentPage.value;
+    var bestDistance = double.infinity;
+    for (var index = 0; index < _pageKeys.length; index++) {
+      final renderObject = _pageKeys[index].currentContext?.findRenderObject();
+      if (renderObject is! RenderBox || !renderObject.hasSize) continue;
+      final top = renderObject.localToGlobal(Offset.zero).dy;
+      final bottom = top + renderObject.size.height;
+      if (top <= screenCenter && bottom >= screenCenter) {
+        bestIndex = index;
+        break;
+      }
+      final distance = screenCenter < top ? top - screenCenter : screenCenter - bottom;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = index;
+      }
+    }
+    if (bestIndex != controller.currentPage.value) {
+      controller.currentPage.value = bestIndex;
+    }
+  }
+
   Widget _buildFloatingNavigation() {
     return Obx(() {
       final chapter = controller.chapterData.value.chapter;
-      final canNavigate = !controller.isOffline.value;
       return Positioned(
         bottom: 0,
         left: 0,
@@ -158,15 +190,15 @@ class ChapterView extends GetView<ChapterController> {
                     _readerIconButton(
                       icon: Icons.chevron_left_rounded,
                       tooltip: 'الفصل السابق'.tr,
-                      onPressed: chapter.previousChapter.isNotEmpty && canNavigate
-                          ? () => controller.navigateToChapter(chapter.previousChapter)
+                      onPressed: controller.previousChapterId != null
+                          ? () => controller.navigateToChapter(controller.previousChapterId)
                           : null,
                     ),
                     _readerIconButton(
                       icon: Icons.chevron_right_rounded,
                       tooltip: 'الفصل التالي'.tr,
-                      onPressed: chapter.nextChapter != null && canNavigate
-                          ? () => controller.navigateToChapter(chapter.nextChapter)
+                      onPressed: controller.nextChapterId != null
+                          ? () => controller.navigateToChapter(controller.nextChapterId)
                           : null,
                     ),
                   ],

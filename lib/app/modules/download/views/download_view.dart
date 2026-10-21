@@ -23,7 +23,7 @@ class DownloadView extends GetView<DownloadController> {
         if (tasks.isEmpty) {
           return BrandState(
             title: 'لا توجد مهام تحميل'.tr,
-            subtitle: 'ستظهر هنا عمليات التحميل الجارية والمكتملة'.tr,
+            description: 'ستظهر هنا عمليات التحميل الجارية والمكتملة'.tr,
           );
         }
         return ListView.separated(
