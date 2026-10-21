@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/data/models/comic.dart';
 import 'package:mangaplus/app/data/services/genre_service.dart';
