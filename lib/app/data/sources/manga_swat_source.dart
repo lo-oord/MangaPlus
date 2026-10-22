@@ -147,7 +147,7 @@ class MangaSwatSource extends ContentSource {
     }
     return '';
   }
-  String _type(dynamic value) => value is Map ? (value['name'] ?? 'manga').toString() : (value ?? 'manga').toString();
+  String _type(dynamic value) => SourceValues.type(value);
   String _stripTags(String value) => value.replaceAll(RegExp(r'<[^>]*>'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
   double? _chapterNumber(String value) {
     final match = RegExp(r'\d+(?:\.\d+)?').firstMatch(value);

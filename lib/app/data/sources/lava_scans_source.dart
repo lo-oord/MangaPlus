@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import 'manga_html_utils.dart';
 import 'source_base.dart';
+import 'source_values.dart';
 
 /// Read-only adapter for the Arabic Lava Scans manga source.
 class LavaScansSource extends ContentSource {
@@ -61,12 +62,13 @@ class LavaScansSource extends ContentSource {
         .map(mangaHtmlText).where((value) => value.isNotEmpty).toList();
     final image = mangaImageUrl(document.querySelector('.lh-cover img, .summary_image img, .poster img'), _site);
     final status = mangaHtmlText(document.querySelector('.lh-meta-item.status-badge-lux, .post-status'));
+    final type = _seriesType(document);
     final chapters = _chapters(document, seriesUrl);
     final result = item(
       title: title,
       url: _internalSeries(seriesUrl),
       image: image,
-      type: 'manga',
+      type: SourceValues.type(type),
       genres: genres,
       description: description,
       rating: _rating(document),
@@ -309,5 +311,22 @@ class LavaScansSource extends ContentSource {
     final parent = document.querySelector('.lh-meta-row .fa-star')?.parent;
     final text = parent is Element ? mangaHtmlText(parent) : '';
     return text.replaceAll(RegExp(r'[^\d.,]'), '').replaceAll(',', '.');
+  }
+
+  String _seriesType(Document document) {
+    for (final element in document.querySelectorAll(
+      '.lh-meta-item.type a, .post-type a, .type-content a, .manga-type, .series-type',
+    )) {
+      final value = mangaHtmlText(element);
+      if (value.isNotEmpty) return value;
+    }
+    final label = RegExp(r'^(?:النوع|type)\s*[:：-]\s*(.+)$', caseSensitive: false);
+    for (final element in document.querySelectorAll(
+      '.lh-meta-item, .post-content_item, .summary-content li, .summary-content div',
+    )) {
+      final match = label.firstMatch(mangaHtmlText(element));
+      if (match != null) return match.group(1)!.trim();
+    }
+    return '';
   }
 }

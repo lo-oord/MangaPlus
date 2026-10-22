@@ -116,7 +116,12 @@ class MangaTimeSource extends ContentSource {
       title: _string(raw['title'], 'بدون عنوان'),
       url: _seriesUrl(_string(raw['id']), _string(raw['slug'])),
       image: _imageUrl(raw['coverUrl'] ?? raw['cover']),
-      type: _string(raw['type'], 'manga'), genres: genres,
+      type: SourceValues.type([
+        raw['type'],
+        raw['seriesType'],
+        raw['contentType'],
+      ]),
+      genres: genres,
       description: _cleanText(raw['description']), rating: SourceValues.rating(raw),
     );
     item.addAll({

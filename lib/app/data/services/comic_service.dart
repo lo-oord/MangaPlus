@@ -4,6 +4,7 @@ import 'package:mangaplus/app/data/models/comic.dart';
 import 'package:mangaplus/app/data/models/comic_detail.dart';
 import 'package:mangaplus/app/data/sources/manga_source_registry.dart';
 import 'package:mangaplus/app/data/sources/source_base.dart';
+import 'package:mangaplus/app/data/sources/source_values.dart';
 import 'package:mangaplus/app/data/sources/team_x_source.dart';
 
 class ComicService {
@@ -121,7 +122,12 @@ class ComicService {
       releaseYear: '${raw['release_year'] ?? raw['year'] ?? ''}',
       author: '${raw['author'] ?? raw['artist'] ?? ''}',
       status: '${raw['status'] ?? ''}',
-      type: '${raw['type'] ?? 'manga'}',
+      type: SourceValues.type([
+        raw['type'],
+        raw['seriesType'],
+        raw['content_type'],
+        raw['format'],
+      ]),
       totalChapters: '${raw['total_chapters'] ?? chapters.length}',
       updatedOn: _formatDate('${raw['updated_on'] ?? raw['updated_at'] ?? ''}'),
       rating: '${raw['rating'] ?? ''}',

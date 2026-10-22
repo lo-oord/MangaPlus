@@ -105,6 +105,7 @@ class MangaOnlineSource extends ContentSource {
     var author = '';
     var artist = '';
     var status = '';
+    var type = '';
     for (final field in document.querySelectorAll('.panel-body h3')) {
       final label = _ownText(field).toLowerCase();
       final value = field.querySelector('.text');
@@ -118,6 +119,8 @@ class MangaOnlineSource extends ContentSource {
         artist = mangaHtmlText(value);
       } else if (label.contains('الحالة')) {
         status = mangaHtmlText(value);
+      } else if (label.contains('النوع') || label.contains('type')) {
+        type = mangaHtmlText(value);
       }
     }
     final image = mangaImageUrl(
@@ -133,7 +136,7 @@ class MangaOnlineSource extends ContentSource {
           document.querySelector('[data-rating]')?.attributes['data-rating'] ??
           mangaHtmlText(document.querySelector('.rating, .rate, .rating-value, #rating')),
     });
-    return _seriesItem(title, slug, image)
+    return _seriesItem(title, slug, image, type: type)
       ..addAll({
         if (rating.isNotEmpty) 'rating': rating,
         'description': description,
@@ -224,11 +227,16 @@ class MangaOnlineSource extends ContentSource {
     return response;
   }
 
-  Map<String, dynamic> _seriesItem(String title, String slug, String image) => item(
+  Map<String, dynamic> _seriesItem(
+    String title,
+    String slug,
+    String image, {
+    String type = 'manga',
+  }) => item(
         title: title,
         url: 'onma://series?slug=${Uri.encodeQueryComponent(slug)}',
         image: image,
-        type: 'manga',
+        type: SourceValues.type(type),
       );
 
   String _slugFromUrl(String raw) {

@@ -147,7 +147,11 @@ class AzoraSource extends ContentSource {
       title: (raw['postTitle'] ?? raw['title'] ?? '').toString(),
       url: _seriesUrl(slug, id),
       image: (raw['featuredImage'] ?? '').toString(),
-      type: 'manga',
+      type: SourceValues.type([
+        raw['seriesType'],
+        raw['type'],
+        raw['postType'],
+      ]),
       genres: genres,
       description: mangaHtmlToText((raw['postContent'] ?? '').toString()),
       rating: SourceValues.rating(raw),

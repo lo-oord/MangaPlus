@@ -73,7 +73,12 @@ class MangaTekSource extends ContentSource {
         throw Exception('MangaTek: لم يتم العثور على تفاصيل المانجا.');
       }
       final cover = mangaImageUrl(document.querySelector('img'), _site);
-      return _item(title, 'mangatek://series?slug=${Uri.encodeQueryComponent(slug)}', cover)
+      return _item(
+        title,
+        'mangatek://series?slug=${Uri.encodeQueryComponent(slug)}',
+        cover,
+        type: _typeFromHtml(document),
+      )
         ..addAll({
           'description': description,
           'synopsis': description,
@@ -94,6 +99,7 @@ class MangaTekSource extends ContentSource {
       '${manga['title'] ?? ''}',
       'mangatek://series?slug=${Uri.encodeQueryComponent(slug)}',
       _coverUrl(manga['cover_image'] ?? manga['cover']),
+      type: _typeFromData(manga),
     )..addAll({
         'description': description,
         'synopsis': description,
@@ -133,12 +139,46 @@ class MangaTekSource extends ContentSource {
     };
   }
 
-  Map<String, dynamic> _item(String title, String url, String image) => item(
+  Map<String, dynamic> _item(
+    String title,
+    String url,
+    String image, {
+    String type = 'manga',
+  }) => item(
         title: title.trim(),
         url: url,
         image: image.trim(),
-        type: 'manga',
+        type: SourceValues.type(type),
       );
+
+  String _typeFromData(Map<String, dynamic> data) => SourceValues.type([
+        data['type'],
+        data['seriesType'],
+        data['series_type'],
+        data['contentType'],
+        data['content_type'],
+        data['mangaType'],
+        data['manga_type'],
+        data['format'],
+      ]);
+
+  String _typeFromHtml(Document document) {
+    for (final element in document.querySelectorAll(
+      '[data-type], .manga-type, .series-type, .type-badge, .badge-type',
+    )) {
+      final value = element.attributes['data-type'] ?? mangaHtmlText(element);
+      if (value.trim().isNotEmpty) return value.trim();
+    }
+    final label = RegExp(
+      r'^(?:نوع العمل|النوع|type|format)\s*[:：-]\s*(.+)$',
+      caseSensitive: false,
+    );
+    for (final element in document.querySelectorAll('p, li, dt, dd, span, div')) {
+      final match = label.firstMatch(mangaHtmlText(element));
+      if (match != null) return match.group(1)!.trim();
+    }
+    return '';
+  }
 
   List<Map<String, dynamic>> _chapters(dynamic value, String slug) {
     if (value is! List) return const [];
@@ -213,7 +253,12 @@ class MangaTekSource extends ContentSource {
     final chapters = _chapters(data['MangaChapters'] ?? data['chapters'], actualSlug);
     final description = '${data['description'] ?? data['description_cool'] ?? data['description_sid'] ?? ''}';
     final cover = _coverUrl(data['cover_image'] ?? data['cover']);
-    return _item('${data['title_ar'] ?? data['title'] ?? ''}', 'mangatek://series?slug=${Uri.encodeQueryComponent(actualSlug)}', cover)
+    return _item(
+      '${data['title_ar'] ?? data['title'] ?? ''}',
+      'mangatek://series?slug=${Uri.encodeQueryComponent(actualSlug)}',
+      cover,
+      type: _typeFromData(data),
+    )
       ..addAll({
         'description': description,
         'synopsis': description,

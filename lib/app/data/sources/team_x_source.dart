@@ -391,6 +391,7 @@ class TeamXSource extends ContentSource {
     final image = mangaImageUrl(document.querySelector('div.text-right img'), _site)
         .replaceFirst('thumbnail_', '');
     final statusLabel = _fieldValue(document, 'الحالة');
+    final typeLabel = _fieldValue(document, 'النوع');
     final artistLabel = _fieldValue(document, 'الرسام');
     final rating = SourceValues.rating(
       mangaHtmlText(document.querySelector('#average_rating')),
@@ -405,6 +406,7 @@ class TeamXSource extends ContentSource {
         'synopsis': description,
         'genres': genres,
         'status': statusLabel,
+        if (typeLabel.isNotEmpty) 'type': typeLabel,
         'artist': artistLabel,
         'updated_on': latestDate,
         if (rating.isNotEmpty) 'rating': rating,

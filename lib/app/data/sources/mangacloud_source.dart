@@ -202,7 +202,12 @@ class MangaCloudSource extends ContentSource {
       title: '${fields['title'] ?? ''}',
       url: 'mangacloud://manga?id=${Uri.encodeQueryComponent(id)}',
       image: '${fields['coverImage'] ?? ''}',
-      type: 'manga',
+      type: SourceValues.type([
+        fields['type'],
+        fields['seriesType'],
+        fields['contentType'],
+        fields['format'],
+      ]),
       genres: genres,
       description: description,
       rating: SourceValues.rating(fields['rating']),
