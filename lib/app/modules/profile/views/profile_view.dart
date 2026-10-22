@@ -14,130 +14,412 @@ class ProfileView extends GetView<ProfileController> {
   @override
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: AppColors.background,
-        appBar: AppBar(title: Text('الملف الشخصي'.tr), centerTitle: true,
-            backgroundColor: AppColors.background, foregroundColor: AppColors.textPrimary, elevation: 0),
-        body: Obx(() => ListView(padding: const EdgeInsets.fromLTRB(20, 12, 20, 32), children: [
+        appBar: AppBar(
+          title: Text('الملف الشخصي'.tr),
+          centerTitle: true,
+          backgroundColor: AppColors.background,
+          foregroundColor: AppColors.textPrimary,
+          elevation: 0,
+        ),
+        body: Obx(() {
+          final account = controller.accountProfile.value;
+          final registeredAccount =
+              account != null && !account.isGuest ? account : null;
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+            children: [
               _profileHeader(),
-              const SizedBox(height: 22),
-              if (controller.accountProfile.value != null) ...[
-                _sectionTitle('نبذة'.tr), const SizedBox(height: 10),
-                _bioCard(controller.accountProfile.value!),
-                const SizedBox(height: 22),
-                _sectionTitle('معلومات الحساب'.tr), const SizedBox(height: 10),
-                _accountInfoCard(controller.accountProfile.value!),
-                const SizedBox(height: 22), _sectionTitle('الأمان والمزامنة'.tr), const SizedBox(height: 10),
+              const SizedBox(height: 24),
+              if (registeredAccount != null) ...[
+                _sectionTitle('نبذة'.tr),
+                const SizedBox(height: 9),
+                _bioCard(registeredAccount),
+                const SizedBox(height: 20),
+                _sectionTitle('معلومات الحساب'.tr),
+                const SizedBox(height: 9),
+                _accountInfoCard(registeredAccount),
+                const SizedBox(height: 20),
+                _sectionTitle('الأمان والمزامنة'.tr),
+                const SizedBox(height: 9),
+                _securityCard(registeredAccount),
+                const SizedBox(height: 24),
+              ] else ...[
+                const SizedBox(height: 4),
+              ],
+              _sectionTitle('التفضيلات'.tr),
+              const SizedBox(height: 9),
+              _settingsCard([
+                _languageSetting(),
+                Divider(height: 1, color: AppColors.divider),
+                SwitchListTile.adaptive(
+                  value: controller.isDarkMode.value,
+                  onChanged: controller.changeTheme,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  secondary: Icon(
+                    controller.isDarkMode.value
+                        ? Icons.dark_mode_rounded
+                        : Icons.light_mode_rounded,
+                    color: AppColors.icon,
+                  ),
+                  title: Text(
+                    'المظهر'.tr,
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(
+                    controller.isDarkMode.value ? 'داكن'.tr : 'فاتح'.tr,
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                  activeColor: AppColors.primary,
+                ),
+              ]),
+              const SizedBox(height: 24),
+              _sectionTitle('مكتبتي'.tr),
+              const SizedBox(height: 9),
+              _settingsCard([
+                _navigationRow(
+                  Icons.history_rounded,
+                  'سجل القراءة'.tr,
+                  () => Get.toNamed(Routes.HISTORY),
+                ),
+                Divider(height: 1, color: AppColors.divider),
+                _navigationRow(
+                  Icons.download_outlined,
+                  'التحميلات'.tr,
+                  () => Get.toNamed(Routes.DOWNLOAD),
+                ),
+                Divider(height: 1, color: AppColors.divider),
+                _navigationRow(
+                  Icons.storage_rounded,
+                  'التخزين المحلي'.tr,
+                  () => Get.toNamed(Routes.LOCAL_LIBRARY),
+                ),
+              ]),
+              const SizedBox(height: 24),
+              _sectionTitle('حول التطبيق'.tr),
+              const SizedBox(height: 9),
+              _settingsCard([
+                _navigationRow(
+                  Icons.info_outline_rounded,
+                  'حول التطبيق'.tr,
+                  _showAboutDialog,
+                ),
+              ]),
+              if (account != null) ...[
+                const SizedBox(height: 20),
                 _settingsCard([
-                  _infoRow(Icons.mail_outline_rounded, 'البريد الإلكتروني'.tr, controller.accountProfile.value!.email),
-                  Divider(height: 1, color: AppColors.divider),
-                  ListTile(leading: Icon(Icons.key_rounded, color: AppColors.icon),
-                    title: Text('تغيير كلمة المرور'.tr, style: TextStyle(color: AppColors.textPrimary)),
-                    subtitle: Text('تأكيد كلمة المرور الحالية مطلوب'.tr, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                    trailing: Icon(Icons.chevron_right_rounded, color: AppColors.icon),
-                    onTap: controller.accountProfile.value!.isGuest ? null : _changePassword),
-                  Divider(height: 1, color: AppColors.divider),
-                  SwitchListTile.adaptive(value: controller.accountProfile.value!.syncFavorites,
-                    onChanged: controller.savingAccount.value ? null : controller.setFavoritesSync,
-                    secondary: Icon(Icons.sync_rounded, color: AppColors.icon),
-                    title: Text('مزامنة المفضلة'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
-                    subtitle: Text(controller.accountProfile.value!.syncFavorites
-                        ? 'يتم حفظ المفضلة وسجل القراءة سحابيًا'.tr : 'المفضلة محفوظة على هذا الجهاز فقط'.tr,
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 12)), activeColor: AppColors.primary),
+                  ListTile(
+                    leading: const Icon(Icons.logout_rounded, color: AppColors.error),
+                    title: Text(
+                      'تسجيل الخروج'.tr,
+                      style: const TextStyle(
+                        color: AppColors.error,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    onTap: _confirmSignOut,
+                  ),
                 ]),
-                const SizedBox(height: 22), _sectionTitle('التفضيلات'.tr), const SizedBox(height: 10),
               ],
-              _settingsCard([
-                Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 4), child: Row(children: [
-                  Icon(Icons.language_rounded, color: AppColors.icon), const SizedBox(width: 12),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('اللغة'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
-                    DropdownButtonHideUnderline(child: DropdownButton<String>(value: controller.selectedLanguage.value, isExpanded: true,
-                      dropdownColor: AppColors.card, style: TextStyle(color: AppColors.textPrimary),
-                      items: [DropdownMenuItem(value: 'ar_SA', child: Text('العربية'.tr)), DropdownMenuItem(value: 'en_US', child: Text('الإنجليزية'.tr))],
-                      onChanged: (value) { if (value != null) controller.changeLanguage(value); })),
-                  ])),
-                ])),
-                Divider(height: 1, color: AppColors.divider),
-                SwitchListTile.adaptive(value: controller.isDarkMode.value, onChanged: controller.changeTheme,
-                  secondary: Icon(controller.isDarkMode.value ? Icons.dark_mode_rounded : Icons.light_mode_rounded, color: AppColors.icon),
-                  title: Text('المظهر'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
-                  subtitle: Text(controller.isDarkMode.value ? 'داكن'.tr : 'فاتح'.tr, style: TextStyle(color: AppColors.textSecondary)), activeColor: AppColors.primary),
-              ]),
-              const SizedBox(height: 22), _sectionTitle('مكتبتي'.tr), const SizedBox(height: 10),
-              _settingsCard([
-                _navigationRow(Icons.history_rounded, 'سجل القراءة'.tr, () => Get.toNamed(Routes.HISTORY)),
-                Divider(height: 1, color: AppColors.divider),
-                _navigationRow(Icons.download_outlined, 'التحميلات'.tr, () => Get.toNamed(Routes.DOWNLOAD)),
-                Divider(height: 1, color: AppColors.divider),
-                _navigationRow(Icons.storage_rounded, 'التخزين المحلي'.tr, () => Get.toNamed(Routes.LOCAL_LIBRARY)),
-              ]),
-              if (controller.accountProfile.value != null) ...[
-                const SizedBox(height: 22),
-                _settingsCard([ListTile(leading: const Icon(Icons.logout_rounded, color: AppColors.error),
-                  title: Text('تسجيل الخروج'.tr, style: const TextStyle(color: AppColors.error, fontWeight: FontWeight.w700)), onTap: _confirmSignOut)]),
-              ],
-              const SizedBox(height: 22), _sectionTitle('حول التطبيق'.tr), const SizedBox(height: 10),
-              _settingsCard([_navigationRow(Icons.info_outline_rounded, 'حول التطبيق'.tr, _showAboutDialog)]),
-            ])),
+            ],
+          );
+        }),
       );
 
   Widget _profileHeader() {
-    if (controller.accountLoading.value) return Container(height: 150, decoration: _boxDecoration(), alignment: Alignment.center,
-        child: const MangaPlusLoader(size: 42));
+    if (controller.accountLoading.value) {
+      return Container(
+        height: 142,
+        decoration: _boxDecoration(),
+        alignment: Alignment.center,
+        child: const MangaPlusLoader(size: 42),
+      );
+    }
     final account = controller.accountProfile.value;
-    if (account == null) return Container(padding: const EdgeInsets.all(20), decoration: _boxDecoration(), child: Row(children: [
-      const CircleAvatar(radius: 38, child: Icon(Icons.person_outline_rounded, size: 36)), const SizedBox(width: 16),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('حسابك في MangaPlus'.tr, style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 5), Text('سجّل الدخول لمزامنة القراءة والمفضلة'.tr, style: TextStyle(color: AppColors.textSecondary)),
-        TextButton(onPressed: controller.openAuth, child: Text('تسجيل الدخول'.tr)),
-      ])),
-    ]));
-    return Container(padding: const EdgeInsets.all(20), decoration: _boxDecoration(), child: Row(children: [
-      GestureDetector(onTap: controller.savingAccount.value ? null : controller.changeAvatar,
-        child: Stack(alignment: Alignment.bottomRight, children: [
-          Container(padding: EdgeInsets.all(account.isVerified ? 3 : 0), decoration: BoxDecoration(shape: BoxShape.circle,
-            border: account.isVerified ? Border.all(color: const Color(0xffD4A72C), width: 2.5) : null),
-            child: CircleAvatar(radius: 43, backgroundColor: AppColors.primary.withValues(alpha: .15),
-              backgroundImage: _avatarProvider(account),
-              child: account.photoData.isEmpty && account.photoUrl.isEmpty
-                  ? Icon(Icons.person_rounded, size: 42, color: AppColors.icon) : null)),
-          Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: AppColors.primary, shape: BoxShape.circle, border: Border.all(color: AppColors.card, width: 2)),
-            child: const Icon(Icons.camera_alt_rounded, size: 15, color: Colors.white)),
-        ])),
-      const SizedBox(width: 17),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [Flexible(child: Text('@${account.username}', overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 14, fontWeight: FontWeight.w700))),
-          if (account.isVerified) ...[const SizedBox(width: 5), _verifiedBadge()]]),
-        const SizedBox(height: 5), InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: controller.savingAccount.value ? null : () => _editDisplayName(account.displayName),
-          child: Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Row(children: [
-            Expanded(child: Text(account.displayName, maxLines: 2, overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: AppColors.textPrimary, fontSize: 21, height: 1.15, fontWeight: FontWeight.w800))),
-            const SizedBox(width: 5), Icon(Icons.edit_outlined, size: 16, color: AppColors.icon),
-          ])),
+    if (account == null || account.isGuest) {
+      final guestName = account?.displayName.trim() ?? '';
+      return Container(
+        padding: const EdgeInsets.all(18),
+        decoration: _boxDecoration(),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 34,
+              backgroundColor: AppColors.searchBar,
+              backgroundImage: account == null ? null : _avatarProvider(account),
+              child: account == null ||
+                      (account.photoData.isEmpty && account.photoUrl.isEmpty)
+                  ? Icon(Icons.person_outline_rounded, size: 34, color: AppColors.icon)
+                  : null,
+            ),
+            const SizedBox(width: 15),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    guestName.isEmpty ? 'حسابك في MangaPlus'.tr : guestName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'سجّل الدخول لمزامنة القراءة والمفضلة'.tr,
+                    style: TextStyle(color: AppColors.textSecondary, height: 1.35),
+                  ),
+                  const SizedBox(height: 10),
+                  FilledButton.icon(
+                    onPressed: controller.openAuth,
+                    icon: const Icon(Icons.login_rounded, size: 18),
+                    label: Text('تسجيل الدخول'.tr),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-        if (account.isOfficialDeveloper) ...[const SizedBox(height: 8), _officialBadge()],
-        const SizedBox(height: 7), Text('اضغط على الصورة لتغييرها'.tr, style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-      ])),
-    ]));
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: _boxDecoration(),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(account.isVerified ? 3 : 0),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: account.isVerified
+                  ? Border.all(color: const Color(0xffD4A72C), width: 2.5)
+                  : null,
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                CircleAvatar(
+                  radius: 39,
+                  backgroundColor: AppColors.searchBar,
+                  backgroundImage: _avatarProvider(account),
+                  child: account.photoData.isEmpty && account.photoUrl.isEmpty
+                      ? Icon(Icons.person_rounded, size: 39, color: AppColors.icon)
+                      : null,
+                ),
+                PositionedDirectional(
+                  bottom: -3,
+                  end: -3,
+                  child: IconButton(
+                    tooltip: 'تغيير الصورة'.tr,
+                    onPressed: controller.savingAccount.value
+                        ? null
+                        : controller.changeAvatar,
+                    icon: const Icon(Icons.camera_alt_rounded, size: 16),
+                    style: IconButton.styleFrom(
+                      minimumSize: const Size(32, 32),
+                      fixedSize: const Size(32, 32),
+                      padding: EdgeInsets.zero,
+                      foregroundColor: Colors.white,
+                      backgroundColor: AppColors.primary,
+                      shape: const CircleBorder(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        '@${account.username}',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    if (account.isVerified) ...[
+                      const SizedBox(width: 5),
+                      _verifiedBadge(),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        account.displayName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 20,
+                          height: 1.15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'تعديل الاسم الظاهر'.tr,
+                      onPressed: controller.savingAccount.value
+                          ? null
+                          : () => _editDisplayName(account.displayName),
+                      icon: Icon(Icons.edit_outlined, color: AppColors.icon, size: 19),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
+                if (account.isOfficialDeveloper) ...[
+                  const SizedBox(height: 6),
+                  _officialBadge(),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _accountInfoCard(UserProfile account) => _settingsCard([
-    _infoRow(Icons.alternate_email_rounded, 'اسم المستخدم'.tr, '@${account.username}'),
-    Divider(height: 1, color: AppColors.divider),
-    _infoRow(Icons.badge_outlined, 'الاسم الظاهر'.tr, account.displayName),
-    Divider(height: 1, color: AppColors.divider),
-    _infoRow(Icons.wc_rounded, 'الجنس'.tr, _genderLabel(account.gender)),
-    Divider(height: 1, color: AppColors.divider),
-    _infoRow(Icons.public_rounded, 'الدولة'.tr, account.countryName.isEmpty ? 'غير محدد'.tr : account.countryName),
-    Divider(height: 1, color: AppColors.divider),
-    _infoRow(account.emailVerified ? Icons.mark_email_read_outlined : Icons.mark_email_unread_outlined, 'حالة البريد'.tr,
-      account.emailVerified ? 'البريد موثق'.tr : 'البريد غير موثق'.tr,
-      trailing: account.emailVerified ? const Icon(Icons.verified_rounded, color: Color(0xff2EAD68), size: 19) : null),
-    if (account.isVerified) ...[Divider(height: 1, color: AppColors.divider), _infoRow(Icons.verified_rounded, 'حالة التوثيق'.tr, 'حساب موثق رسميًا'.tr, trailing: _verifiedBadge())],
-  ]);
+        _infoRow(Icons.wc_rounded, 'الجنس'.tr, _genderLabel(account.gender)),
+        Divider(height: 1, color: AppColors.divider),
+        _infoRow(
+          Icons.public_rounded,
+          'الدولة'.tr,
+          account.countryName.isEmpty ? 'غير محدد'.tr : account.countryName,
+        ),
+      ]);
+
+  Widget _securityCard(UserProfile account) {
+    final canChangePassword = controller.canChangePassword;
+    return _settingsCard([
+      if (account.email.isNotEmpty) ...[
+        ListTile(
+          leading: Icon(Icons.mail_outline_rounded, color: AppColors.icon),
+          title: Text(
+            'البريد الإلكتروني'.tr,
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  account.email,
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  account.emailVerified
+                      ? 'البريد موثق'.tr
+                      : 'البريد غير موثق'.tr,
+                  style: TextStyle(
+                    color: account.emailVerified
+                        ? AppColors.success
+                        : AppColors.warning,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          trailing: Icon(
+            account.emailVerified
+                ? Icons.verified_rounded
+                : Icons.error_outline_rounded,
+            color: account.emailVerified ? AppColors.success : AppColors.warning,
+            size: 20,
+          ),
+        ),
+        if (canChangePassword) Divider(height: 1, color: AppColors.divider),
+      ],
+      if (canChangePassword) ...[
+        ListTile(
+          leading: Icon(Icons.key_rounded, color: AppColors.icon),
+          title: Text(
+            'تغيير كلمة المرور'.tr,
+            style: TextStyle(color: AppColors.textPrimary),
+          ),
+          subtitle: Text(
+            'تأكيد كلمة المرور الحالية مطلوب'.tr,
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          ),
+          trailing: Icon(Icons.chevron_right_rounded, color: AppColors.icon),
+          onTap: controller.savingAccount.value ? null : _changePassword,
+        ),
+        Divider(height: 1, color: AppColors.divider),
+      ],
+      SwitchListTile.adaptive(
+        value: account.syncFavorites,
+        onChanged: controller.savingAccount.value
+            ? null
+            : controller.setFavoritesSync,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+        secondary: Icon(Icons.sync_rounded, color: AppColors.icon),
+        title: Text(
+          'مزامنة المفضلة'.tr,
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        subtitle: Text(
+          account.syncFavorites
+              ? 'يتم حفظ المفضلة وسجل القراءة سحابيًا'.tr
+              : 'المفضلة محفوظة على هذا الجهاز فقط'.tr,
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        ),
+        activeColor: AppColors.primary,
+      ),
+    ]);
+  }
+
+  Widget _languageSetting() => PopupMenuButton<String>(
+        tooltip: 'اللغة'.tr,
+        onSelected: controller.changeLanguage,
+        itemBuilder: (_) => [
+          PopupMenuItem(value: 'ar_SA', child: Text('العربية'.tr)),
+          PopupMenuItem(value: 'en_US', child: Text('الإنجليزية'.tr)),
+        ],
+        child: ListTile(
+          leading: Icon(Icons.language_rounded, color: AppColors.icon),
+          title: Text(
+            'اللغة'.tr,
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          subtitle: Text(
+            controller.selectedLanguage.value == 'ar_SA'
+                ? 'العربية'.tr
+                : 'الإنجليزية'.tr,
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+          trailing: Icon(Icons.expand_more_rounded, color: AppColors.icon),
+        ),
+      );
 
   Widget _bioCard(UserProfile account) => _settingsCard([
     ListTile(

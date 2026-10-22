@@ -22,6 +22,13 @@ class ProfileController extends GetxController {
   int _themeRevision = 0;
   late final AuthService? _auth;
 
+  bool get canChangePassword {
+    final user = _auth?.currentUser;
+    return user != null &&
+        !user.isAnonymous &&
+        user.providerData.any((provider) => provider.providerId == 'password');
+  }
+
   @override
   void onInit() {
     selectedLanguage.value = _storage.read<String>('language') ?? 'ar_SA';

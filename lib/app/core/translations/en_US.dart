@@ -325,6 +325,8 @@ const Map<String, String> enUS = {
   'يتم حفظ المفضلة وسجل القراءة سحابيًا': 'Favorites and reading history are saved to your account',
   'المفضلة محفوظة على هذا الجهاز فقط': 'Favorites are stored on this device only',
   'حسابك في MangaPlus': 'Your MangaPlus account',
+  'سجّل الدخول لمزامنة القراءة والمفضلة': 'Sign in to sync your reading history and favorites',
+  'تغيير الصورة': 'Change photo',
   'اضغط على الصورة لتغييرها': 'Tap the photo to change it',
   'اسم المستخدم': 'Username',
   'الاسم الظاهر': 'Display name',
