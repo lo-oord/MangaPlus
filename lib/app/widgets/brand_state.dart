@@ -30,7 +30,12 @@ class _MangaPlusLoaderState extends State<MangaPlusLoader>
         child: Stack(
           alignment: Alignment.center,
           children: [
-            MangaPlusLogo(size: widget.size),
+            Image.asset(
+              'assets/images/mangaplus_loader_base.png',
+              width: widget.size,
+              height: widget.size,
+              fit: BoxFit.contain,
+            ),
             Positioned(
               right: widget.size * 0.025,
               bottom: widget.size * 0.08,

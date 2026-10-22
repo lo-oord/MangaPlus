@@ -68,6 +68,7 @@ flutter:
   assets:
     - assets/images/mangaplus_logo.png
     - assets/images/mangaplus_plus.png
+    - assets/images/mangaplus_loader_base.png
     - assets/licenses/GPL-3.0.txt
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
