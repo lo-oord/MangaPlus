@@ -19,6 +19,7 @@ class ProfileController extends GetxController {
   final Rxn<UserProfile> accountProfile = Rxn<UserProfile>();
   final RxBool accountLoading = false.obs;
   final RxBool savingAccount = false.obs;
+  int _themeRevision = 0;
   late final AuthService? _auth;
 
   @override
@@ -26,13 +27,13 @@ class ProfileController extends GetxController {
     selectedLanguage.value = _storage.read<String>('language') ?? 'ar_SA';
     final savedTheme = ThemeModePreference.fromStorage(_storage.read<String>('themeMode'));
     isDarkMode.value = savedTheme == ThemeMode.dark;
-    Get.changeThemeMode(savedTheme);
     _auth = Get.isRegistered<AuthService>() ? Get.find<AuthService>() : null;
     _loadAccount();
     super.onInit();
   }
 
   Future<void> _loadAccount() async {
+    final themeRevisionAtStart = _themeRevision;
     final auth = _auth;
     final user = auth?.currentUser;
     if (auth == null || user == null) { accountProfile.value = null; return; }
@@ -48,7 +49,7 @@ class ProfileController extends GetxController {
           Get.updateLocale(language == 'en_US' ? const Locale('en', 'US') : const Locale('ar', 'SA'));
           await _storage.write('language', language);
         }
-        if (theme == 'dark' || theme == 'light') {
+        if ((theme == 'dark' || theme == 'light') && _themeRevision == themeRevisionAtStart) {
           isDarkMode.value = theme == 'dark';
           Get.changeThemeMode(theme == 'dark' ? ThemeMode.dark : ThemeMode.light);
           await _storage.write('themeMode', theme);
@@ -184,10 +185,15 @@ class ProfileController extends GetxController {
   }
 
   Future<void> changeTheme(bool darkMode) async {
+    _themeRevision++;
     final mode = darkMode ? ThemeMode.dark : ThemeMode.light;
-    await _storage.write('themeMode', ThemeModePreference.toStorage(mode));
     isDarkMode.value = darkMode;
     Get.changeThemeMode(mode);
+    try {
+      await _storage.write('themeMode', ThemeModePreference.toStorage(mode));
+    } catch (error) {
+      _message('تعذر حفظ الإعداد'.tr, error.toString());
+    }
     try {
       await _auth?.saveSettings(language: selectedLanguage.value, themeMode: darkMode ? 'dark' : 'light');
     } catch (error) {

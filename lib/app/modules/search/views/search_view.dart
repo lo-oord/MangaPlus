@@ -38,7 +38,7 @@ class SearchView extends GetView<search_controller.SearchController> {
                 hintStyle: TextStyle(color: AppColors.textSecondary),
                 filled: true,
                 fillColor: AppColors.searchBar,
-                prefixIcon: Icon(Icons.search_rounded, color: AppColors.primary),
+                prefixIcon: Icon(Icons.search_rounded, color: AppColors.icon),
                 suffixIcon: Obx(
                   () => controller.query.value.isNotEmpty
                       ? IconButton(
@@ -186,7 +186,7 @@ class _SearchComicTile extends StatelessWidget {
     final statusColor = isOngoing
         ? const Color(0xff35a56a)
         : isCompleted
-            ? AppColors.primary
+            ? AppColors.success
             : const Color(0xffd18b34);
     final countText = comic.totalChapters.trim().isEmpty
         ? 'غير محدد'.tr
@@ -292,7 +292,7 @@ class _SearchComicTile extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: AppColors.primary,
+                          color: AppColors.textSecondary,
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
                         ),
@@ -306,7 +306,7 @@ class _SearchComicTile extends StatelessWidget {
                         _SearchMetaPill(
                           icon: Icons.menu_book_rounded,
                           text: countText,
-                          color: AppColors.primary,
+                          color: AppColors.icon,
                         ),
                         _SearchMetaPill(
                           icon: statusIcon,

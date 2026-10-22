@@ -3,30 +3,30 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 
 class AppTheme {
   // Warna Utama
-  static const Color _primaryColorLight = Color(0xFF3E73B5);
-  static const Color _primaryColorDark = Color(0xff6A9BD2);
+  static const Color _primaryColorLight = Color(0xff386fbe);
+  static const Color _primaryColorDark = Color(0xff78a7ed);
 
   // Warna Aksen
-  static const Color _accentColorLight = Color(0xFF6A9BD2);
-  static const Color _accentColorDark = Color(0xff8CB4E4);
+  static const Color _accentColorLight = Color(0xff5d8dd0);
+  static const Color _accentColorDark = Color(0xff91b8f0);
 
   // Background
-  static const Color _backgroundLight = Color(0xFFF8FAFD);
-  static const Color _backgroundDark = Color(0xff111A28);
+  static const Color _backgroundLight = Color(0xfff5f5f6);
+  static const Color _backgroundDark = Color(0xff111317);
 
   // Surface
-  static const Color _surfaceLight = Color(0xFFF1F5FA);
-  static const Color _surfaceDark = Color(0xff1D2B3D);
+  static const Color _surfaceLight = Color(0xffffffff);
+  static const Color _surfaceDark = Color(0xff202329);
 
   // Error
   static const Color _errorLight = Color(0xFFE53935);
   static const Color _errorDark = Color(0xFFEF5350);
 
   // Text
-  static const Color _textPrimaryLight = Color(0xFF1E2A39);
-  static const Color _textSecondaryLight = Color(0xFF687B91);
-  static const Color _textPrimaryDark = Color(0xfff2f6fa);
-  static const Color _textSecondaryDark = Color(0xffaec0d8);
+  static const Color _textPrimaryLight = Color(0xff24262a);
+  static const Color _textSecondaryLight = Color(0xff686c74);
+  static const Color _textPrimaryDark = Color(0xfff0f1f3);
+  static const Color _textSecondaryDark = Color(0xffa7abb4);
 
   // Success dan Attendance Colors
   static const Color _presentColor = Color(0xFF43A047); // Hijau
@@ -54,8 +54,9 @@ class AppTheme {
       primary: _primaryColorLight,
       onPrimary: Colors.white,
       secondary: _accentColorLight,
-      onSecondary: Colors.white,
+      onSecondary: _textPrimaryLight,
       surface: _surfaceLight,
+      surfaceTint: Colors.transparent,
       onSurface: _textPrimaryLight,
       error: _errorLight,
       onError: Colors.white,
@@ -66,7 +67,8 @@ class AppTheme {
     // AppBar Theme
     appBarTheme: const AppBarTheme(
       backgroundColor: _surfaceLight,
-      foregroundColor: _primaryColorLight,
+      surfaceTintColor: Colors.transparent,
+      foregroundColor: _textPrimaryLight,
       elevation: 0,
       centerTitle: true,
       titleTextStyle: TextStyle(
@@ -78,7 +80,8 @@ class AppTheme {
 
     // Card Theme
     cardTheme: CardTheme(
-      color: _backgroundLight,
+      color: _surfaceLight,
+      surfaceTintColor: Colors.transparent,
       elevation: _cardElevation,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(_borderRadius),
@@ -143,7 +146,7 @@ class AppTheme {
     // IconButton Theme
     iconButtonTheme: IconButtonThemeData(
       style: IconButton.styleFrom(
-        foregroundColor: _primaryColorLight,
+        foregroundColor: _textSecondaryLight,
         backgroundColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(_buttonRadius),
@@ -244,7 +247,7 @@ class AppTheme {
 
     // Bottom Navigation Bar Theme
     bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-      backgroundColor: _backgroundLight,
+      backgroundColor: _surfaceLight,
       selectedItemColor: _primaryColorLight,
       unselectedItemColor: _textSecondaryLight,
       type: BottomNavigationBarType.fixed,
@@ -287,7 +290,7 @@ class AppTheme {
 
     // Dialog Theme
     dialogTheme: DialogTheme(
-      backgroundColor: _backgroundLight,
+      backgroundColor: _surfaceLight,
       elevation: 8,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(_borderRadius),
@@ -406,13 +409,13 @@ class AppTheme {
       labelLarge: TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w500,
-        color: _primaryColorLight,
+        color: _textPrimaryLight,
         fontFamily: _fontFamily,
       ),
       labelMedium: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w500,
-        color: _primaryColorLight,
+        color: _textSecondaryLight,
         fontFamily: _fontFamily,
       ),
       labelSmall: TextStyle(
@@ -431,10 +434,11 @@ class AppTheme {
     primaryColor: _primaryColorDark,
     colorScheme: const ColorScheme.dark(
       primary: _primaryColorDark,
-      onPrimary: Colors.white,
+      onPrimary: _backgroundDark,
       secondary: _accentColorDark,
-      onSecondary: Colors.white,
+      onSecondary: _backgroundDark,
       surface: _surfaceDark,
+      surfaceTint: Colors.transparent,
       onSurface: _textPrimaryDark,
       error: _errorDark,
       onError: Colors.black,
@@ -445,6 +449,7 @@ class AppTheme {
     // AppBar Theme
     appBarTheme: const AppBarTheme(
       backgroundColor: _surfaceDark,
+      surfaceTintColor: Colors.transparent,
       foregroundColor: _textPrimaryDark,
       elevation: 0,
       centerTitle: true,
@@ -458,6 +463,7 @@ class AppTheme {
     // Card Theme
     cardTheme: CardTheme(
       color: _surfaceDark,
+      surfaceTintColor: Colors.transparent,
       elevation: _cardElevation,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(_borderRadius),
@@ -469,7 +475,7 @@ class AppTheme {
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: _primaryColorDark,
-        foregroundColor: Colors.white,
+        foregroundColor: _backgroundDark,
         elevation: 2,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(_buttonRadius),
@@ -522,7 +528,7 @@ class AppTheme {
     // IconButton Theme
     iconButtonTheme: IconButtonThemeData(
       style: IconButton.styleFrom(
-        foregroundColor: _primaryColorDark,
+        foregroundColor: _textSecondaryDark,
         backgroundColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(_buttonRadius),
@@ -533,7 +539,7 @@ class AppTheme {
     // FloatingActionButton Theme
     floatingActionButtonTheme: FloatingActionButtonThemeData(
       backgroundColor: _primaryColorDark,
-      foregroundColor: Colors.white,
+      foregroundColor: _backgroundDark,
       elevation: 4,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(_borderRadius),
@@ -543,7 +549,7 @@ class AppTheme {
     // Input Decoration Theme
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: _backgroundDark.withValues(alpha: 0.8),
+      fillColor: _surfaceDark,
       contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(_inputRadius),
@@ -785,13 +791,13 @@ class AppTheme {
       labelLarge: TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w500,
-        color: _primaryColorDark,
+        color: _textPrimaryDark,
         fontFamily: _fontFamily,
       ),
       labelMedium: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w500,
-        color: _primaryColorDark,
+        color: _textSecondaryDark,
         fontFamily: _fontFamily,
       ),
       labelSmall: TextStyle(

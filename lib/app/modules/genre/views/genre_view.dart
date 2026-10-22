@@ -40,7 +40,7 @@ class GenreView extends GetView<GenreController> {
             return Card(
               color: AppColors.card,
               child: ListTile(
-                leading: Icon(Icons.category_outlined, color: AppColors.primary),
+                leading: Icon(Icons.category_outlined, color: AppColors.icon),
                 title: Text(
                   genre.name,
                   style: TextStyle(color: AppColors.textPrimary),

@@ -29,7 +29,7 @@ class ProfileView extends GetView<ProfileController> {
                 _settingsCard([
                   _infoRow(Icons.mail_outline_rounded, 'البريد الإلكتروني'.tr, controller.accountProfile.value!.email),
                   Divider(height: 1, color: AppColors.divider),
-                  ListTile(leading: Icon(Icons.key_rounded, color: AppColors.primary),
+                  ListTile(leading: Icon(Icons.key_rounded, color: AppColors.icon),
                     title: Text('تغيير كلمة المرور'.tr, style: TextStyle(color: AppColors.textPrimary)),
                     subtitle: Text('تأكيد كلمة المرور الحالية مطلوب'.tr, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                     trailing: Icon(Icons.chevron_right_rounded, color: AppColors.icon),
@@ -37,7 +37,7 @@ class ProfileView extends GetView<ProfileController> {
                   Divider(height: 1, color: AppColors.divider),
                   SwitchListTile.adaptive(value: controller.accountProfile.value!.syncFavorites,
                     onChanged: controller.savingAccount.value ? null : controller.setFavoritesSync,
-                    secondary: Icon(Icons.sync_rounded, color: AppColors.primary),
+                    secondary: Icon(Icons.sync_rounded, color: AppColors.icon),
                     title: Text('مزامنة المفضلة'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
                     subtitle: Text(controller.accountProfile.value!.syncFavorites
                         ? 'يتم حفظ المفضلة وسجل القراءة سحابيًا'.tr : 'المفضلة محفوظة على هذا الجهاز فقط'.tr,
@@ -47,7 +47,7 @@ class ProfileView extends GetView<ProfileController> {
               ],
               _settingsCard([
                 Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 4), child: Row(children: [
-                  Icon(Icons.language_rounded, color: AppColors.primary), const SizedBox(width: 12),
+                  Icon(Icons.language_rounded, color: AppColors.icon), const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('اللغة'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
                     DropdownButtonHideUnderline(child: DropdownButton<String>(value: controller.selectedLanguage.value, isExpanded: true,
@@ -58,7 +58,7 @@ class ProfileView extends GetView<ProfileController> {
                 ])),
                 Divider(height: 1, color: AppColors.divider),
                 SwitchListTile.adaptive(value: controller.isDarkMode.value, onChanged: controller.changeTheme,
-                  secondary: Icon(controller.isDarkMode.value ? Icons.dark_mode_rounded : Icons.light_mode_rounded, color: AppColors.primary),
+                  secondary: Icon(controller.isDarkMode.value ? Icons.dark_mode_rounded : Icons.light_mode_rounded, color: AppColors.icon),
                   title: Text('المظهر'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
                   subtitle: Text(controller.isDarkMode.value ? 'داكن'.tr : 'فاتح'.tr, style: TextStyle(color: AppColors.textSecondary)), activeColor: AppColors.primary),
               ]),
@@ -100,7 +100,7 @@ class ProfileView extends GetView<ProfileController> {
             child: CircleAvatar(radius: 43, backgroundColor: AppColors.primary.withValues(alpha: .15),
               backgroundImage: _avatarProvider(account),
               child: account.photoData.isEmpty && account.photoUrl.isEmpty
-                  ? Icon(Icons.person_rounded, size: 42, color: AppColors.primary) : null)),
+                  ? Icon(Icons.person_rounded, size: 42, color: AppColors.icon) : null)),
           Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: AppColors.primary, shape: BoxShape.circle, border: Border.all(color: AppColors.card, width: 2)),
             child: const Icon(Icons.camera_alt_rounded, size: 15, color: Colors.white)),
         ])),
@@ -115,7 +115,7 @@ class ProfileView extends GetView<ProfileController> {
           child: Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Row(children: [
             Expanded(child: Text(account.displayName, maxLines: 2, overflow: TextOverflow.ellipsis,
               style: TextStyle(color: AppColors.textPrimary, fontSize: 21, height: 1.15, fontWeight: FontWeight.w800))),
-            const SizedBox(width: 5), Icon(Icons.edit_outlined, size: 16, color: AppColors.primary),
+            const SizedBox(width: 5), Icon(Icons.edit_outlined, size: 16, color: AppColors.icon),
           ])),
         ),
         if (account.isOfficialDeveloper) ...[const SizedBox(height: 8), _officialBadge()],
@@ -141,7 +141,7 @@ class ProfileView extends GetView<ProfileController> {
 
   Widget _bioCard(UserProfile account) => _settingsCard([
     ListTile(
-      leading: Icon(Icons.notes_rounded, color: AppColors.primary),
+      leading: Icon(Icons.notes_rounded, color: AppColors.icon),
       title: Text('نبذة'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
       subtitle: Padding(padding: const EdgeInsets.only(top: 5), child: Text(
         account.bio.trim().isEmpty ? 'أضف نبذة قصيرة عن نفسك'.tr : account.bio,
@@ -149,13 +149,13 @@ class ProfileView extends GetView<ProfileController> {
         style: TextStyle(color: account.bio.trim().isEmpty ? AppColors.textSecondary : AppColors.textPrimary, height: 1.4),
       )),
       trailing: IconButton(tooltip: 'تعديل النبذة'.tr, onPressed: controller.savingAccount.value ? null : () => _editBio(account.bio),
-        icon: Icon(Icons.edit_outlined, color: AppColors.primary)),
+        icon: Icon(Icons.edit_outlined, color: AppColors.icon)),
       onTap: controller.savingAccount.value ? null : () => _editBio(account.bio),
     ),
   ]);
 
   Widget _infoRow(IconData icon, String title, String value, {Widget? trailing}) => ListTile(
-    leading: Icon(icon, color: AppColors.primary), title: Text(title, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+    leading: Icon(icon, color: AppColors.icon), title: Text(title, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
     subtitle: Text(value, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)), trailing: trailing);
 
   ImageProvider? _avatarProvider(UserProfile account) {
@@ -252,7 +252,7 @@ class ProfileView extends GetView<ProfileController> {
   );
   String _genderLabel(String gender) => gender == 'female' ? 'أنثى'.tr : gender == 'male' ? 'ذكر'.tr : 'غير محدد'.tr;
   Widget _sectionTitle(String title) => Padding(padding: const EdgeInsetsDirectional.only(start: 4), child: Text(title, style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w700)));
-  BoxDecoration _boxDecoration() => BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.primary.withValues(alpha: .18)));
+  BoxDecoration _boxDecoration() => BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.divider));
   Widget _settingsCard(List<Widget> children) => Container(decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.divider.withValues(alpha: .72))), child: Column(mainAxisSize: MainAxisSize.min, children: children));
-  Widget _navigationRow(IconData icon, String label, VoidCallback onTap) => ListTile(leading: Icon(icon, color: AppColors.primary), title: Text(label, style: TextStyle(color: AppColors.textPrimary)), trailing: Icon(Icons.chevron_right_rounded, color: AppColors.icon), onTap: onTap);
+  Widget _navigationRow(IconData icon, String label, VoidCallback onTap) => ListTile(leading: Icon(icon, color: AppColors.icon), title: Text(label, style: TextStyle(color: AppColors.textPrimary)), trailing: Icon(Icons.chevron_right_rounded, color: AppColors.icon), onTap: onTap);
 }

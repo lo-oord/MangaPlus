@@ -386,7 +386,7 @@ class _CoverThumbnail extends StatelessWidget {
         height: 158,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: AppColors.primary, width: 1.2),
+          border: Border.all(color: AppColors.divider, width: 1.2),
           boxShadow: const [
             BoxShadow(
               color: Colors.black38,
@@ -426,7 +426,7 @@ class _Metric extends StatelessWidget {
   Widget build(BuildContext context) => Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: AppColors.primary),
+          Icon(icon, size: 16, color: icon == Icons.star_rounded ? const Color(0xfff2b94b) : Colors.white70),
           const SizedBox(width: 5),
           Text(
             text,
@@ -444,22 +444,37 @@ class _StatusBadge extends StatelessWidget {
   const _StatusBadge({required this.status});
   final String status;
 
+  Color _statusColor() {
+    final value = localizeContentStatus(status).toLowerCase();
+    if (value == 'مستمر'.tr.toLowerCase() || value == 'مكتمل'.tr.toLowerCase() || value == 'ongoing' || value == 'completed') {
+      return AppColors.success;
+    }
+    if (value == 'متوقف مؤقتًا'.tr.toLowerCase() || value == 'hiatus' || value == 'paused') {
+      return AppColors.warning;
+    }
+    return AppColors.icon;
+  }
+
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) {
+    final color = _statusColor();
+    return Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: AppColors.primary.withValues(alpha: 0.88),
+          color: color.withValues(alpha: 0.16),
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withValues(alpha: 0.35)),
         ),
         child: Text(
           localizeContentStatus(status),
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: color,
             fontSize: 11,
             fontWeight: FontWeight.w700,
           ),
         ),
       );
+  }
 }
 
 class _SectionHeading extends StatelessWidget {
@@ -470,7 +485,7 @@ class _SectionHeading extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
         children: [
-          Icon(icon, color: AppColors.primary, size: 21),
+          Icon(icon, color: AppColors.icon, size: 21),
           const SizedBox(width: 8),
           Text(
             title,
@@ -540,7 +555,7 @@ class _MetadataGrid extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    Icon(entry.$1, color: AppColors.primary, size: 18),
+                    Icon(entry.$1, color: AppColors.icon, size: 18),
                     const SizedBox(width: 7),
                     Expanded(
                       child: Column(
@@ -667,7 +682,7 @@ class _InfoPill extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: AppColors.primary),
+            Icon(icon, size: 14, color: icon == Icons.star_rounded ? const Color(0xfff2b94b) : AppColors.icon),
             const SizedBox(width: 5),
             Text(
               text,
