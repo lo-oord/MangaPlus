@@ -13,6 +13,7 @@ import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 class ChapterView extends GetView<ChapterController> {
   ChapterView({super.key});
   final List<GlobalKey> _pageKeys = <GlobalKey>[];
+  final Set<String> _preloadedImages = <String>{};
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +55,32 @@ class ChapterView extends GetView<ChapterController> {
           onAction: () => controller.fetchChapter(controller.chapterId),
         );
       }
+      if (controller.readerMode.value == 'paged') {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) controller.syncPageController();
+        });
+        return GestureDetector(
+          onTapUp: (details) =>
+              _handlePagedTap(context, details, chapter.images.length),
+          behavior: HitTestBehavior.opaque,
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: PageView.builder(
+              controller: controller.pageController,
+              reverse: controller.readingDirection.value == 'rtl',
+              itemCount: chapter.images.length,
+              onPageChanged: (index) {
+                controller.onPageChanged(index);
+                if (!controller.isOffline.value) {
+                  _preloadImages(context, chapter.images, start: index + 1);
+                }
+              },
+              itemBuilder: (context, index) =>
+                  _buildPagedImage(chapter.images[index]),
+            ),
+          ),
+        );
+      }
       if (_pageKeys.length != chapter.images.length) {
         _pageKeys
           ..clear()
@@ -68,14 +95,25 @@ class ChapterView extends GetView<ChapterController> {
             if (notification is ScrollUpdateNotification ||
                 notification is ScrollEndNotification) {
               controller.handleScroll(notification.metrics);
+            }
+            if (notification is ScrollEndNotification) {
               final notificationContext = notification.context;
               if (notificationContext != null) {
                 _updateCurrentPage(notificationContext);
+                if (!controller.isOffline.value) {
+                  _preloadImages(
+                    notificationContext,
+                    chapter.images,
+                    start: controller.currentPage.value + 1,
+                  );
+                }
               }
+              controller.persistScrollOffset(notification.metrics.pixels);
             }
             return false;
           },
           child: ListView.builder(
+            controller: controller.scrollController,
             cacheExtent: 1200,
             itemCount: chapter.images.length,
             itemBuilder: (context, index) => KeyedSubtree(
@@ -86,6 +124,35 @@ class ChapterView extends GetView<ChapterController> {
         ),
       );
     });
+  }
+
+  void _handlePagedTap(
+    BuildContext context,
+    TapUpDetails details,
+    int pageCount,
+  ) {
+    final width = MediaQuery.sizeOf(context).width;
+    final x = details.localPosition.dx;
+    final isLeftEdge = x <= width * 0.32;
+    final isRightEdge = x >= width * 0.68;
+    if (!isLeftEdge && !isRightEdge) {
+      controller.toggleNavigationVisibility();
+      return;
+    }
+
+    final isNextPage = controller.readingDirection.value == 'rtl'
+        ? isRightEdge
+        : isLeftEdge;
+    final target = controller.currentPage.value + (isNextPage ? 1 : -1);
+    if (target >= 0 && target < pageCount && controller.pageController.hasClients) {
+      controller.pageController.animateToPage(
+        target,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+      );
+    } else if (isNextPage) {
+      controller.onPageChanged(controller.currentPage.value);
+    }
   }
 
   void _updateCurrentPage(BuildContext context) {
@@ -108,7 +175,7 @@ class ChapterView extends GetView<ChapterController> {
       }
     }
     if (bestIndex != controller.currentPage.value) {
-      controller.currentPage.value = bestIndex;
+      controller.setCurrentPage(bestIndex);
     }
   }
 
@@ -187,6 +254,19 @@ class ChapterView extends GetView<ChapterController> {
                                 fontSize: 11,
                               ),
                             ),
+                            const SizedBox(height: 5),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(3),
+                              child: LinearProgressIndicator(
+                                value: chapter.images.isEmpty
+                                    ? 0
+                                    : (controller.currentPage.value + 1) /
+                                        chapter.images.length,
+                                minHeight: 2.5,
+                                backgroundColor: AppColors.divider,
+                                color: AppColors.primary,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -238,6 +318,8 @@ class ChapterView extends GetView<ChapterController> {
         return BoxFit.fitHeight;
       case 'natural':
         return BoxFit.none;
+      case 'screen':
+        return BoxFit.contain;
       default:
         return BoxFit.fitWidth;
     }
@@ -247,55 +329,82 @@ class ChapterView extends GetView<ChapterController> {
     await Get.bottomSheet(
       Obx(
         () => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 42,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.divider,
-                      borderRadius: BorderRadius.circular(4),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 42,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.divider,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'إعدادات القارئ'.tr,
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
+                  const SizedBox(height: 16),
+                  Text(
+                    'إعدادات القارئ'.tr,
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 14),
-                Text('ملاءمة الصور'.tr,
-                    style: TextStyle(color: AppColors.textSecondary)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    _fitChoice('width', 'ملاءمة العرض'.tr),
-                    _fitChoice('height', 'ملاءمة الارتفاع'.tr),
-                    _fitChoice('natural', 'الحجم الطبيعي'.tr),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  value: controller.continuousNavigation.value,
-                  onChanged: controller.setContinuousNavigation,
-                  title: Text('التنقل المتصل بين الفصول'.tr,
-                      style: TextStyle(color: AppColors.textPrimary)),
-                  subtitle: Text('الانتقال التلقائي عند نهاية الفصل'.tr,
+                  const SizedBox(height: 14),
+                  Text('وضع القراءة'.tr,
                       style: TextStyle(color: AppColors.textSecondary)),
-                  activeColor: AppColors.primary,
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      _readerModeChoice('scroll', 'التمرير المستمر'.tr),
+                      _readerModeChoice('paged', 'صفحة بصفحة'.tr),
+                    ],
+                  ),
+                  if (controller.readerMode.value == 'paged') ...[
+                    const SizedBox(height: 12),
+                    Text('اتجاه القراءة'.tr,
+                        style: TextStyle(color: AppColors.textSecondary)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        _directionChoice('rtl', 'من اليمين إلى اليسار'.tr),
+                        _directionChoice('ltr', 'من اليسار إلى اليمين'.tr),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  Text('ملاءمة الصور'.tr,
+                      style: TextStyle(color: AppColors.textSecondary)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      _fitChoice('screen', 'ملاءمة الشاشة'.tr),
+                      _fitChoice('width', 'ملاءمة العرض'.tr),
+                      _fitChoice('height', 'ملاءمة الارتفاع'.tr),
+                      _fitChoice('natural', 'الحجم الطبيعي'.tr),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: controller.continuousNavigation.value,
+                    onChanged: controller.setContinuousNavigation,
+                    title: Text('التنقل المتصل بين الفصول'.tr,
+                        style: TextStyle(color: AppColors.textPrimary)),
+                    subtitle: Text('الانتقال التلقائي عند نهاية الفصل'.tr,
+                        style: TextStyle(color: AppColors.textSecondary)),
+                    activeColor: AppColors.primary,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -322,8 +431,36 @@ class ChapterView extends GetView<ChapterController> {
     );
   }
 
+  Widget _readerModeChoice(String value, String label) {
+    final selected = controller.readerMode.value == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => controller.setReaderMode(value),
+      selectedColor: AppColors.primary.withValues(alpha: 0.22),
+      labelStyle: TextStyle(
+        color: selected ? AppColors.primary : AppColors.textSecondary,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+
+  Widget _directionChoice(String value, String label) {
+    final selected = controller.readingDirection.value == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => controller.setReadingDirection(value),
+      selectedColor: AppColors.primary.withValues(alpha: 0.22),
+      labelStyle: TextStyle(
+        color: selected ? AppColors.primary : AppColors.textSecondary,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+
   Future<void> _openChapterList() async {
-    final chapters = controller.chapterData.value.chapter.chapters;
+    final chapters = controller.availableChapters;
     if (chapters.isEmpty) return;
     await Get.bottomSheet(
       SafeArea(
@@ -407,6 +544,55 @@ class ChapterView extends GetView<ChapterController> {
     );
   }
 
+  Widget _buildPagedImage(String imageUrl) {
+    return Obx(() {
+      final selectedFit = controller.readerFit.value;
+      final fit = selectedFit == 'height'
+          ? BoxFit.fitHeight
+          : selectedFit == 'natural'
+              ? BoxFit.none
+              : BoxFit.contain;
+      final Widget image = controller.isOffline.value
+          ? Image.file(
+              File(imageUrl),
+              width: double.infinity,
+              height: double.infinity,
+              fit: fit,
+              filterQuality: FilterQuality.medium,
+              gaplessPlayback: true,
+              errorBuilder: (context, error, stackTrace) => const Center(
+                child: Icon(Icons.broken_image_outlined, color: Colors.white70),
+              ),
+            )
+          : CachedNetworkImage(
+              imageUrl: imageUrl,
+              httpHeaders: _imageHeaders(imageUrl),
+              imageBuilder: (context, imageProvider) => Image(
+                image: imageProvider,
+                width: double.infinity,
+                height: double.infinity,
+                fit: fit,
+                filterQuality: FilterQuality.medium,
+                gaplessPlayback: true,
+              ),
+              placeholder: (context, url) => const Center(
+                child: MangaPlusLoader(size: 54),
+              ),
+              errorWidget: (context, url, error) => Center(
+                child: IconButton(
+                  tooltip: 'إعادة المحاولة'.tr,
+                  onPressed: () => controller.fetchChapter(controller.chapterId),
+                  icon: const Icon(Icons.refresh_rounded, color: Colors.white70),
+                ),
+              ),
+            );
+      return ColoredBox(
+        color: Colors.black,
+        child: SizedBox.expand(child: image),
+      );
+    });
+  }
+
   Widget _buildImage(String imageUrl) {
     return Container(
       width: double.infinity,
@@ -475,9 +661,12 @@ class ChapterView extends GetView<ChapterController> {
 
   Future<void> _preloadImages(
     BuildContext context,
-    List<String> imageUrls,
-  ) async {
-    for (final url in imageUrls.take(3)) {
+    List<String> imageUrls, {
+    int start = 0,
+    int count = 3,
+  }) async {
+    for (final url in imageUrls.skip(start).take(count)) {
+      if (!_preloadedImages.add(url)) continue;
       try {
         await precacheImage(
           CachedNetworkImageProvider(

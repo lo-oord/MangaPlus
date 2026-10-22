@@ -394,6 +394,13 @@ class ComicDetailView extends GetView<ComicDetailController> {
       'comicTitle': comic.title,
       'coverImage': comic.coverImage,
       'chapterTitle': chapter.title,
+      'chapterNavigation': comic.chapters
+          .map((item) => {
+                'chapterId': item.chapterId,
+                'title': item.title,
+                'url': item.link,
+              })
+          .toList(growable: false),
     });
   }
 
@@ -1241,6 +1248,13 @@ class _ChapterListState extends State<_ChapterList> {
       'comicTitle': widget.comic.title,
       'coverImage': widget.comic.coverImage,
       'chapterTitle': chapter.title,
+      'chapterNavigation': widget.comic.chapters
+          .map((item) => {
+                'chapterId': item.chapterId,
+                'title': item.title,
+                'url': item.link,
+              })
+          .toList(growable: false),
     });
   }
 }

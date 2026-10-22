@@ -151,24 +151,80 @@ class ComicService {
         : const <String, dynamic>{};
     final chapterItems = (raw['chapters'] as List? ?? const [])
         .whereType<Map>()
-        .map((item) => ChapterElement(
-              chapterId: '${item['chapterId'] ?? item['chapter_id'] ?? item['url'] ?? item['id'] ?? ''}',
-              title: '${item['title'] ?? ''}',
-              url: '${item['url'] ?? item['chapterId'] ?? item['chapter_id'] ?? item['id'] ?? ''}',
-            ))
+        .map((item) {
+          final reference = _firstChapterReference([
+            item['url'],
+            item['chapterUrl'],
+            item['chapter_url'],
+            item['chapterId'],
+            item['chapter_id'],
+            item['id'],
+          ]);
+          return ChapterElement(
+            chapterId: reference ?? '',
+            title: '${item['title'] ?? ''}',
+            url: reference ?? '',
+          );
+        })
         .where((item) => item.chapterId.isNotEmpty)
         .toList(growable: false);
+    final previousChapter = _firstChapterReference([
+      raw['previousChapter'],
+      raw['previous_chapter'],
+      raw['prevChapter'],
+      raw['prev_chapter'],
+      navigation['prev_chapter'],
+      navigation['previous_chapter'],
+      navigation['previous'],
+      navigation['previousChapter'],
+    ]);
+    final nextChapter = _firstChapterReference([
+      raw['nextChapter'],
+      raw['next_chapter'],
+      navigation['next_chapter'],
+      navigation['next'],
+      navigation['nextChapter'],
+    ]);
     return ChapterData(
       chapter: DataChapter(
         chapterId: chapterId,
         title: '${raw['title'] ?? ''}',
         images: images,
-        previousChapter: '${raw['previousChapter'] ?? navigation['prev_chapter'] ?? navigation['previous'] ?? ''}',
-        nextChapter: '${raw['nextChapter'] ?? navigation['next_chapter'] ?? navigation['next']}',
+        previousChapter: previousChapter ?? '',
+        nextChapter: nextChapter,
         chapters: chapterItems,
       ),
       source: source.name,
     );
+  }
+
+  String? _firstChapterReference(Iterable<dynamic> values) {
+    for (final value in values) {
+      final reference = _chapterReference(value);
+      if (reference != null) return reference;
+    }
+    return null;
+  }
+
+  String? _chapterReference(dynamic value) {
+    if (value is Map) {
+      return _firstChapterReference([
+        value['url'],
+        value['chapterUrl'],
+        value['chapter_url'],
+        value['chapterId'],
+        value['chapter_id'],
+        value['id'],
+      ]);
+    }
+    final reference = value?.toString().trim() ?? '';
+    if (reference.isEmpty ||
+        const {'null', 'undefined', '0'}.contains(reference.toLowerCase())) {
+      return null;
+    }
+    final uri = Uri.tryParse(reference);
+    if (uri == null || uri.scheme.isEmpty) return null;
+    return reference;
   }
 
   String _formatDate(String value) {

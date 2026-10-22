@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -14,6 +15,19 @@ import 'package:mangaplus/app/widgets/app_feedback.dart';
 class ChapterController extends GetxController {
   final ComicService _comicService = ComicService();
   final GetStorage _storage = GetStorage();
+  final List<ChapterElement> _argumentChapterNavigation = [];
+  final List<ChapterElement> _fallbackChapterNavigation = [];
+  final chapterNavigationRevision = 0.obs;
+
+  PageController? _pageController;
+  PageController get pageController => _pageController ??= PageController(
+        initialPage: currentPage.value,
+      );
+  ScrollController? _scrollController;
+  ScrollController get scrollController => _scrollController ??= ScrollController(
+        initialScrollOffset: _restoredScrollOffset,
+      );
+  double _restoredScrollOffset = 0;
 
   late final Map<String, dynamic> arguments =
       Map<String, dynamic>.from(Get.arguments as Map);
@@ -36,22 +50,67 @@ class ChapterController extends GetxController {
   final hasError = false.obs;
   final localImages = <String>[].obs;
 
+  final showNavigation = false.obs;
+  final showChapterList = false.obs;
+  final currentPage = 0.obs;
+  final readerFit = 'width'.obs;
+  final readerMode = 'scroll'.obs;
+  final readingDirection = 'rtl'.obs;
+  final continuousNavigation = true.obs;
+  final isNavigating = false.obs;
+  bool endNoticeShown = false;
+  bool _isLoadingChapterNavigation = false;
+
+  List<ChapterElement> get availableChapters {
+    chapterNavigationRevision.value;
+    final loadedChapters = chapterData.value.chapter.chapters;
+    if (isOffline.value && loadedChapters.isNotEmpty) return loadedChapters;
+
+    final candidates = <List<ChapterElement>>[
+      loadedChapters,
+      _argumentChapterNavigation,
+      _fallbackChapterNavigation,
+    ].where((items) => items.isNotEmpty).toList();
+    if (candidates.isEmpty) return const [];
+    candidates.sort((left, right) => right.length.compareTo(left.length));
+    return candidates.first;
+  }
+
+  bool get canUseChapterList => availableChapters.isNotEmpty;
+
+  List<ChapterElement> get _navigationChapters {
+    final loadedChapters = chapterData.value.chapter.chapters;
+    if (isOffline.value && loadedChapters.isNotEmpty) return loadedChapters;
+    return availableChapters;
+  }
+
   Future<void> fetchChapter(String id) async {
     try {
       isLoading(true);
       hasError(false);
-      currentPage.value = 0;
+      endNoticeShown = false;
+      _restoreReaderPosition(id);
+
       final downloadedChapters =
           _storage.read<List<dynamic>>('downloadedChapters') ?? [];
       final downloadedChapter = downloadedChapters.firstWhereOrNull(
-        (json) => json['chapterId'] == id,
+        (json) => json is Map && json['chapterId'] == id,
       );
 
       if (downloadedChapter != null) {
         isOffline.value = true;
         final localChapterRecords = downloadedChapters
             .where((item) => item is Map && item['comicId'] == arguments['comicId'])
+            .cast<Map>()
             .toList();
+        localChapterRecords.sort((left, right) {
+          final leftNumber = _chapterNumber('${left['chapterTitle'] ?? ''}');
+          final rightNumber = _chapterNumber('${right['chapterTitle'] ?? ''}');
+          if (leftNumber == null && rightNumber == null) return 0;
+          if (leftNumber == null) return 1;
+          if (rightNumber == null) return -1;
+          return rightNumber.compareTo(leftNumber);
+        });
         final localIndex = localChapterRecords.indexWhere(
           (item) => item['chapterId'] == id,
         );
@@ -79,11 +138,14 @@ class ChapterController extends GetxController {
             images: localImages.toList(growable: false),
             previousChapter: localPrevious,
             nextChapter: localNext,
-            chapters: localChapterRecords.map((item) => ChapterElement(
-                  chapterId: '${item['chapterId'] ?? ''}',
-                  title: '${item['chapterTitle'] ?? ''}',
-                  url: '${item['chapterId'] ?? ''}',
-                )).toList(growable: false),
+            chapters: localChapterRecords
+                .map((item) => ChapterElement(
+                      chapterId: '${item['chapterId'] ?? ''}',
+                      title: '${item['chapterTitle'] ?? ''}',
+                      url: '${item['chapterId'] ?? ''}',
+                    ))
+                .where((item) => item.chapterId.isNotEmpty)
+                .toList(growable: false),
           ),
           source: 'local',
         );
@@ -108,9 +170,21 @@ class ChapterController extends GetxController {
           source: loaded.source,
         );
       }
+
+      final pageCount = chapterData.value.chapter.images.length;
+      if (pageCount > 0) {
+        currentPage.value = currentPage.value.clamp(0, pageCount - 1).toInt();
+        if (_pageController?.hasClients == true) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_pageController?.hasClients == true) {
+              _pageController!.jumpToPage(currentPage.value);
+            }
+          });
+        }
+      }
     } catch (error) {
       hasError(true);
-      debugPrint('Team X chapter request failed: $error');
+      debugPrint('Chapter request failed: $error');
     } finally {
       isLoading(false);
     }
@@ -121,44 +195,223 @@ class ChapterController extends GetxController {
     return match == null ? 0 : int.tryParse(match.group(1)!) ?? 0;
   }
 
-  String? get nextChapterId => chapterData.value.chapter.nextChapter;
-  String? get previousChapterId =>
-      chapterData.value.chapter.previousChapter.isEmpty
-          ? null
-          : chapterData.value.chapter.previousChapter;
+  String? get nextChapterId {
+    final direct = _chapterReference(chapterData.value.chapter.nextChapter);
+    if (direct != null && direct != chapterId) return direct;
+    return _adjacentChapter(forward: true)?.chapterId;
+  }
+
+  String? get previousChapterId {
+    final direct = _chapterReference(chapterData.value.chapter.previousChapter);
+    if (direct != null && direct != chapterId) return direct;
+    return _adjacentChapter(forward: false)?.chapterId;
+  }
+
+  ChapterElement? _adjacentChapter({required bool forward}) {
+    final chapters = _navigationChapters;
+    final index = chapters.indexWhere(
+      (item) => item.chapterId == chapterId || item.url == chapterId,
+    );
+    if (index < 0) return null;
+
+    final currentNumber = _chapterNumber(chapters[index].title) ??
+        _chapterNumber('${arguments['chapterTitle'] ?? ''}');
+    if (currentNumber != null) {
+      final candidates = chapters
+          .map((item) => (chapter: item, number: _chapterNumber(item.title)))
+          .where((item) => item.number != null &&
+              (forward ? item.number! > currentNumber : item.number! < currentNumber))
+          .toList();
+      candidates.sort((left, right) => forward
+          ? left.number!.compareTo(right.number!)
+          : right.number!.compareTo(left.number!));
+      if (candidates.isNotEmpty) return candidates.first.chapter;
+    }
+
+    // Source chapter lists are commonly ordered newest to oldest.
+    final adjacentIndex = forward ? index - 1 : index + 1;
+    return adjacentIndex >= 0 && adjacentIndex < chapters.length
+        ? chapters[adjacentIndex]
+        : null;
+  }
+
+  double? _chapterNumber(String title) {
+    final match = RegExp(r'\d+(?:\.\d+)?').firstMatch(title);
+    return match == null ? null : double.tryParse(match.group(0)!);
+  }
+
+  String? _chapterReference(dynamic value) {
+    if (value is Map) {
+      for (final key in const [
+        'url',
+        'chapterUrl',
+        'chapter_url',
+        'chapterId',
+        'chapter_id',
+        'id',
+      ]) {
+        final reference = _chapterReference(value[key]);
+        if (reference != null) return reference;
+      }
+      return null;
+    }
+    final reference = value?.toString().trim() ?? '';
+    if (reference.isEmpty ||
+        const {'null', 'undefined', '0'}.contains(reference.toLowerCase())) {
+      return null;
+    }
+    final uri = Uri.tryParse(reference);
+    return uri != null && uri.scheme.isNotEmpty ? reference : null;
+  }
 
   String _chapterTitleFor(String id) {
-    final chapter = chapterData.value.chapter.chapters.firstWhereOrNull(
-      (item) => item.chapterId == id,
+    final chapter = availableChapters.firstWhereOrNull(
+      (item) => item.chapterId == id || item.url == id,
     );
     return chapter?.title ?? '';
   }
 
   void navigateToChapter(String? id) {
-    if (id != null && id.isNotEmpty && !isNavigating.value) {
-      isNavigating.value = true;
+    final reference = _chapterReference(id);
+    if (reference == null || reference == chapterId || isNavigating.value) return;
+
+    isNavigating.value = true;
+    try {
       Get.offNamed(Routes.CHAPTER, arguments: {
-        'chapterId': id,
+        'chapterId': reference,
         'comicId': arguments['comicId'],
         'comicTitle': arguments['comicTitle'],
         'coverImage': arguments['coverImage'],
-        'chapterTitle': _chapterTitleFor(id),
+        'chapterTitle': _chapterTitleFor(reference),
+        'chapterNavigation': _navigationPayload(),
       });
+    } catch (error) {
+      isNavigating.value = false;
+      debugPrint('Unable to navigate to chapter: $error');
+      AppFeedback.show(
+        title: 'تعذر فتح الفصل'.tr,
+        message: 'حاول مرة أخرى'.tr,
+      );
     }
   }
 
-  final showNavigation = false.obs;
-  final showChapterList = false.obs;
-  final currentPage = 0.obs;
-  final readerFit = 'width'.obs;
-  final continuousNavigation = true.obs;
-  final isNavigating = false.obs;
-  bool endNoticeShown = false;
+  List<Map<String, String>> _navigationPayload() => availableChapters
+      .map((item) => {
+            'chapterId': item.chapterId,
+            'title': item.title,
+            'url': item.url,
+          })
+      .toList(growable: false);
 
-  bool get canUseChapterList => chapterData.value.chapter.chapters.isNotEmpty;
+  void _readChapterNavigationArguments() {
+    final raw = arguments['chapterNavigation'];
+    if (raw is! Iterable) return;
+    for (final value in raw) {
+      if (value is ChapterElement) {
+        if (value.chapterId.isNotEmpty) _argumentChapterNavigation.add(value);
+        continue;
+      }
+      if (value is! Map) continue;
+      final reference = _chapterReference(value);
+      if (reference == null) continue;
+      _argumentChapterNavigation.add(ChapterElement(
+        chapterId: reference,
+        title: '${value['title'] ?? ''}',
+        url: reference,
+      ));
+    }
+  }
+
+  Future<void> _loadChapterNavigationIfMissing() async {
+    if (availableChapters.length > 1) return;
+    final comicId = '${arguments['comicId'] ?? ''}'.trim();
+    if (comicId.isEmpty) return;
+    _isLoadingChapterNavigation = true;
+    try {
+      final details = await _comicService.fetchComicDetail(comicId);
+      _fallbackChapterNavigation
+        ..clear()
+        ..addAll(details.comicDetail.chapters.map((item) {
+          final reference = _chapterReference(item.chapterId) ??
+              _chapterReference(item.link);
+          return ChapterElement(
+            chapterId: reference ?? '',
+            title: item.title,
+            url: reference ?? '',
+          );
+        }).where((item) => item.chapterId.isNotEmpty));
+      chapterNavigationRevision.value++;
+    } catch (error) {
+      debugPrint('Unable to load chapter navigation list: $error');
+    } finally {
+      _isLoadingChapterNavigation = false;
+      if (readerMode.value == 'paged' &&
+          currentPage.value >= chapterData.value.chapter.images.length - 1) {
+        onPageChanged(currentPage.value);
+      } else if (readerMode.value == 'scroll' &&
+          _scrollController?.hasClients == true) {
+        unawaited(handleScroll(_scrollController!.position));
+      }
+    }
+  }
+
+  void _restoreReaderPosition(String id) {
+    final positions = _storage.read('readerPositions');
+    final key = _readerPositionKey(id);
+    final saved = positions is Map ? positions[key] : null;
+    final savedPage = saved is Map ? saved['page'] : saved;
+    final parsed = savedPage is num
+        ? savedPage.toInt()
+        : int.tryParse('$savedPage') ?? 0;
+    final savedOffset = saved is Map ? saved['offset'] : null;
+    final offset = savedOffset is num ? savedOffset.toDouble() : 0;
+    _restoredScrollOffset = offset.isFinite && offset > 0 ? offset : 0;
+    currentPage.value = parsed < 0 ? 0 : parsed;
+  }
+
+  String _readerPositionKey(String id) =>
+      '${arguments['comicId'] ?? ''}::$id';
+
+  Future<void> _persistReaderPosition(int page, {double? scrollOffset}) async {
+    final currentChapterId = chapterData.value.chapter.chapterId.isEmpty
+        ? chapterId
+        : chapterData.value.chapter.chapterId;
+    final key = _readerPositionKey(currentChapterId);
+    final stored = _storage.read('readerPositions');
+    final positions = stored is Map
+        ? Map<String, dynamic>.from(stored)
+        : <String, dynamic>{};
+    positions[key] = {
+      'page': page,
+      'offset': scrollOffset ?? _restoredScrollOffset,
+    };
+    await _storage.write('readerPositions', positions);
+  }
+
+  void setCurrentPage(int page) {
+    final pageCount = chapterData.value.chapter.images.length;
+    if (pageCount == 0) return;
+    final safePage = page.clamp(0, pageCount - 1).toInt();
+    if (currentPage.value == safePage) return;
+    currentPage.value = safePage;
+    unawaited(_persistReaderPosition(safePage));
+  }
+
+  void persistScrollOffset(double offset) {
+    if (!offset.isFinite || offset < 0) return;
+    _restoredScrollOffset = offset;
+    unawaited(_persistReaderPosition(currentPage.value, scrollOffset: offset));
+  }
 
   void _loadReaderPreferences() {
     readerFit.value = _storage.read<String>('reader_fit') ?? 'width';
+    readerMode.value = _storage.read<String>(_readerSettingKey('mode')) ??
+        _storage.read<String>('reader_mode') ??
+        'scroll';
+    readingDirection.value =
+        _storage.read<String>(_readerSettingKey('direction')) ??
+            _storage.read<String>('reader_direction') ??
+            'rtl';
     continuousNavigation.value =
         _storage.read<bool>('reader_continuous_navigation') ?? true;
   }
@@ -168,25 +421,89 @@ class ChapterController extends GetxController {
     await _storage.write('reader_fit', value);
   }
 
+  Future<void> setReaderMode(String value) async {
+    if (value != 'scroll' && value != 'paged') return;
+    readerMode.value = value;
+    if (value == 'paged' && _pageController?.hasClients == true) {
+      _pageController!.jumpToPage(currentPage.value);
+    }
+    await _storage.write(_readerSettingKey('mode'), value);
+  }
+
+  void syncPageController() {
+    final pageController = _pageController;
+    if (pageController?.hasClients != true) return;
+    final page = pageController!.page;
+    if (page == null || page.round() != currentPage.value) {
+      pageController.jumpToPage(currentPage.value);
+    }
+  }
+
+  Future<void> setReadingDirection(String value) async {
+    if (value != 'rtl' && value != 'ltr') return;
+    readingDirection.value = value;
+    await _storage.write(_readerSettingKey('direction'), value);
+  }
+
   Future<void> setContinuousNavigation(bool value) async {
     continuousNavigation.value = value;
     await _storage.write('reader_continuous_navigation', value);
+    if (!value) return;
+    if (readerMode.value == 'paged') {
+      onPageChanged(currentPage.value);
+    } else if (_scrollController?.hasClients == true) {
+      unawaited(handleScroll(_scrollController!.position));
+    }
   }
 
-  Future<void> handleScroll(ScrollMetrics metrics) async {
-    if (!continuousNavigation.value || isNavigating.value || isOffline.value) {
+  String _readerSettingKey(String setting) {
+    final comicId = '${arguments['comicId'] ?? ''}'.trim();
+    if (comicId.isEmpty) return 'reader_$setting';
+    return 'reader_${setting}_${Uri.encodeComponent(comicId)}';
+  }
+
+  void onPageChanged(int page) {
+    if (chapterData.value.chapter.images.isEmpty) return;
+    setCurrentPage(page);
+    if (readerMode.value != 'paged' ||
+        !continuousNavigation.value ||
+        isNavigating.value ||
+        page < chapterData.value.chapter.images.length - 1) {
       return;
     }
     final next = nextChapterId;
-    if (metrics.extentAfter <= 28 && next != null && next.isNotEmpty) {
+    if (next != null) {
       navigateToChapter(next);
-    } else if (metrics.extentAfter <= 28 && !endNoticeShown) {
-      endNoticeShown = true;
-      AppFeedback.show(
-        title: 'نهاية الفصل'.tr,
-        message: 'لا توجد فصول أخرى'.tr,
-      );
+    } else if (!_isLoadingChapterNavigation) {
+      _showEndNoticeOnce();
     }
+  }
+
+  Future<void> handleScroll(ScrollMetrics metrics) async {
+    if (readerMode.value != 'scroll' ||
+        !continuousNavigation.value ||
+        isNavigating.value) {
+      return;
+    }
+    final threshold = metrics.viewportDimension * 0.04 > 28
+        ? metrics.viewportDimension * 0.04
+        : 28.0;
+    if (metrics.extentAfter > threshold) return;
+    final next = nextChapterId;
+    if (next != null) {
+      navigateToChapter(next);
+    } else if (!_isLoadingChapterNavigation) {
+      _showEndNoticeOnce();
+    }
+  }
+
+  void _showEndNoticeOnce() {
+    if (endNoticeShown) return;
+    endNoticeShown = true;
+    AppFeedback.show(
+      title: 'نهاية الفصل'.tr,
+      message: 'لا توجد فصول أخرى'.tr,
+    );
   }
 
   void toggleNavigationVisibility() {
@@ -202,9 +519,17 @@ class ChapterController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    _readChapterNavigationArguments();
     _loadReaderPreferences();
     _markAsRead();
-    fetchChapter(chapterId);
+    unawaited(fetchChapter(chapterId).then((_) => _loadChapterNavigationIfMissing()));
+  }
+
+  @override
+  void onClose() {
+    _pageController?.dispose();
+    _scrollController?.dispose();
+    super.onClose();
   }
 
   Future<void> _markAsRead() async {
