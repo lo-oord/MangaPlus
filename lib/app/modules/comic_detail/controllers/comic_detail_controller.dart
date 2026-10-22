@@ -148,17 +148,28 @@ class ComicDetailController extends GetxController {
     );
   }
 
-  List<Chapter> sortedChapters(List<Chapter> chapters) {
-    final result = List<Chapter>.of(chapters);
-    result.sort((left, right) {
-      final leftNumber = _chapterNumber(left.title);
-      final rightNumber = _chapterNumber(right.title);
-      final order = leftNumber != null && rightNumber != null
-          ? leftNumber.compareTo(rightNumber)
-          : left.title.toLowerCase().compareTo(right.title.toLowerCase());
-      return sortAscending.value ? order : -order;
+  List<Chapter> sortedChapters(
+    List<Chapter> chapters, {
+    bool? ascending,
+  }) {
+    final indexed = chapters.asMap().entries.toList();
+    final allHaveNumbers = chapters.every((chapter) => _chapterNumber(chapter.title) != null);
+    final allHaveDates = chapters.every(
+      (chapter) => DateTime.tryParse(chapter.releaseTime) != null,
+    );
+    indexed.sort((leftEntry, rightEntry) {
+      final left = leftEntry.value;
+      final right = rightEntry.value;
+      final order = allHaveNumbers
+          ? _chapterNumber(left.title)!.compareTo(_chapterNumber(right.title)!)
+          : allHaveDates
+              ? DateTime.parse(left.releaseTime).compareTo(
+                  DateTime.parse(right.releaseTime),
+                )
+              : leftEntry.key.compareTo(rightEntry.key);
+      return (ascending ?? sortAscending.value) ? order : -order;
     });
-    return result;
+    return indexed.map((entry) => entry.value).toList(growable: false);
   }
 
   double? _chapterNumber(String title) {
