@@ -124,9 +124,7 @@ class HomeView extends GetView<HomeController> {
                     itemBuilder: (context, index) {
                       if (index >= controller.genreComics.length) {
                         return Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.primary,
-                          ),
+                          child: const MangaPlusLoader(size: 42),
                         );
                       }
                       final comic = controller.genreComics[index];
@@ -551,12 +549,9 @@ class KomikCardsSection extends GetView<HomeController> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 20),
             child: SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.4,
-                color: AppColors.primary,
-              ),
+              width: 42,
+              height: 42,
+              child: const MangaPlusLoader(size: 42),
             ),
           ),
       ],

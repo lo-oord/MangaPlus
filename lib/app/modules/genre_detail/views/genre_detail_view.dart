@@ -68,7 +68,7 @@ class GenreDetailView extends GetView<GenreDetailController> {
             itemBuilder: (context, index) {
               if (index >= controller.comicsList.length) {
                 return Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
+                  child: const MangaPlusLoader(size: 42),
                 );
               }
               final comic = controller.comicsList[index];

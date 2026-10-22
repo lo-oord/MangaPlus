@@ -27,7 +27,7 @@ class TeamXSource extends ContentSource {
         'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
   };
   static const int _latestFeedPageSize = 40;
-  static const int _dateLookupConcurrency = 8;
+  static const int _dateLookupConcurrency = 16;
   static final Map<String, List<Map<String, dynamic>>> _chapterCache = {};
   static final Map<String, Map<String, dynamic>> _seriesBriefCache = {};
   final http.Client _client;

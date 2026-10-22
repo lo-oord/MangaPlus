@@ -22,12 +22,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
       backgroundColor: AppColors.background,
       body: Obx(() {
         if (controller.isLoading.value) {
-          return Center(
-            child: CircularProgressIndicator(
-              strokeWidth: 2.2,
-              color: AppColors.primary,
-            ),
-          );
+          return const Center(child: MangaPlusLoader(size: 68));
         }
         final comic = controller.comicDetailData.value.comicDetail;
         if (comic.title.isEmpty) {

@@ -82,7 +82,7 @@ class ProfileView extends GetView<ProfileController> {
 
   Widget _profileHeader() {
     if (controller.accountLoading.value) return Container(height: 150, decoration: _boxDecoration(), alignment: Alignment.center,
-        child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2));
+        child: const MangaPlusLoader(size: 42));
     final account = controller.accountProfile.value;
     if (account == null) return Container(padding: const EdgeInsets.all(20), decoration: _boxDecoration(), child: Row(children: [
       const CircleAvatar(radius: 38, child: Icon(Icons.person_outline_rounded, size: 36)), const SizedBox(width: 16),

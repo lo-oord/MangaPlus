@@ -27,7 +27,6 @@ class HomeController extends GetxController {
   final genreHasMore = true.obs;
   int _genrePage = 1;
 
-  static const int _pageSize = 40;
   int _loadedPage = 0;
   final List<Map<String, String>> heroComics = <Map<String, String>>[];
 
@@ -90,6 +89,13 @@ class HomeController extends GetxController {
           ...comicData.value.comicsList,
           ...incoming.where((comic) => existing.add(comic.comicId)),
         ];
+        combined.sort((left, right) {
+          final leftDate = DateTime.tryParse(left.latestChapterDate.trim());
+          final rightDate = DateTime.tryParse(right.latestChapterDate.trim());
+          if (leftDate == null) return rightDate == null ? 0 : 1;
+          if (rightDate == null) return -1;
+          return rightDate.compareTo(leftDate);
+        });
         comicData.value = ComicData(
           comicsList: combined,
           pagination: loaded.pagination,
@@ -102,7 +108,7 @@ class HomeController extends GetxController {
         );
         _loadedPage = page;
       }
-      canLoadMore(incoming.length >= _pageSize);
+      canLoadMore(incoming.isNotEmpty);
     } catch (error) {
       debugPrint('Team X latest feed failed (page $page): $error');
       if (page == 1) {

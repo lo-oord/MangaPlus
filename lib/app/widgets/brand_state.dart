@@ -1,6 +1,51 @@
 import 'package:flutter/material.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 
+class MangaPlusLoader extends StatefulWidget {
+  const MangaPlusLoader({super.key, this.size = 68});
+
+  final double size;
+
+  @override
+  State<MangaPlusLoader> createState() => _MangaPlusLoaderState();
+}
+
+class _MangaPlusLoaderState extends State<MangaPlusLoader>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _rotation = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _rotation.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: widget.size,
+        height: widget.size,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            MangaPlusLogo(size: widget.size),
+            Positioned(
+              right: widget.size * 0.025,
+              bottom: widget.size * 0.08,
+              width: widget.size * 0.46,
+              height: widget.size * 0.46,
+              child: RotationTransition(
+                turns: _rotation,
+                child: Image.asset('assets/images/mangaplus_plus.png'),
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
 class MangaPlusLogo extends StatelessWidget {
   const MangaPlusLogo({super.key, this.size = 72});
 
@@ -50,7 +95,9 @@ class BrandState extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                MangaPlusLogo(size: 68),
+                loading
+                    ? const MangaPlusLoader(size: 68)
+                    : MangaPlusLogo(size: 68),
                 const SizedBox(height: 18),
                 Text(
                   title,
@@ -68,17 +115,6 @@ class BrandState extends StatelessWidget {
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: AppColors.textSecondary,
                       height: 1.5,
-                    ),
-                  ),
-                ],
-                if (loading) ...[
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.2,
-                      color: AppColors.primary,
                     ),
                   ),
                 ],

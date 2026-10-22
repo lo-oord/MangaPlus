@@ -439,13 +439,7 @@ class ChapterView extends GetView<ChapterController> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const MangaPlusLogo(size: 48),
-                      const SizedBox(height: 12),
-                      const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2.2),
-                      ),
+                      const MangaPlusLoader(size: 54),
                     ],
                   ),
                 ),
