@@ -393,6 +393,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
       'comicId': comic.comicId,
       'comicTitle': comic.title,
       'coverImage': comic.coverImage,
+      'comicType': comic.type,
       'chapterTitle': chapter.title,
       'chapterNavigation': comic.chapters
           .map((item) => {
@@ -1247,6 +1248,7 @@ class _ChapterListState extends State<_ChapterList> {
       'comicId': widget.comic.comicId,
       'comicTitle': widget.comic.title,
       'coverImage': widget.comic.coverImage,
+      'comicType': widget.comic.type,
       'chapterTitle': chapter.title,
       'chapterNavigation': widget.comic.chapters
           .map((item) => {

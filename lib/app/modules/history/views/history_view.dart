@@ -153,6 +153,7 @@ class HistoryView extends GetView<HistoryController> {
                               'comicId': history.comicId,
                               'comicTitle': history.title,
                               'coverImage': history.coverImage,
+                              'comicType': history.type,
                               'chapterId': history.chapterId,
                               'chapterTitle': history.chapterTitle,
                             },

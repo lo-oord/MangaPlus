@@ -101,8 +101,11 @@ class ComicService {
             .toList(growable: false)
         : const <Map<String, dynamic>>[];
     final chapters = rawChapters.map((entry) {
-      final url = '${entry['url'] ?? entry['chapter_url'] ?? ''}'.trim();
-      final id = url.isNotEmpty ? url : '${entry['chapter_id'] ?? entry['id'] ?? ''}';
+      final url = _chapterReference(
+        entry['url'] ?? entry['chapter_url'] ?? entry['chapter_id'] ?? entry['id'],
+        baseUrl: comicId,
+      );
+      final id = url ?? '';
       return Chapter(
         chapterId: id,
         title: '${entry['title'] ?? 'الفصل ${entry['number'] ?? entry['chapter_number'] ?? ''}'}'.trim(),
@@ -159,7 +162,7 @@ class ComicService {
             item['chapterId'],
             item['chapter_id'],
             item['id'],
-          ]);
+          ], baseUrl: chapterId);
           return ChapterElement(
             chapterId: reference ?? '',
             title: '${item['title'] ?? ''}',
@@ -177,14 +180,14 @@ class ComicService {
       navigation['previous_chapter'],
       navigation['previous'],
       navigation['previousChapter'],
-    ]);
+    ], baseUrl: chapterId);
     final nextChapter = _firstChapterReference([
       raw['nextChapter'],
       raw['next_chapter'],
       navigation['next_chapter'],
       navigation['next'],
       navigation['nextChapter'],
-    ]);
+    ], baseUrl: chapterId);
     return ChapterData(
       chapter: DataChapter(
         chapterId: chapterId,
@@ -198,15 +201,18 @@ class ComicService {
     );
   }
 
-  String? _firstChapterReference(Iterable<dynamic> values) {
+  String? _firstChapterReference(
+    Iterable<dynamic> values, {
+    String? baseUrl,
+  }) {
     for (final value in values) {
-      final reference = _chapterReference(value);
+      final reference = _chapterReference(value, baseUrl: baseUrl);
       if (reference != null) return reference;
     }
     return null;
   }
 
-  String? _chapterReference(dynamic value) {
+  String? _chapterReference(dynamic value, {String? baseUrl}) {
     if (value is Map) {
       return _firstChapterReference([
         value['url'],
@@ -215,7 +221,7 @@ class ComicService {
         value['chapterId'],
         value['chapter_id'],
         value['id'],
-      ]);
+      ], baseUrl: baseUrl);
     }
     final reference = value?.toString().trim() ?? '';
     if (reference.isEmpty ||
@@ -223,8 +229,11 @@ class ComicService {
       return null;
     }
     final uri = Uri.tryParse(reference);
-    if (uri == null || uri.scheme.isEmpty) return null;
-    return reference;
+    if (uri == null) return null;
+    if (uri.hasScheme) return reference;
+    final base = Uri.tryParse(baseUrl ?? '');
+    if (base == null || !base.hasScheme) return null;
+    return base.resolveUri(uri).toString();
   }
 
   String _formatDate(String value) {

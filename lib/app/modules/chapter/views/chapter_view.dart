@@ -86,6 +86,9 @@ class ChapterView extends GetView<ChapterController> {
           ..clear()
           ..addAll(List.generate(chapter.images.length, (_) => GlobalKey()));
       }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) controller.syncScrollController();
+      });
       WidgetsBinding.instance.addPostFrameCallback((_) => _updateCurrentPage(context));
       return GestureDetector(
         onTap: controller.toggleNavigationVisibility,
@@ -151,7 +154,9 @@ class ChapterView extends GetView<ChapterController> {
         curve: Curves.easeOutCubic,
       );
     } else if (isNextPage) {
-      controller.onPageChanged(controller.currentPage.value);
+      controller.navigateToChapter(controller.nextChapterId);
+    } else {
+      controller.navigateToChapter(controller.previousChapterId);
     }
   }
 
@@ -221,12 +226,7 @@ class ChapterView extends GetView<ChapterController> {
                     _readerIconButton(
                       icon: Icons.list_alt_rounded,
                       tooltip: 'قائمة الفصول'.tr,
-                      onPressed: controller.canUseChapterList
-                          ? _openChapterList
-                          : () => AppFeedback.show(
-                                title: 'قائمة الفصول'.tr,
-                                message: 'لا توجد قائمة فصول متاحة'.tr,
-                              ),
+                      onPressed: _openChapterList,
                     ),
                     Expanded(
                       child: GestureDetector(
@@ -460,8 +460,15 @@ class ChapterView extends GetView<ChapterController> {
   }
 
   Future<void> _openChapterList() async {
+    await controller.ensureChapterNavigation();
     final chapters = controller.availableChapters;
-    if (chapters.isEmpty) return;
+    if (chapters.isEmpty) {
+      AppFeedback.show(
+        title: 'قائمة الفصول'.tr,
+        message: 'لا توجد قائمة فصول متاحة'.tr,
+      );
+      return;
+    }
     await Get.bottomSheet(
       SafeArea(
         child: SizedBox(
@@ -500,7 +507,8 @@ class ChapterView extends GetView<ChapterController> {
                   separatorBuilder: (_, __) => const SizedBox(height: 6),
                   itemBuilder: (context, index) {
                     final item = chapters[index];
-                    final current = item.chapterId == controller.chapterId;
+                    final current = controller.isCurrentChapter(item);
+                    final isRead = controller.isChapterRead(item.chapterId);
                     return ListTile(
                       dense: true,
                       shape: RoundedRectangleBorder(
@@ -522,6 +530,16 @@ class ChapterView extends GetView<ChapterController> {
                               fontWeight: current
                                   ? FontWeight.w800
                                   : FontWeight.w600)),
+                      trailing: isRead
+                          ? Text(
+                              'مقروء'.tr,
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            )
+                          : null,
                       onTap: current
                           ? null
                           : () {
