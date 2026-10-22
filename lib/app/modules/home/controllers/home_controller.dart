@@ -80,6 +80,9 @@ class HomeController extends GetxController {
                     'title': comic.title,
                     'subtitle': comic.chapter,
                     'image': comic.image,
+                    'rating': comic.rating,
+                    'status': comic.status ?? '',
+                    'releaseDate': comic.latestChapterDate,
                   }));
       } else {
         final existing = comicData.value.comicsList
@@ -160,6 +163,7 @@ class HomeController extends GetxController {
       final data = await _genreService.fetchGenreDetail(
         selectedGenreFilter.value,
         page: page,
+        genreName: selectedGenreName.value,
       );
       if (page == 1) {
         genreComics.assignAll(data.comicsList);
@@ -169,7 +173,7 @@ class HomeController extends GetxController {
           data.comicsList.where((comic) => ids.add(comic.comicId)),
         );
       }
-      _genrePage = page;
+      _genrePage = data.page ?? page;
       genreHasMore(data.pagination?.nextPage != null);
     } catch (error) {
       debugPrint('Team X inline genre request failed: $error');

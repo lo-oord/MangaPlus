@@ -22,29 +22,29 @@ class MainView extends GetView<MainController> {
       ),
       bottomNavigationBar: SafeArea(
         top: false,
-        minimum: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        minimum: const EdgeInsets.fromLTRB(20, 0, 20, 8),
         child: Obx(
           () => Container(
-            height: 68,
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
+            height: 58,
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
             decoration: BoxDecoration(
               color: AppColors.card,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: AppColors.divider.withValues(alpha: 0.8)),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.divider.withValues(alpha: 0.75)),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.15),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
+                  color: AppColors.primary.withValues(alpha: 0.10),
+                  blurRadius: 18,
+                  offset: const Offset(0, 5),
                 ),
               ],
             ),
             child: Row(
               children: [
-                _navItem(0, Icons.home_rounded, Icons.home_outlined),
-                _navItem(1, Icons.search_rounded, Icons.search),
-                _navItem(2, Icons.bookmark_rounded, Icons.bookmark_border_rounded),
-                _navItem(3, Icons.settings_rounded, Icons.settings_outlined),
+                _navItem(0, Icons.home_rounded, Icons.home_outlined, 'home'.tr),
+                _navItem(1, Icons.search_rounded, Icons.search, 'بحث'.tr),
+                _navItem(2, Icons.bookmarks_rounded, Icons.bookmark_border_rounded, 'المفضلة'.tr),
+                _navItem(3, Icons.account_circle_rounded, Icons.account_circle_outlined, 'profile'.tr),
               ],
             ),
           ),
@@ -53,7 +53,7 @@ class MainView extends GetView<MainController> {
     );
   }
 
-  Widget _navItem(int itemIndex, IconData activeIcon, IconData inactiveIcon) {
+  Widget _navItem(int itemIndex, IconData activeIcon, IconData inactiveIcon, String label) {
     final selected = controller.index.value == itemIndex;
     return Expanded(
       child: Padding(
@@ -61,29 +61,37 @@ class MainView extends GetView<MainController> {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(15),
             onTap: () => controller.changeIndex(itemIndex),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 220),
               curve: Curves.easeOutCubic,
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
               decoration: BoxDecoration(
                 color: selected
-                    ? AppColors.primary.withValues(alpha: 0.16)
+                    ? AppColors.primary.withValues(alpha: 0.13)
                     : Colors.transparent,
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(15),
               ),
-              child: Center(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 180),
-                  switchInCurve: Curves.easeOutCubic,
-                  child: Icon(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
                     selected ? activeIcon : inactiveIcon,
-                    key: ValueKey('$itemIndex-$selected'),
-                    size: 29,
+                    size: 22,
                     color: selected ? AppColors.primary : AppColors.icon,
                   ),
-                ),
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected ? AppColors.primary : AppColors.textSecondary,
+                      fontSize: 9,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

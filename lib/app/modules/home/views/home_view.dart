@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/modules/home/controllers/home_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/custom_card_normal.dart';
@@ -117,7 +118,7 @@ class HomeView extends GetView<HomeController> {
                       crossAxisCount: 3,
                       crossAxisSpacing: 8,
                       mainAxisSpacing: 10,
-                      mainAxisExtent: 210,
+                      mainAxisExtent: 236,
                     ),
                     itemCount: controller.genreComics.length +
                         (controller.isGenreLoadingMore.value ? 1 : 0),
@@ -139,6 +140,8 @@ class HomeView extends GetView<HomeController> {
                           chapter: comic.chapter,
                           imageUrl: comic.image,
                           type: comic.type,
+                          rating: comic.rating,
+                          status: comic.status ?? '',
                         ),
                       );
                     },
@@ -160,7 +163,7 @@ class HomeView extends GetView<HomeController> {
         children: [
           SizedBox(
             width: double.infinity,
-            height: 374,
+            height: 404,
             child: PageView.builder(
               controller: controller.pageController,
               itemCount: controller.heroComics.length,
@@ -168,12 +171,10 @@ class HomeView extends GetView<HomeController> {
               itemBuilder: (context, index) {
                 final comic = controller.heroComics[index];
                 return ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                    bottom: Radius.circular(28),
-                  ),
+                  borderRadius: BorderRadius.circular(28),
                   child: SizedBox(
                     width: double.infinity,
-                    height: 374,
+                    height: 404,
                     child: Stack(
                     children: [
                       Positioned.fill(
@@ -202,72 +203,73 @@ class HomeView extends GetView<HomeController> {
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                               colors: [
-                                Colors.black.withValues(alpha: 0.12),
-                                Colors.transparent,
-                                AppColors.background.withValues(alpha: 0.72),
-                                AppColors.background,
+                                Colors.black.withValues(alpha: 0.28),
+                                Colors.black.withValues(alpha: 0.02),
+                                Colors.black.withValues(alpha: 0.72),
+                                Colors.black.withValues(alpha: 0.94),
                               ],
-                              stops: const [0.0, 0.28, 0.72, 1.0],
+                              stops: const [0.0, 0.25, 0.66, 1.0],
                             ),
                           ),
                         ),
                       ),
                       Positioned(
+                        top: 16,
+                        right: 16,
+                        child: _heroBadge(Icons.auto_awesome_rounded, 'اختيار اليوم'.tr),
+                      ),
+                      Positioned(
                         left: 0,
                         right: 0,
-                        bottom: 16,
+                        bottom: 18,
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 40),
+                          padding: const EdgeInsets.symmetric(horizontal: 22),
                           child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(alpha: 0.88),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  'اختيار اليوم'.tr,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 10),
                               if ((comic['subtitle'] ?? '').trim().isNotEmpty)
                                 Text(
-                                  comic['subtitle']!.tr.toUpperCase(),
-                                  style: TextStyle(
-                                    color: AppColors.textSecondary.withValues(alpha: 0.8),
+                                  'الفصل@value'.trParams({'value': comic['subtitle']!}),
+                                  style: const TextStyle(
+                                    color: Colors.white70,
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
                               Text(
                                 comic['title']!.tr,
-                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.start,
                                 style: TextStyle(
-                                  color: AppColors.textPrimary,
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  fontSize: 25,
+                                  height: 1.18,
+                                  fontWeight: FontWeight.w900,
                                 ),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 7,
+                                runSpacing: 7,
+                                children: [
+                                  if ((comic['rating'] ?? '').trim().isNotEmpty)
+                                    _heroBadge(Icons.star_rounded, comic['rating']!, accent: const Color(0xfff3c45c)),
+                                  if ((comic['status'] ?? '').trim().isNotEmpty)
+                                    _heroBadge(Icons.circle, localizeContentStatus(comic['status']!), dot: true),
+                                  if ((comic['releaseDate'] ?? '').trim().isNotEmpty)
+                                    _heroBadge(Icons.update_rounded, comic['releaseDate']!.split('T').first),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
                               SizedBox(
-                                width: 184,
-                                child: OutlinedButton(
+                                width: double.infinity,
+                                child: FilledButton.icon(
                                   onPressed: () => Get.toNamed(
                                       Routes.COMIC_DETAIL,
                                       arguments: comic['comicId']),
-                                  style: OutlinedButton.styleFrom(),
-                                  child: Text(
-                                    'اقرأ الآن'.tr,
-                                  ),
+                                  icon: const Icon(Icons.menu_book_rounded, size: 18),
+                                  label: Text('اقرأ الآن'.tr),
                                 ),
                               ),
                             ],
@@ -300,6 +302,24 @@ class HomeView extends GetView<HomeController> {
       );
     });
   }
+
+  Widget _heroBadge(IconData icon, String text, {Color accent = Colors.white, bool dot = false}) =>
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.42),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: dot ? 8 : 14, color: accent),
+            const SizedBox(width: 5),
+            Text(text, style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+          ],
+        ),
+      );
 
   Widget _buildHeroImageSkeleton() {
     return Shimmer.fromColors(
@@ -525,7 +545,7 @@ class KomikCardsSection extends GetView<HomeController> {
             crossAxisCount: 3,
             childAspectRatio: 0.75,
             crossAxisSpacing: 8,
-            mainAxisExtent: 216,
+            mainAxisExtent: 240,
           ),
           itemCount: terbaruComics.length,
           itemBuilder: (context, index) {
@@ -541,6 +561,8 @@ class KomikCardsSection extends GetView<HomeController> {
                 imageUrl: comic.image,
                 type: comic.type,
                 releaseDate: comic.latestChapterDate,
+                rating: comic.rating,
+                status: comic.status ?? '',
               ),
             );
           },

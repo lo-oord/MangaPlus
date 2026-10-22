@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/services/bookmark_state_service.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 
@@ -11,6 +12,8 @@ class CustomCardNormal extends StatelessWidget {
   final String imageUrl;
   final String? type;
   final String releaseDate;
+  final String rating;
+  final String status;
   final String? comicId;
 
   const CustomCardNormal({
@@ -20,6 +23,8 @@ class CustomCardNormal extends StatelessWidget {
     required this.imageUrl,
     this.type,
     this.releaseDate = '',
+    this.rating = '',
+    this.status = '',
     this.comicId,
   });
 
@@ -148,6 +153,31 @@ class CustomCardNormal extends StatelessWidget {
             ),
           ),
         ),
+        if (rating.trim().isNotEmpty || status.trim().isNotEmpty) ...[
+          const SizedBox(height: 5),
+          SizedBox(
+            width: 120,
+            child: Row(
+              children: [
+                if (rating.trim().isNotEmpty) ...[
+                  const Icon(Icons.star_rounded, size: 13, color: Color(0xfff2b94b)),
+                  const SizedBox(width: 2),
+                  Text(rating.trim(), style: TextStyle(color: AppColors.textPrimary, fontSize: 10, fontWeight: FontWeight.w800)),
+                  if (status.trim().isNotEmpty) const SizedBox(width: 7),
+                ],
+                if (status.trim().isNotEmpty)
+                  Expanded(
+                    child: Text(
+                      localizeContentStatus(status),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: _statusColor(status), fontSize: 9.5, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
         if (relativeDate.isNotEmpty) ...[
           const SizedBox(height: 3),
           SizedBox(
@@ -166,5 +196,12 @@ class CustomCardNormal extends StatelessWidget {
         ],
       ],
     );
+  }
+
+  Color _statusColor(String value) {
+    final statusText = localizeContentStatus(value).toLowerCase();
+    if (statusText == 'مستمر'.tr.toLowerCase() || statusText == 'ongoing') return const Color(0xff43b581);
+    if (statusText == 'متوقف مؤقتًا'.tr.toLowerCase() || statusText == 'paused' || statusText == 'hiatus') return const Color(0xffe5a947);
+    return AppColors.textSecondary;
   }
 }

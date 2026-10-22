@@ -330,7 +330,7 @@ class TeamXSource extends ContentSource {
       queryParameters: query.isEmpty ? null : query,
     );
     final document = await _document(uri.toString());
-    final items = document.querySelectorAll('div.listupd div.bsx').map((box) {
+    final rawItems = document.querySelectorAll('div.listupd div.bsx').map((box) {
       final anchor = box.querySelector('a');
       final title = (anchor?.attributes['title'] ?? '').trim().isNotEmpty
           ? anchor!.attributes['title']!.trim()
@@ -340,6 +340,7 @@ class TeamXSource extends ContentSource {
           .replaceFirst('thumbnail_', '');
       return _seriesItem(title, seriesUrl, image);
     }).where(_validItem).toList();
+    final items = await _withSeriesBriefs(rawItems);
     final lastPage = document
         .querySelectorAll('ul.pagination a.page-link')
         .map((anchor) => int.tryParse(mangaHtmlText(anchor)))

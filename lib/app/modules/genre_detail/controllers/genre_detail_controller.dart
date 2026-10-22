@@ -24,11 +24,16 @@ class GenreDetailController extends GetxController {
       } else {
         isLoadingMore(true);
       }
-      final data = await _genreService.fetchGenreDetail(genre, page: page);
+      final data = await _genreService.fetchGenreDetail(
+        genre,
+        page: page,
+        genreName: genreTitle.value,
+      );
       if (page == 1) {
         comicsList.assignAll(data.comicsList);
       } else {
-        comicsList.addAll(data.comicsList);
+        final ids = comicsList.map((comic) => comic.comicId).toSet();
+        comicsList.addAll(data.comicsList.where((comic) => ids.add(comic.comicId)));
       }
       currentPage.value = data.page ?? page;
       hasMoreData.value = data.pagination?.nextPage != null;

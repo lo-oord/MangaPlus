@@ -61,7 +61,7 @@ class GenreDetailView extends GetView<GenreDetailController> {
               crossAxisCount: 3,
               crossAxisSpacing: 8,
               mainAxisSpacing: 10,
-              mainAxisExtent: 210,
+              mainAxisExtent: 236,
             ),
             itemCount: controller.comicsList.length +
                 (controller.isLoadingMore.value ? 1 : 0),
@@ -82,6 +82,8 @@ class GenreDetailView extends GetView<GenreDetailController> {
                   chapter: comic.chapter,
                   imageUrl: comic.image,
                   type: comic.type,
+                  rating: comic.rating,
+                  status: comic.status ?? '',
                 ),
               );
             },

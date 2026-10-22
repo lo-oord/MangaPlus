@@ -13,6 +13,7 @@ class MangaCloudSource extends ContentSource {
   static const _firestore =
       'https://firestore.googleapis.com/v1/projects/ninja-brew-crew-4d79c/databases/(default)/documents/cloudmangas';
   static final http.Client _client = http.Client();
+  final Map<int, String> _catalogPageTokens = {1: ''};
 
   @override
   String get id => 'manga_cloud';
@@ -62,8 +63,37 @@ class MangaCloudSource extends ContentSource {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> latest({int page = 1}) =>
-      _allManga(orderBy: 'updatedAt desc');
+  Future<List<Map<String, dynamic>>> latest({int page = 1}) async {
+    final safePage = page < 1 ? 1 : page;
+    if (safePage == 1) {
+      _catalogPageTokens.clear();
+      _catalogPageTokens[1] = '';
+    }
+    final token = _catalogPageTokens[safePage];
+    if (token == null) return const [];
+    final response = await _get(_firestore, query: {
+      'pageSize': '30',
+      'key': _apiKey,
+      'orderBy': 'updatedAt desc',
+      if (token.isNotEmpty) 'pageToken': token,
+    });
+    final decoded = jsonDecode(utf8.decode(response.bodyBytes, allowMalformed: true));
+    if (decoded is! Map) return const [];
+    final documents = decoded['documents'];
+    final items = documents is List
+        ? documents.whereType<Map>().map((document) {
+            final id = '${document['name'] ?? ''}'.split('/').last;
+            return _itemFromFields(id, _documentFields(document));
+          }).where((item) => '${item['url'] ?? ''}'.isNotEmpty).toList(growable: false)
+        : const <Map<String, dynamic>>[];
+    final nextToken = '${decoded['nextPageToken'] ?? ''}';
+    if (nextToken.isNotEmpty) {
+      _catalogPageTokens[safePage + 1] = nextToken;
+    } else {
+      _catalogPageTokens.remove(safePage + 1);
+    }
+    return items;
+  }
 
   @override
   Future<List<Map<String, dynamic>>> nextPage({String query = '', int page = 2}) =>
