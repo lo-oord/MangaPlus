@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:mangaplus/app/data/models/bookmark.dart';
 import 'package:mangaplus/app/data/models/comic_detail.dart';
 import 'package:mangaplus/app/data/models/downloaded_chapter.dart';
+import 'package:mangaplus/app/data/models/download_task.dart';
 import 'package:mangaplus/app/data/models/history.dart';
 import 'package:mangaplus/app/data/services/app_data_service.dart';
 import 'package:mangaplus/app/data/services/account_gate_service.dart';
@@ -49,6 +50,7 @@ class ComicDetailController extends GetxController {
   final isSelectionMode = false.obs;
   final isBulkDownloading = false.obs;
   final sortAscending = false.obs;
+  final chapterFilter = 'all'.obs;
   final historyRevision = 0.obs;
   final bookmarkRevision = 0.obs;
   final downloadRevision = 0.obs;
@@ -178,6 +180,41 @@ class ComicDetailController extends GetxController {
   }
 
   void toggleSortOrder() => sortAscending.toggle();
+
+  void setChapterFilter(String filter) => chapterFilter.value = filter;
+
+  int get downloadTaskCount {
+    if (!Get.isRegistered<DownloadManagerService>()) return 0;
+    return Get.find<DownloadManagerService>().tasks.length;
+  }
+
+  DownloadTask? downloadTaskForChapter(String chapterId) {
+    if (!Get.isRegistered<DownloadManagerService>()) return null;
+    final tasks = Get.find<DownloadManagerService>().tasks;
+    for (final task in tasks.reversed) {
+      if (task.status != DownloadTaskStatus.cancelled &&
+          task.chapters.any((chapter) => chapter['id'] == chapterId)) {
+        return task;
+      }
+    }
+    return null;
+  }
+
+  Future<void> retryChapterDownload(String chapterId) async {
+    if (!Get.isRegistered<DownloadManagerService>()) return;
+    final task = downloadTaskForChapter(chapterId);
+    if (task != null && task.failedChapterIds.contains(chapterId)) {
+      await Get.find<DownloadManagerService>().retry(task.id);
+    }
+  }
+
+  Future<void> resumeChapterDownload(String chapterId) async {
+    if (!Get.isRegistered<DownloadManagerService>()) return;
+    final task = downloadTaskForChapter(chapterId);
+    if (task != null && task.status == DownloadTaskStatus.paused) {
+      await Get.find<DownloadManagerService>().resume(task.id);
+    }
+  }
 
   bool isBookmarked(String comicId) =>
       (_storage.read<Map<String, dynamic>>('bookmarks') ?? {}).containsKey(comicId);
