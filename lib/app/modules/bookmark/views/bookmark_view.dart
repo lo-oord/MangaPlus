@@ -135,15 +135,16 @@ class BookmarkView extends GetView<BookmarkController> {
                     ),
                     const SizedBox(height: 8),
 
-                    // Type
-                    Text(
-                      localizeContentType(bookmark.type),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
+                    if (bookmark.type.toLowerCase() != 'novel') ...[
+                      Text(
+                        localizeContentType(bookmark.type),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
+                      const SizedBox(height: 8),
+                    ],
 
                     // Status or other comic information if needed
                     // You can add additional fields here as needed

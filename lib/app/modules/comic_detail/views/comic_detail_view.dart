@@ -845,18 +845,20 @@ class _ChapterListState extends State<_ChapterList> {
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                       ),
-                      IconButton(
-                        tooltip: selecting ? 'إلغاء التحديد'.tr : 'تحديد الفصول'.tr,
-                        onPressed: widget.controller.toggleSelectionMode,
-                        icon: Icon(
-                          selecting ? Icons.close_rounded : Icons.checklist_rounded,
-                          color: selecting ? AppColors.primary : AppColors.icon,
+                      if (widget.comic.type.toLowerCase() != 'novel')
+                        IconButton(
+                          tooltip: selecting ? 'إلغاء التحديد'.tr : 'تحديد الفصول'.tr,
+                          onPressed: widget.controller.toggleSelectionMode,
+                          icon: Icon(
+                            selecting ? Icons.close_rounded : Icons.checklist_rounded,
+                            color: selecting ? AppColors.primary : AppColors.icon,
+                          ),
+                          visualDensity: VisualDensity.compact,
                         ),
-                        visualDensity: VisualDensity.compact,
-                      ),
                     ],
                   ),
-                  if (selecting || selectedCount > 0) ...[
+                  if (widget.comic.type.toLowerCase() != 'novel' &&
+                      (selecting || selectedCount > 0)) ...[
                     Container(
                       margin: const EdgeInsets.only(bottom: 10),
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1082,7 +1084,9 @@ class _ChapterListState extends State<_ChapterList> {
             _openChapter(context, chapter);
           }
         },
-        onLongPress: () => widget.controller.toggleChapterSelection(chapter),
+        onLongPress: widget.comic.type.toLowerCase() == 'novel'
+            ? null
+            : () => widget.controller.toggleChapterSelection(chapter),
         leading: widget.controller.isSelectionMode.value
             ? Icon(
                 selected ? Icons.check_circle_rounded : Icons.circle_outlined,
@@ -1201,7 +1205,7 @@ class _ChapterListState extends State<_ChapterList> {
                 onPressed: () => _confirmDeleteChapter(chapter),
                 icon: Icon(Icons.delete_outline_rounded, color: AppColors.error),
               )
-            else
+            else if (widget.comic.type.toLowerCase() != 'novel')
               IconButton(
                 tooltip: 'تنزيل الفصل'.tr,
                 onPressed: () => widget.controller.downloadChapter(

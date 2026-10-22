@@ -12,6 +12,22 @@ String mangaHtmlToText(String? html) {
       .trim();
 }
 
+String mangaHtmlToReadableText(String? html) {
+  if (html == null || html.trim().isEmpty) return '';
+  final document = html_parser.parse(html);
+  document.querySelectorAll('script, style, noscript').forEach((node) => node.remove());
+  for (final node in document.querySelectorAll(
+      'p, br, div, blockquote, h1, h2, h3, h4, li')) {
+    node.appendText('\n');
+  }
+  return (document.body?.text ?? html)
+      .replaceAll('\u00a0', ' ')
+      .replaceAll(RegExp(r'[\t\r ]+'), ' ')
+      .replaceAll(RegExp(r' *\n *'), '\n')
+      .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+      .trim();
+}
+
 String mangaAbsoluteUrl(String baseUrl, String? raw) {
   final value = raw?.trim() ?? '';
   if (value.isEmpty || value.startsWith('data:') || value.startsWith('javascript:')) {

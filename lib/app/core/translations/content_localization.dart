@@ -5,6 +5,10 @@ String localizeContentType(String value) {
     case 'manga':
     case 'مانجا':
       return 'مانجا'.tr;
+    case 'novel':
+    case 'light novel':
+    case 'رواية':
+      return 'رواية'.tr;
     case 'مانhwa':
     case 'manhwa':
     case 'مانهوا':

@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/data/models/chapter.dart';
 import 'package:mangaplus/app/modules/chapter/controllers/chapter_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
@@ -48,6 +49,16 @@ class ChapterView extends GetView<ChapterController> {
         );
       }
       final chapter = controller.chapterData.value.chapter;
+      if (controller.isNovel) {
+        if (chapter.content.trim().isEmpty) {
+          return BrandState(
+            title: 'لا يوجد محتوى نصي متاح'.tr,
+            actionLabel: 'إعادة المحاولة'.tr,
+            onAction: () => controller.fetchChapter(controller.chapterId),
+          );
+        }
+        return _buildNovelContent(context, chapter);
+      }
       if (chapter.images.isEmpty) {
         return BrandState(
           title: 'لا توجد صور متاحة'.tr,
@@ -129,6 +140,88 @@ class ChapterView extends GetView<ChapterController> {
     });
   }
 
+  Widget _buildNovelContent(BuildContext context, DataChapter chapter) {
+    return Obx(() {
+      final background = _novelBackgroundColor(controller.novelBackground.value);
+      final foreground = _novelTextColor(controller.novelBackground.value);
+      final family = controller.novelFontFamily.value;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) controller.syncScrollController();
+      });
+      return ColoredBox(
+        color: background,
+        child: GestureDetector(
+          onTap: controller.toggleNavigationVisibility,
+          behavior: HitTestBehavior.opaque,
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (notification) {
+              if (notification is ScrollUpdateNotification ||
+                  notification is ScrollEndNotification) {
+                controller.updateNovelProgress(
+                  notification.metrics.pixels,
+                  notification.metrics.maxScrollExtent,
+                );
+                controller.handleScroll(notification.metrics);
+              }
+              if (notification is ScrollEndNotification) {
+                controller.persistScrollOffset(notification.metrics.pixels);
+              }
+              return false;
+            },
+            child: SingleChildScrollView(
+              controller: controller.scrollController,
+              padding: EdgeInsets.fromLTRB(
+                24,
+                MediaQuery.paddingOf(context).top + 28,
+                24,
+                MediaQuery.paddingOf(context).bottom + 110,
+              ),
+              child: SelectableText(
+                chapter.content,
+                textAlign: controller.readingDirection.value == 'rtl'
+                    ? TextAlign.right
+                    : TextAlign.left,
+                style: TextStyle(
+                  color: foreground,
+                  fontSize: controller.novelFontSize.value,
+                  fontFamily: family == 'default' ? null : family,
+                  height: 1.85,
+                  letterSpacing: 0.05,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
+  Color _novelBackgroundColor(String value) {
+    switch (value) {
+      case 'light':
+        return const Color(0xfffafafa);
+      case 'sepia':
+        return const Color(0xfff1e6d0);
+      case 'dark':
+        return const Color(0xff151515);
+      default:
+        return AppColors.background;
+    }
+  }
+
+  Color _novelTextColor(String value) {
+    switch (value) {
+      case 'light':
+        return const Color(0xff242424);
+      case 'sepia':
+        return const Color(0xff453b2d);
+      case 'dark':
+        return const Color(0xffe5e2dc);
+      default:
+        return AppColors.textPrimary;
+    }
+  }
+
   void _handlePagedTap(
     BuildContext context,
     TapUpDetails details,
@@ -187,6 +280,11 @@ class ChapterView extends GetView<ChapterController> {
   Widget _buildFloatingNavigation() {
     return Obx(() {
       final chapter = controller.chapterData.value.chapter;
+      final progress = controller.isNovel
+          ? controller.novelProgress.value
+          : chapter.images.isEmpty
+              ? 0.0
+              : (controller.currentPage.value + 1) / chapter.images.length;
       return Positioned(
         bottom: 0,
         left: 0,
@@ -248,7 +346,9 @@ class ChapterView extends GetView<ChapterController> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '${controller.currentPage.value + 1} / ${chapter.images.length}',
+                              controller.isNovel
+                                  ? '${(progress * 100).round()}%'
+                                  : '${controller.currentPage.value + 1} / ${chapter.images.length}',
                               style: TextStyle(
                                 color: AppColors.textSecondary,
                                 fontSize: 11,
@@ -258,10 +358,7 @@ class ChapterView extends GetView<ChapterController> {
                             ClipRRect(
                               borderRadius: BorderRadius.circular(3),
                               child: LinearProgressIndicator(
-                                value: chapter.images.isEmpty
-                                    ? 0
-                                    : (controller.currentPage.value + 1) /
-                                        chapter.images.length,
+                                value: progress,
                                 minHeight: 2.5,
                                 backgroundColor: AppColors.divider,
                                 color: AppColors.primary,
@@ -326,6 +423,10 @@ class ChapterView extends GetView<ChapterController> {
   }
 
   Future<void> _openReaderSettings() async {
+    if (controller.isNovel) {
+      await _openNovelReaderSettings();
+      return;
+    }
     await Get.bottomSheet(
       Obx(
         () => SafeArea(
@@ -451,6 +552,134 @@ class ChapterView extends GetView<ChapterController> {
       label: Text(label),
       selected: selected,
       onSelected: (_) => controller.setReadingDirection(value),
+      selectedColor: AppColors.primary.withValues(alpha: 0.22),
+      labelStyle: TextStyle(
+        color: selected ? AppColors.primary : AppColors.textSecondary,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+
+  Future<void> _openNovelReaderSettings() async {
+    await Get.bottomSheet(
+      Obx(() => SafeArea(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 10, 18, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 42,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppColors.divider,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'إعدادات الرواية'.tr,
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Text('حجم الخط'.tr,
+                        style: TextStyle(color: AppColors.textSecondary)),
+                    Row(
+                      children: [
+                        IconButton(
+                          onPressed: () => controller.setNovelFontSize(
+                              controller.novelFontSize.value - 1),
+                          icon: const Icon(Icons.remove_rounded),
+                        ),
+                        Expanded(
+                          child: Slider(
+                            value: controller.novelFontSize.value
+                                .clamp(14.0, 30.0)
+                                .toDouble(),
+                            min: 14,
+                            max: 30,
+                            divisions: 16,
+                            label: '${controller.novelFontSize.value.round()}',
+                            onChanged: controller.setNovelFontSize,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => controller.setNovelFontSize(
+                              controller.novelFontSize.value + 1),
+                          icon: const Icon(Icons.add_rounded),
+                        ),
+                      ],
+                    ),
+                    Center(
+                      child: Text(
+                        'معاينة للنص'.tr,
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: controller.novelFontSize.value,
+                          fontFamily: controller.novelFontFamily.value == 'default'
+                              ? null
+                              : controller.novelFontFamily.value,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Text('نوع الخط'.tr,
+                        style: TextStyle(color: AppColors.textSecondary)),
+                    const SizedBox(height: 7),
+                    Wrap(
+                      spacing: 7,
+                      children: [
+                        _novelChoice('default', 'افتراضي'.tr),
+                        _novelChoice('serif', 'نسخي'.tr),
+                        _novelChoice('sans-serif', 'بسيط'.tr),
+                        _novelChoice('monospace', 'أحادي المسافة'.tr),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Text('خلفية القراءة'.tr,
+                        style: TextStyle(color: AppColors.textSecondary)),
+                    const SizedBox(height: 7),
+                    Wrap(
+                      spacing: 7,
+                      children: [
+                        _novelChoice('app', 'حسب الثيم'.tr),
+                        _novelChoice('light', 'فاتح'.tr),
+                        _novelChoice('sepia', 'ورقي'.tr),
+                        _novelChoice('dark', 'داكن'.tr),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )),
+      backgroundColor: AppColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      isScrollControlled: true,
+    );
+  }
+
+  Widget _novelChoice(String value, String label) {
+    final selected = controller.novelFontFamily.value == value ||
+        controller.novelBackground.value == value;
+    final isFont = const {'default', 'serif', 'sans-serif', 'monospace'}
+        .contains(value);
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => isFont
+          ? controller.setNovelFontFamily(value)
+          : controller.setNovelBackground(value),
       selectedColor: AppColors.primary.withValues(alpha: 0.22),
       labelStyle: TextStyle(
         color: selected ? AppColors.primary : AppColors.textSecondary,

@@ -3,7 +3,7 @@ import 'manga_html_utils.dart';
 import 'source_base.dart';
 import 'source_values.dart';
 
-/// Read-only API adapter for Azora Arabic manga (novel records are filtered out).
+/// Read-only adapter for Azora manga and text novels.
 class AzoraSource extends ContentSource {
   @override
   String get id => 'azora';
@@ -19,7 +19,7 @@ class AzoraSource extends ContentSource {
   @override
   Future<List<Map<String, dynamic>>> search(String query) async {
     if (query.trim().isEmpty) return const [];
-    return _query(query: query.trim(), page: 1);
+    return _query(query: query.trim(), page: 1, includeNovels: true);
   }
 
   @override
@@ -28,9 +28,17 @@ class AzoraSource extends ContentSource {
 
   @override
   Future<List<Map<String, dynamic>>> nextPage({String query = '', int page = 2}) =>
-      _query(query: query.trim(), page: page < 1 ? 1 : page);
+      _query(
+        query: query.trim(),
+        page: page < 1 ? 1 : page,
+        includeNovels: query.trim().isNotEmpty,
+      );
 
-  Future<List<Map<String, dynamic>>> _query({required String query, required int page}) async {
+  Future<List<Map<String, dynamic>>> _query({
+    required String query,
+    required int page,
+    bool includeNovels = false,
+  }) async {
     final response = await AzoraApi.getJson('query', {
       'page': '$page',
       'perPage': '18',
@@ -40,11 +48,34 @@ class AzoraSource extends ContentSource {
     });
     final rawPosts = response['posts'];
     if (rawPosts is! List) return const [];
-    return rawPosts
+    final posts = rawPosts
         .whereType<Map>()
         .map((raw) => Map<String, dynamic>.from(raw))
-        .where((raw) => !_isNovel(raw))
-        .map(_series)
+        .toList(growable: false);
+    if (!includeNovels) {
+      return posts
+          .where((raw) => !_isNovel(raw))
+          .map(_series)
+          .where((entry) => (entry['title'] as String).trim().isNotEmpty)
+          .toList(growable: false);
+    }
+
+    final flags = List<bool>.filled(posts.length, false);
+    var cursor = 0;
+    Future<void> worker() async {
+      while (true) {
+        final index = cursor++;
+        if (index >= posts.length) return;
+        flags[index] = await AzoraApi.isNovelPost(posts[index]);
+      }
+    }
+
+    final workerCount = posts.length < 4 ? posts.length : 4;
+    await Future.wait(List.generate(workerCount, (_) => worker()));
+    return posts
+        .asMap()
+        .entries
+        .map((entry) => _series({...entry.value, 'isNovel': flags[entry.key]}))
         .where((entry) => (entry['title'] as String).trim().isNotEmpty)
         .toList(growable: false);
   }
@@ -61,8 +92,6 @@ class AzoraSource extends ContentSource {
     final post = response['post'];
     if (post is! Map) throw Exception('Azora: لم يتم العثور على المانجا.');
     final raw = Map<String, dynamic>.from(post);
-    if (_isNovel(raw)) throw Exception('Azora: تم استبعاد سجل الرواية من قسم المانجا.');
-
     final id = (raw['id'] ?? uri?.queryParameters['id'] ?? '').toString();
     if (id.isEmpty) throw Exception('Azora: لا يوجد معرّف للسلسلة.');
     final chapterResponse = await AzoraApi.getJson('chapters', {'postId': id});
@@ -71,7 +100,11 @@ class AzoraSource extends ContentSource {
     final chapters = rawChapters is List
         ? rawChapters.whereType<Map>().map((entry) => Map<String, dynamic>.from(entry))
             .where((entry) => !_isLocked(entry))
-            .map((entry) => _chapter(entry, seriesSlug: slug))
+            .map((entry) => _chapter(
+                  entry,
+                  seriesSlug: slug,
+                  isNovel: _isNovel(raw),
+                ))
             .where((entry) => (entry['url'] as String).isNotEmpty)
             .toList(growable: false)
         : <Map<String, dynamic>>[];
@@ -131,6 +164,66 @@ class AzoraSource extends ContentSource {
     };
   }
 
+  @override
+  Future<Map<String, dynamic>?> chapterContent(String url) async {
+    final uri = Uri.tryParse(url);
+    final rawId = uri?.scheme == 'azora'
+        ? (uri!.queryParameters['id'] ?? '')
+        : (uri?.queryParameters['chapterId'] ?? '');
+    if (rawId.isEmpty || int.tryParse(rawId) == null) return null;
+
+    final response = await AzoraApi.getJson('chapter', {'chapterId': rawId});
+    final chapter = response['chapter'];
+    if (chapter is! Map) throw Exception('Azora: لم يُعثر على الفصل النصي.');
+    final raw = Map<String, dynamic>.from(chapter);
+    final mangaPost = raw['mangaPost'];
+    final isNovelChapter = _isNovel(raw) ||
+        (mangaPost is Map && _isNovel(mangaPost)) ||
+        uri?.queryParameters['type'] == 'novel';
+    if (!isNovelChapter) return null;
+    if (_isLocked(raw)) throw Exception('Azora: هذا الفصل مقفول أو غير متاح من المصدر.');
+
+    final postId =
+        '${raw['mangaPostId'] ?? (mangaPost is Map ? mangaPost['id'] : '')}';
+    final seriesSlug = mangaPost is Map
+        ? '${mangaPost['slug'] ?? ''}'
+        : (uri?.queryParameters['series'] ?? '');
+    final chapterResponse = postId.isEmpty
+        ? const <String, dynamic>{}
+        : await AzoraApi.getJson('chapters', {'postId': postId});
+    final chapterContainer = chapterResponse['post'];
+    final rawChapters = chapterContainer is Map ? chapterContainer['chapters'] : null;
+    final chapterRecords = rawChapters is List
+        ? rawChapters
+            .whereType<Map>()
+            .map((entry) => Map<String, dynamic>.from(entry))
+            .where((entry) => !_isLocked(entry))
+            .toList(growable: false)
+        : <Map<String, dynamic>>[];
+    final chapterItems = chapterRecords
+        .map((entry) => _chapter(entry, seriesSlug: seriesSlug, isNovel: true))
+        .where((entry) => (entry['url'] as String).isNotEmpty)
+        .toList(growable: false);
+    final currentIndex = chapterRecords.indexWhere(
+      (entry) => '${entry['id'] ?? ''}' == rawId,
+    );
+    final previous = currentIndex >= 0 && currentIndex + 1 < chapterItems.length
+        ? chapterItems[currentIndex + 1]['url']
+        : null;
+    final next = currentIndex > 0 ? chapterItems[currentIndex - 1]['url'] : null;
+    final chapterNumber = raw['number'] ?? uri?.queryParameters['number'] ?? '';
+    final title = '${raw['title'] ?? ''}'.trim();
+    return {
+      'title': title.isEmpty ? 'الفصل $chapterNumber' : title,
+      'chapter_number': chapterNumber,
+      'content': mangaHtmlToReadableText('${raw['content'] ?? ''}'),
+      'previousChapter': previous,
+      'nextChapter': next,
+      'chapters': chapterItems,
+      'url': url,
+    };
+  }
+
   Map<String, dynamic> _series(Map<String, dynamic> raw) {
     final slug = (raw['slug'] ?? '').toString();
     final id = (raw['id'] ?? '').toString();
@@ -147,11 +240,13 @@ class AzoraSource extends ContentSource {
       title: (raw['postTitle'] ?? raw['title'] ?? '').toString(),
       url: _seriesUrl(slug, id),
       image: (raw['featuredImage'] ?? '').toString(),
-      type: SourceValues.type([
-        raw['seriesType'],
-        raw['type'],
-        raw['postType'],
-      ]),
+      type: _isNovel(raw)
+          ? 'novel'
+          : SourceValues.type([
+              raw['seriesType'],
+              raw['type'],
+              raw['postType'],
+            ]),
       genres: genres,
       description: mangaHtmlToText((raw['postContent'] ?? '').toString()),
       rating: SourceValues.rating(raw),
@@ -170,11 +265,16 @@ class AzoraSource extends ContentSource {
       });
   }
 
-  Map<String, dynamic> _chapter(Map<String, dynamic> raw, {required String seriesSlug}) {
+  Map<String, dynamic> _chapter(
+    Map<String, dynamic> raw, {
+    required String seriesSlug,
+    bool isNovel = false,
+  }) {
     final id = (raw['id'] ?? '').toString();
     final number = raw['number'] ?? mangaChapterNumber((raw['title'] ?? '').toString()) ?? 0;
     final slug = (raw['slug'] ?? '').toString();
     final title = (raw['title'] ?? '').toString().trim();
+    final contentType = isNovel ? 'novel' : 'manga';
     final label = title.isEmpty ? 'الفصل $number' : 'الفصل $number - $title';
     final release = (raw['createdAt'] ?? '').toString();
     return {
@@ -188,6 +288,7 @@ class AzoraSource extends ContentSource {
       'url': 'azora://chapter?id=${Uri.encodeQueryComponent(id)}'
           '&number=${Uri.encodeQueryComponent(number.toString())}'
           '&slug=${Uri.encodeQueryComponent(slug)}'
+          '&type=$contentType'
           '&series=${Uri.encodeQueryComponent(seriesSlug)}',
     };
   }

@@ -66,6 +66,17 @@ class SearchView extends GetView<search_controller.SearchController> {
               ),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Obx(() => Wrap(
+                  spacing: 8,
+                  children: [
+                    _filterChoice('all', 'الكل'.tr),
+                    _filterChoice('manga', 'مانجا'.tr),
+                    _filterChoice('novel', 'رواية'.tr),
+                  ],
+                )),
+          ),
           Expanded(
             child: Obx(() {
               if (controller.query.value.isEmpty) {
@@ -84,7 +95,7 @@ class SearchView extends GetView<search_controller.SearchController> {
                 }
                 return _comicList(
                   title: 'اقتراحات'.tr,
-                  items: controller.suggestions,
+                  items: controller.visibleSuggestions,
                 );
               }
               if (controller.isLoading.value && controller.comicsList.isEmpty) {
@@ -110,6 +121,23 @@ class SearchView extends GetView<search_controller.SearchController> {
         ],
       ),
     ));
+  }
+
+  Widget _filterChoice(String value, String label) {
+    final selected = controller.contentFilter.value == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => controller.setContentFilter(value),
+      selectedColor: AppColors.primary.withValues(alpha: 0.18),
+      side: BorderSide(
+        color: selected ? AppColors.primary : AppColors.divider,
+      ),
+      labelStyle: TextStyle(
+        color: selected ? AppColors.primary : AppColors.textSecondary,
+        fontWeight: FontWeight.w700,
+      ),
+    );
   }
 
   Widget _comicList({
@@ -168,9 +196,13 @@ class _SearchComicTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNovel = const {'novel', 'light novel', 'رواية'}
+        .contains(comic.type.trim().toLowerCase());
     final genreText = comic.genres.isNotEmpty
         ? comic.genres.take(3).map(localizeContentGenre).join(' • ')
-        : localizeContentType(comic.type);
+        : isNovel
+            ? ''
+            : localizeContentType(comic.type);
     final rawStatus = comic.status?.trim() ?? '';
     final statusText = rawStatus.isEmpty
         ? 'غير محدد'.tr
@@ -277,17 +309,19 @@ class _SearchComicTile extends StatelessWidget {
                         height: 1.25,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      genreText,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
+                    if (genreText.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        genreText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
+                    ],
                     if (comic.source.trim().isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(

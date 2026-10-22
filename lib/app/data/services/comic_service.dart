@@ -201,6 +201,53 @@ class ComicService {
     );
   }
 
+  Future<ChapterData> fetchNovelChapter(String chapterId) async {
+    final source = MangaSourceRegistry.forUrl(chapterId);
+    if (source == null) throw StateError('لم يتم العثور على مصدر لهذا الفصل.');
+    final raw = await source.chapterContent(chapterId);
+    if (raw == null) throw StateError('${source.name} لم يرجع محتوى الفصل النصي.');
+    final content = '${raw['content'] ?? ''}'.trim();
+    if (content.isEmpty) throw StateError('${source.name} أرجع فصلًا نصيًا فارغًا.');
+    final chapterItems = (raw['chapters'] as List? ?? const [])
+        .whereType<Map>()
+        .map((item) {
+          final reference = _firstChapterReference([
+            item['url'],
+            item['chapterUrl'],
+            item['chapter_url'],
+            item['chapterId'],
+            item['chapter_id'],
+            item['id'],
+          ], baseUrl: chapterId);
+          return ChapterElement(
+            chapterId: reference ?? '',
+            title: '${item['title'] ?? ''}',
+            url: reference ?? '',
+          );
+        })
+        .where((item) => item.chapterId.isNotEmpty)
+        .toList(growable: false);
+    return ChapterData(
+      chapter: DataChapter(
+        chapterId: chapterId,
+        title: '${raw['title'] ?? ''}',
+        images: const [],
+        content: content,
+        previousChapter: _firstChapterReference([
+              raw['previousChapter'],
+              raw['previous_chapter'],
+            ], baseUrl: chapterId) ??
+            '',
+        nextChapter: _firstChapterReference([
+          raw['nextChapter'],
+          raw['next_chapter'],
+        ], baseUrl: chapterId),
+        chapters: chapterItems,
+      ),
+      source: source.name,
+    );
+  }
+
   String? _firstChapterReference(
     Iterable<dynamic> values, {
     String? baseUrl,

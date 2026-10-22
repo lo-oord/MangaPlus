@@ -33,6 +33,11 @@ class ChapterController extends GetxController {
       Map<String, dynamic>.from(Get.arguments as Map);
   late String chapterId = '${arguments['chapterId'] ?? ''}';
   late String currentChapterTitle = '${arguments['chapterTitle'] ?? ''}';
+  bool get isNovel =>
+      '${arguments['comicType'] ?? ''}'.trim().toLowerCase() == 'novel';
+  bool get hasReadableContent => isNovel
+      ? chapterData.value.chapter.content.trim().isNotEmpty
+      : chapterData.value.chapter.images.isNotEmpty;
 
   final chapterData = ChapterData(
     chapter: DataChapter(
@@ -59,6 +64,10 @@ class ChapterController extends GetxController {
   final readingDirection = 'rtl'.obs;
   final continuousNavigation = true.obs;
   final isNavigating = false.obs;
+  final novelFontSize = 19.0.obs;
+  final novelFontFamily = 'default'.obs;
+  final novelBackground = 'app'.obs;
+  final novelProgress = 0.0.obs;
   bool endNoticeShown = false;
   bool _isLoadingChapterNavigation = false;
 
@@ -203,7 +212,9 @@ class ChapterController extends GetxController {
         );
       } else {
         isOffline.value = false;
-        final loaded = await _comicService.fetchChapter(id);
+        final loaded = isNovel
+            ? await _comicService.fetchNovelChapter(id)
+            : await _comicService.fetchChapter(id);
         final fallbackTitle = currentChapterTitle.trim();
         final title = loaded.chapter.title.trim().isEmpty ||
                 loaded.chapter.title.trim() == 'الفصل' ||
@@ -215,6 +226,7 @@ class ChapterController extends GetxController {
             chapterId: loaded.chapter.chapterId,
             title: title,
             images: loaded.chapter.images,
+            content: loaded.chapter.content,
             previousChapter: loaded.chapter.previousChapter,
             nextChapter: loaded.chapter.nextChapter,
             chapters: loaded.chapter.chapters,
@@ -226,7 +238,7 @@ class ChapterController extends GetxController {
       final pageCount = chapterData.value.chapter.images.length;
       if (pageCount > 0) {
         currentPage.value = currentPage.value.clamp(0, pageCount - 1).toInt();
-        if (readerMode.value == 'scroll') {
+        if (isNovel || readerMode.value == 'scroll') {
           _pendingScrollRestore = _restoredScrollOffset;
         }
         final loadedTitle = chapterData.value.chapter.title.trim();
@@ -242,6 +254,9 @@ class ChapterController extends GetxController {
             }
           });
         }
+      } else if (isNovel && chapterData.value.chapter.content.isNotEmpty) {
+        _pendingScrollRestore = _restoredScrollOffset;
+        currentPage.value = 0;
       }
     } catch (error) {
       hasError(true);
@@ -362,6 +377,7 @@ class ChapterController extends GetxController {
       currentChapterTitle = nextTitle;
       currentPage.value = 0;
       _restoredScrollOffset = 0;
+      novelProgress.value = 0;
       if (_scrollController?.hasClients == true) {
         _scrollController!.jumpTo(0);
       }
@@ -370,7 +386,7 @@ class ChapterController extends GetxController {
       }
 
       await fetchChapter(reference);
-      if (hasError.value || chapterData.value.chapter.images.isEmpty) {
+      if (hasError.value || !hasReadableContent) {
         chapterId = previousId;
         currentChapterTitle = previousTitle;
         chapterData.value = previousData;
@@ -538,7 +554,21 @@ class ChapterController extends GetxController {
   void persistScrollOffset(double offset) {
     if (!offset.isFinite || offset < 0) return;
     _restoredScrollOffset = offset;
+    final scroll = _scrollController;
+    if (isNovel && scroll?.hasClients == true) {
+      final maxExtent = scroll!.position.maxScrollExtent;
+      novelProgress.value = maxExtent <= 0
+          ? 0
+          : (offset / maxExtent).clamp(0.0, 1.0).toDouble();
+    }
     unawaited(_persistReaderPosition(currentPage.value, scrollOffset: offset));
+  }
+
+  void updateNovelProgress(double offset, double maxExtent) {
+    if (!isNovel) return;
+    novelProgress.value = maxExtent <= 0
+        ? 0
+        : (offset / maxExtent).clamp(0.0, 1.0).toDouble();
   }
 
   void syncScrollController() {
@@ -549,6 +579,11 @@ class ChapterController extends GetxController {
     final target = targetOffset.clamp(0.0, position.maxScrollExtent).toDouble();
     if ((position.pixels - target).abs() > 1) scroll.jumpTo(target);
     _restoredScrollOffset = target;
+    if (isNovel) {
+      novelProgress.value = position.maxScrollExtent <= 0
+          ? 0
+          : (target / position.maxScrollExtent).clamp(0.0, 1.0).toDouble();
+    }
     _pendingScrollRestore = null;
   }
 
@@ -563,6 +598,30 @@ class ChapterController extends GetxController {
             'rtl';
     continuousNavigation.value =
         _storage.read<bool>('reader_continuous_navigation') ?? true;
+    novelFontSize.value =
+        (_storage.read<num>(_readerSettingKey('novel_font_size')) ?? 19).toDouble();
+    novelFontFamily.value =
+        _storage.read<String>(_readerSettingKey('novel_font_family')) ?? 'default';
+    novelBackground.value =
+        _storage.read<String>(_readerSettingKey('novel_background')) ?? 'app';
+  }
+
+  Future<void> setNovelFontSize(double value) async {
+    novelFontSize.value = value.clamp(14.0, 30.0).toDouble();
+    await _storage.write(
+      _readerSettingKey('novel_font_size'),
+      novelFontSize.value,
+    );
+  }
+
+  Future<void> setNovelFontFamily(String value) async {
+    novelFontFamily.value = value;
+    await _storage.write(_readerSettingKey('novel_font_family'), value);
+  }
+
+  Future<void> setNovelBackground(String value) async {
+    novelBackground.value = value;
+    await _storage.write(_readerSettingKey('novel_background'), value);
   }
 
   Future<void> setReaderFit(String value) async {
@@ -670,8 +729,9 @@ class ChapterController extends GetxController {
     super.onInit();
     _readChapterNavigationArguments();
     _loadReaderPreferences();
+    if (isNovel) readerMode.value = 'scroll';
     unawaited(fetchChapter(chapterId).then((_) async {
-      if (!hasError.value && chapterData.value.chapter.images.isNotEmpty) {
+      if (!hasError.value && hasReadableContent) {
         await _markAsRead(chapterId, currentChapterTitle);
       }
       await _loadChapterNavigationIfMissing();

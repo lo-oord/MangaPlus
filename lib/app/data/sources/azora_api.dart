@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 class AzoraApi {
   static const String _base = 'https://api.azorafly.com/api';
   static final http.Client _client = http.Client();
+  static final Map<String, Future<bool>> _novelLookups = {};
 
   static Future<Map<String, dynamic>> getJson(
     String endpoint,
@@ -25,12 +26,43 @@ class AzoraApi {
     return Map<String, dynamic>.from(decoded);
   }
 
-  static bool isNovel(Map<dynamic, dynamic> record) =>
-      record['isNovel'] == true ||
-      (record['seriesType'] ?? record['type'] ?? record['postType'] ?? '')
-          .toString()
-          .toUpperCase() ==
-      'NOVEL';
+  static bool isNovel(Map<dynamic, dynamic> record) {
+    if (record['isNovel'] == true) return true;
+    const novelKinds = {'NOVEL', 'LIGHT NOVEL', 'رواية'};
+    return [
+      record['seriesType'],
+      record['type'],
+      record['postType'],
+      record['contentType'],
+      record['content_type'],
+      record['format'],
+    ].any((value) => novelKinds.contains('$value'.trim().toUpperCase()));
+  }
+
+  static Future<bool> isNovelPost(Map<String, dynamic> record) {
+    if (record.containsKey('isNovel') ||
+        record.containsKey('seriesType') ||
+        record.containsKey('type') ||
+        record.containsKey('postType')) {
+      if (isNovel(record)) return Future.value(true);
+      if (record['isNovel'] == false) return Future.value(false);
+    }
+    final slug = '${record['slug'] ?? ''}'.trim();
+    final id = '${record['id'] ?? ''}'.trim();
+    final key = slug.isNotEmpty ? slug : id;
+    if (key.isEmpty) return Future.value(isNovel(record));
+    return _novelLookups.putIfAbsent(key, () async {
+      try {
+        final response = await getJson('post', {
+          if (slug.isNotEmpty) 'postSlug': slug else 'postId': id,
+        });
+        final post = response['post'];
+        return post is Map && isNovel(post);
+      } catch (_) {
+        return isNovel(record);
+      }
+    });
+  }
 
   static bool isLocked(Map<dynamic, dynamic> record) =>
       record['isLocked'] == true ||

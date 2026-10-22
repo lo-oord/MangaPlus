@@ -22,6 +22,7 @@ class DataChapter {
   final String chapterId;
   final String title;
   final List<String> images;
+  final String content;
   final String previousChapter;
   final String? nextChapter;
   final List<ChapterElement> chapters;
@@ -30,6 +31,7 @@ class DataChapter {
     required this.chapterId,
     this.title = '',
     required this.images,
+    this.content = '',
     required this.previousChapter,
     this.nextChapter,
     required this.chapters,
@@ -41,6 +43,7 @@ class DataChapter {
         images: json["images"] != null
             ? List<String>.from(json["images"].map((x) => x.toString()))
             : [],
+        content: json["content"]?.toString() ?? '',
         previousChapter: json["previousChapter"] ?? "",
         nextChapter: json["nextChapter"]?.toString(),
         chapters: json["chapters"] != null
@@ -53,6 +56,7 @@ class DataChapter {
         "chapterId": chapterId,
         "title": title,
         "images": List<dynamic>.from(images.map((x) => x)),
+        "content": content,
         "previousChapter": previousChapter,
         "nextChapter": nextChapter,
         "chapters": List<dynamic>.from(chapters.map((x) => x.toJson())),

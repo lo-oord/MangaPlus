@@ -112,15 +112,16 @@ class HistoryView extends GetView<HistoryController> {
                     ),
                     const SizedBox(height: 4),
 
-                    // Type (now as plain text above time)
-                    Text(
-                      localizeContentType(history.type),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
+                    if (history.type.toLowerCase() != 'novel') ...[
+                      Text(
+                        localizeContentType(history.type),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
+                      const SizedBox(height: 4),
+                    ],
 
                     // Last Read Time
                     Row(
