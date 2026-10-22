@@ -10,6 +10,7 @@ class ComicService {
   ComicService({TeamXSource? source}) : _teamX = source ?? MangaSourceRegistry.teamX;
 
   final TeamXSource _teamX;
+  final _azora = MangaSourceRegistry.azora;
   static const String sourceName = 'Team X';
 
   static ComicsList mapComicItem(Map<String, dynamic> item) {
@@ -53,9 +54,24 @@ class ComicService {
         orderby: '',
       );
 
-  /// Home/latest is intentionally Team X only.
-  Future<ComicData> fetchComics({int page = 1}) async =>
-      _comicData(await _teamX.latestWithChapterDates(page: page), page: page);
+  /// Home/latest combines Team X and Azora into one date-ordered feed.
+  Future<ComicData> fetchComics({int page = 1}) async {
+    final results = await Future.wait([
+      _teamX.latestWithChapterDates(page: page).catchError((_) => <Map<String, dynamic>>[]),
+      _azora.latest(page: page).catchError((_) => <Map<String, dynamic>>[]),
+    ]);
+    final items = [...results[0], ...results[1]];
+    final indexed = items.asMap().entries.toList();
+    indexed.sort((leftEntry, rightEntry) {
+      final left = DateTime.tryParse('${leftEntry.value['latest_chapter_date'] ?? ''}'.trim());
+      final right = DateTime.tryParse('${rightEntry.value['latest_chapter_date'] ?? ''}'.trim());
+      if (left == null) return right == null ? leftEntry.key.compareTo(rightEntry.key) : 1;
+      if (right == null) return -1;
+      final byDate = right.compareTo(left);
+      return byDate == 0 ? leftEntry.key.compareTo(rightEntry.key) : byDate;
+    });
+    return _comicData(indexed.map((entry) => entry.value).toList(growable: false), page: page);
+  }
 
   /// Search streams batches from every configured manga source as they arrive.
   Future<ComicData> searchComics(
