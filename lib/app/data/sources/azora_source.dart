@@ -110,20 +110,21 @@ class AzoraSource extends ContentSource {
         : <Map<String, dynamic>>[];
 
     final description = mangaHtmlToText((raw['postContent'] ?? '').toString());
-    final genresRaw = raw['genres'];
-    final genres = genresRaw is List
-        ? genresRaw.map((entry) => entry is Map ? (entry['name'] ?? '').toString() : entry.toString())
-            .where((entry) => entry.trim().isNotEmpty).toList()
-        : <String>[];
+    final genres = _genres(raw);
     final result = _series(raw)
       ..addAll({
         'description': description,
         'synopsis': description,
         'genres': genres,
+        'native_title': _nativeTitle(raw),
+        'nativeTitle': _nativeTitle(raw),
         'author': (raw['author'] ?? '').toString(),
         'artist': (raw['artist'] ?? '').toString(),
         'status': (raw['seriesStatus'] ?? '').toString(),
         'year': (raw['releaseDate'] ?? '').toString(),
+        'release_year': (raw['releaseDate'] ?? '').toString(),
+        'updated_on': (raw['updatedAt'] ?? raw['updated_at'] ?? '').toString(),
+        'updated_at': (raw['updatedAt'] ?? raw['updated_at'] ?? '').toString(),
         'total_chapters': response['totalChapterCount'] ?? chapters.length,
         'chapters': chapters,
       });
@@ -227,11 +228,7 @@ class AzoraSource extends ContentSource {
   Map<String, dynamic> _series(Map<String, dynamic> raw) {
     final slug = (raw['slug'] ?? '').toString();
     final id = (raw['id'] ?? '').toString();
-    final genresRaw = raw['genres'];
-    final genres = genresRaw is List
-        ? genresRaw.map((entry) => entry is Map ? (entry['name'] ?? '').toString() : entry.toString())
-            .where((entry) => entry.trim().isNotEmpty).toList()
-        : <String>[];
+    final genres = _genres(raw);
     final chapters = raw['chapters'];
     final latest = chapters is List && chapters.isNotEmpty && chapters.first is Map
         ? chapters.first['number'] ?? 0
@@ -263,6 +260,37 @@ class AzoraSource extends ContentSource {
           'latest_chapter_name': (chapters.first['title'] ?? '').toString(),
         },
       });
+  }
+
+  List<String> _genres(Map<String, dynamic> raw) {
+    dynamic values = raw['genres'];
+    if (values is! List || values.isEmpty) {
+      for (final key in const ['tags', 'categories', 'tagList', 'tag_list']) {
+        if (raw[key] is List && (raw[key] as List).isNotEmpty) {
+          values = raw[key];
+          break;
+        }
+      }
+    }
+    if (values is! List) return <String>[];
+    return values
+        .map((entry) => entry is Map
+            ? (entry['name'] ?? entry['title'] ?? entry['label'] ?? '').toString()
+            : entry.toString())
+        .where((entry) => entry.trim().isNotEmpty)
+        .toList(growable: false);
+  }
+
+  String _nativeTitle(Map<String, dynamic> raw) {
+    final value = raw['nativeTitle'] ??
+        raw['native_title'] ??
+        raw['alternativeTitles'] ??
+        raw['novelTitle'];
+    if (value is List) return value.map((item) => item.toString()).join(' • ');
+    if (value is Map) {
+      return (value['title'] ?? value['name'] ?? value['value'] ?? '').toString();
+    }
+    return value?.toString() ?? '';
   }
 
   Map<String, dynamic> _chapter(

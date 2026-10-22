@@ -67,7 +67,9 @@ class ChapterController extends GetxController {
   final novelFontSize = 19.0.obs;
   final novelFontFamily = 'default'.obs;
   final novelBackground = 'app'.obs;
+  final novelLineHeight = 1.85.obs;
   final novelProgress = 0.0.obs;
+  final novelBookmarks = <Map<String, dynamic>>[].obs;
   bool endNoticeShown = false;
   bool _isLoadingChapterNavigation = false;
 
@@ -604,6 +606,18 @@ class ChapterController extends GetxController {
         _storage.read<String>(_readerSettingKey('novel_font_family')) ?? 'default';
     novelBackground.value =
         _storage.read<String>(_readerSettingKey('novel_background')) ?? 'app';
+    novelLineHeight.value =
+        (_storage.read<num>(_readerSettingKey('novel_line_height')) ?? 1.85)
+            .toDouble()
+            .clamp(1.4, 2.3)
+            .toDouble();
+    final storedBookmarks =
+        _storage.read<List<dynamic>>(_readerSettingKey('novel_bookmarks')) ?? [];
+    novelBookmarks.assignAll(
+      storedBookmarks
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item)),
+    );
   }
 
   Future<void> setNovelFontSize(double value) async {
@@ -622,6 +636,74 @@ class ChapterController extends GetxController {
   Future<void> setNovelBackground(String value) async {
     novelBackground.value = value;
     await _storage.write(_readerSettingKey('novel_background'), value);
+  }
+
+  Future<void> setNovelLineHeight(double value) async {
+    novelLineHeight.value = value.clamp(1.4, 2.3).toDouble();
+    await _storage.write(
+      _readerSettingKey('novel_line_height'),
+      novelLineHeight.value,
+    );
+  }
+
+  Future<void> saveNovelBookmark() async {
+    if (!isNovel || chapterData.value.chapter.content.isEmpty) return;
+    final offset = _scrollController?.hasClients == true
+        ? _scrollController!.offset
+        : _restoredScrollOffset;
+    final maxExtent = _scrollController?.hasClients == true
+        ? _scrollController!.position.maxScrollExtent
+        : 0.0;
+    final bookmark = <String, dynamic>{
+      'id': DateTime.now().microsecondsSinceEpoch.toString(),
+      'chapterId': chapterId,
+      'chapterTitle': chapterData.value.chapter.title.isNotEmpty
+          ? chapterData.value.chapter.title
+          : currentChapterTitle,
+      'offset': offset,
+      'progress': maxExtent <= 0
+          ? 0.0
+          : (offset / maxExtent).clamp(0.0, 1.0).toDouble(),
+      'createdAt': DateTime.now().toIso8601String(),
+    };
+    novelBookmarks.insert(0, bookmark);
+    await _storage.write(
+      _readerSettingKey('novel_bookmarks'),
+      novelBookmarks.toList(growable: false),
+    );
+  }
+
+  Future<void> removeNovelBookmark(String id) async {
+    novelBookmarks.removeWhere((bookmark) => '${bookmark['id']}' == id);
+    await _storage.write(
+      _readerSettingKey('novel_bookmarks'),
+      novelBookmarks.toList(growable: false),
+    );
+  }
+
+  Future<void> openNovelBookmark(Map<String, dynamic> bookmark) async {
+    final targetChapter = '${bookmark['chapterId'] ?? ''}';
+    final targetOffsetValue = bookmark['offset'];
+    final targetOffset = targetOffsetValue is num
+        ? targetOffsetValue.toDouble()
+        : double.tryParse('$targetOffsetValue') ?? 0.0;
+    if (targetChapter.isEmpty) return;
+    if (!_sameChapterReference(targetChapter, chapterId)) {
+      await navigateToChapter(targetChapter);
+      if (!_sameChapterReference(targetChapter, chapterId)) return;
+      await WidgetsBinding.instance.endOfFrame;
+      await WidgetsBinding.instance.endOfFrame;
+    }
+    final scroll = _scrollController;
+    if (scroll?.hasClients != true) return;
+    final offset = targetOffset
+        .clamp(0.0, scroll!.position.maxScrollExtent)
+        .toDouble();
+    scroll.jumpTo(offset);
+    _restoredScrollOffset = offset;
+    _pendingScrollRestore = null;
+    updateNovelProgress(offset, scroll.position.maxScrollExtent);
+    persistScrollOffset(offset);
   }
 
   Future<void> setReaderFit(String value) async {

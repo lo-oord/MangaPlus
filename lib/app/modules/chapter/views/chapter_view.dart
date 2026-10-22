@@ -176,17 +176,22 @@ class ChapterView extends GetView<ChapterController> {
                 24,
                 MediaQuery.paddingOf(context).bottom + 110,
               ),
-              child: SelectableText(
-                chapter.content,
-                textAlign: controller.readingDirection.value == 'rtl'
-                    ? TextAlign.right
-                    : TextAlign.left,
-                style: TextStyle(
-                  color: foreground,
-                  fontSize: controller.novelFontSize.value,
-                  fontFamily: family == 'default' ? null : family,
-                  height: 1.85,
-                  letterSpacing: 0.05,
+              child: Directionality(
+                textDirection: controller.readingDirection.value == 'rtl'
+                    ? TextDirection.rtl
+                    : TextDirection.ltr,
+                child: SelectableText(
+                  chapter.content,
+                  textAlign: controller.readingDirection.value == 'rtl'
+                      ? TextAlign.right
+                      : TextAlign.left,
+                  style: TextStyle(
+                    color: foreground,
+                    fontSize: controller.novelFontSize.value,
+                    fontFamily: family == 'default' ? null : family,
+                    height: controller.novelLineHeight.value,
+                    letterSpacing: 0.05,
+                  ),
                 ),
               ),
             ),
@@ -204,6 +209,8 @@ class ChapterView extends GetView<ChapterController> {
         return const Color(0xfff1e6d0);
       case 'dark':
         return const Color(0xff151515);
+      case 'black':
+        return Colors.black;
       default:
         return AppColors.background;
     }
@@ -217,6 +224,8 @@ class ChapterView extends GetView<ChapterController> {
         return const Color(0xff453b2d);
       case 'dark':
         return const Color(0xffe5e2dc);
+      case 'black':
+        return const Color(0xffeeeeee);
       default:
         return AppColors.textPrimary;
     }
@@ -326,6 +335,12 @@ class ChapterView extends GetView<ChapterController> {
                       tooltip: 'قائمة الفصول'.tr,
                       onPressed: _openChapterList,
                     ),
+                    if (controller.isNovel)
+                      _readerIconButton(
+                        icon: Icons.bookmarks_outlined,
+                        tooltip: 'العلامات المرجعية'.tr,
+                        onPressed: _openNovelBookmarks,
+                      ),
                     Expanded(
                       child: GestureDetector(
                         onTap: _openChapterList,
@@ -631,6 +646,30 @@ class ChapterView extends GetView<ChapterController> {
                       ),
                     ),
                     const SizedBox(height: 18),
+                    Text('اتجاه النص'.tr,
+                        style: TextStyle(color: AppColors.textSecondary)),
+                    const SizedBox(height: 7),
+                    Wrap(
+                      spacing: 7,
+                      children: [
+                        _directionChoice('rtl', 'من اليمين إلى اليسار'.tr),
+                        _directionChoice('ltr', 'من اليسار إلى اليمين'.tr),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Text('تباعد الأسطر'.tr,
+                        style: TextStyle(color: AppColors.textSecondary)),
+                    Slider(
+                      value: controller.novelLineHeight.value
+                          .clamp(1.4, 2.3)
+                          .toDouble(),
+                      min: 1.4,
+                      max: 2.3,
+                      divisions: 9,
+                      label: controller.novelLineHeight.value.toStringAsFixed(1),
+                      onChanged: controller.setNovelLineHeight,
+                    ),
+                    const SizedBox(height: 8),
                     Text('نوع الخط'.tr,
                         style: TextStyle(color: AppColors.textSecondary)),
                     const SizedBox(height: 7),
@@ -654,6 +693,7 @@ class ChapterView extends GetView<ChapterController> {
                         _novelChoice('light', 'فاتح'.tr),
                         _novelChoice('sepia', 'ورقي'.tr),
                         _novelChoice('dark', 'داكن'.tr),
+                        _novelChoice('black', 'أسود خالص'.tr),
                       ],
                     ),
                   ],
@@ -685,6 +725,132 @@ class ChapterView extends GetView<ChapterController> {
         color: selected ? AppColors.primary : AppColors.textSecondary,
         fontWeight: FontWeight.w700,
       ),
+    );
+  }
+
+  Future<void> _openNovelBookmarks() async {
+    await Get.bottomSheet(
+      Obx(() {
+        final bookmarks = controller.novelBookmarks.toList(growable: false);
+        return SafeArea(
+          child: SizedBox(
+            height: Get.height * 0.68,
+            child: Column(
+              children: [
+                const SizedBox(height: 12),
+                Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'العلامات المرجعية'.tr,
+                          style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      Text('${bookmarks.length}',
+                          style: TextStyle(color: AppColors.textSecondary)),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.tonalIcon(
+                      onPressed: () => controller.saveNovelBookmark(),
+                      icon: const Icon(Icons.bookmark_add_outlined),
+                      label: Text('حفظ موضع القراءة'.tr),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: bookmarks.isEmpty
+                      ? Center(child: Text('لا توجد علامات مرجعية'.tr))
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(14, 0, 14, 18),
+                          itemCount: bookmarks.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 6),
+                          itemBuilder: (context, index) {
+                            final item = bookmarks[index];
+                            final progressValue = item['progress'];
+                            final progress = progressValue is num
+                                ? progressValue.toDouble()
+                                : double.tryParse('$progressValue') ?? 0.0;
+                            final createdAt = DateTime.tryParse(
+                              '${item['createdAt'] ?? ''}',
+                            );
+                            final month =
+                                createdAt?.month.toString().padLeft(2, '0') ?? '';
+                            final day =
+                                createdAt?.day.toString().padLeft(2, '0') ?? '';
+                            final date = createdAt == null
+                                ? ''
+                                : '${createdAt.year}-$month-$day';
+                            final progressLabel = '${(progress * 100).round()}%';
+                            final bookmarkTitle =
+                                '${item['chapterTitle'] ?? ''}'.trim();
+                            final subtitle = date.isEmpty
+                                ? progressLabel
+                                : '$progressLabel • $date';
+                            return ListTile(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              tileColor: AppColors.searchBar,
+                              leading: Icon(Icons.bookmark_rounded,
+                                  color: AppColors.primary),
+                              title: Text(
+                                bookmarkTitle.isEmpty
+                                    ? 'الفصل'.tr
+                                    : bookmarkTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: AppColors.textPrimary),
+                              ),
+                              subtitle: Text(
+                                subtitle,
+                                style: TextStyle(color: AppColors.textSecondary),
+                              ),
+                              trailing: IconButton(
+                                tooltip: 'حذف'.tr,
+                                onPressed: () => controller.removeNovelBookmark(
+                                  '${item['id'] ?? ''}',
+                                ),
+                                icon: Icon(Icons.delete_outline_rounded,
+                                    color: AppColors.icon),
+                              ),
+                              onTap: () {
+                                Get.back();
+                                controller.openNovelBookmark(item);
+                              },
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }),
+      backgroundColor: AppColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      isScrollControlled: true,
     );
   }
 

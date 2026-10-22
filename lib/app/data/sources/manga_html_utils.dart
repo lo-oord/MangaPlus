@@ -15,12 +15,26 @@ String mangaHtmlToText(String? html) {
 String mangaHtmlToReadableText(String? html) {
   if (html == null || html.trim().isEmpty) return '';
   final document = html_parser.parse(html);
-  document.querySelectorAll('script, style, noscript').forEach((node) => node.remove());
-  for (final node in document.querySelectorAll(
-      'p, br, div, blockquote, h1, h2, h3, h4, li')) {
-    node.appendText('\n');
+  const blockElements = {
+    'p',
+    'div',
+    'blockquote',
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'li',
+  };
+  String readNode(Node node) {
+    if (node is Text) return node.data;
+    if (node is! Element) return '';
+    final name = node.localName;
+    if (name == 'script' || name == 'style' || name == 'noscript') return '';
+    if (name == 'br') return '\n';
+    final content = node.nodes.map(readNode).join();
+    return blockElements.contains(name) ? '$content\n' : content;
   }
-  return (document.body?.text ?? html)
+  return readNode(document.body ?? document.documentElement ?? document)
       .replaceAll('\u00a0', ' ')
       .replaceAll(RegExp(r'[\t\r ]+'), ' ')
       .replaceAll(RegExp(r' *\n *'), '\n')
