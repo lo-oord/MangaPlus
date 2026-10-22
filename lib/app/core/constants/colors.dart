@@ -2,7 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 class AppColors {
-  static bool get _isDark => Get.isDarkMode;
+  static final ValueNotifier<int> _themeRevision = ValueNotifier<int>(0);
+  static ValueListenable<int> get themeRevision => _themeRevision;
+  static bool? _darkModeOverride;
+
+  static bool get _isDark => _darkModeOverride ?? Get.isDarkMode;
+
+  static void refreshTheme(bool darkMode) {
+    _darkModeOverride = darkMode;
+    _themeRevision.value++;
+  }
 
   static const Color _darkBackground = Color(0xff111317);
   static const Color _darkSearchBar = Color(0xff1a1d22);

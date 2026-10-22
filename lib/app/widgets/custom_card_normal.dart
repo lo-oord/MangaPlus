@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/core/cache/manga_cover_cache_manager.dart';
 import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/services/bookmark_state_service.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
@@ -68,6 +69,7 @@ class CustomCardNormal extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               child: CachedNetworkImage(
                 imageUrl: imageUrl,
+                cacheManager: MangaCoverCacheManager.instance,
                 httpHeaders: const {
                   'Referer': 'https://olympustaff.com/',
                   'User-Agent':
@@ -143,7 +145,7 @@ class CustomCardNormal extends StatelessWidget {
           width: 120,
           child: Text(
             title,
-            maxLines: 2,
+            maxLines: 1,
             textAlign: TextAlign.start,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(

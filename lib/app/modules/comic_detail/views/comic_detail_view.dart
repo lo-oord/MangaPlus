@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:readmore/readmore.dart';
+import 'package:mangaplus/app/core/cache/manga_cover_cache_manager.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/models/comic_detail.dart';
@@ -12,13 +13,14 @@ import 'package:mangaplus/app/modules/main/controllers/main_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 class ComicDetailView extends GetView<ComicDetailController> {
   const ComicDetailView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
+    return ThemeAwareBuilder(builder: (context) => Obx(() {
       final loading = controller.isLoading.value;
       final comic = controller.comicDetailData.value.comicDetail;
       if (loading) {
@@ -46,7 +48,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
           ],
         ),
       );
-    });
+    }));
   }
 
   Chapter? _targetChapter(ComicDetail comic) {
@@ -275,6 +277,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
     if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
       return CachedNetworkImage(
         imageUrl: imagePath,
+        cacheManager: MangaCoverCacheManager.instance,
         httpHeaders: const {
           'Referer': 'https://olympustaff.com/',
           'User-Agent':

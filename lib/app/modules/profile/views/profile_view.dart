@@ -7,12 +7,13 @@ import 'package:mangaplus/app/data/models/user_profile.dart';
 import 'package:mangaplus/app/modules/profile/controllers/profile_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 class ProfileView extends GetView<ProfileController> {
   const ProfileView({super.key});
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => ThemeAwareBuilder(builder: (context) => Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
           title: Text('الملف الشخصي'.tr),
@@ -51,7 +52,7 @@ class ProfileView extends GetView<ProfileController> {
               _settingsCard([
                 _languageSetting(),
                 Divider(height: 1, color: AppColors.divider),
-                SwitchListTile.adaptive(
+                Obx(() => SwitchListTile.adaptive(
                   value: controller.isDarkMode.value,
                   onChanged: controller.changeTheme,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16),
@@ -73,7 +74,7 @@ class ProfileView extends GetView<ProfileController> {
                     style: TextStyle(color: AppColors.textSecondary),
                   ),
                   activeColor: AppColors.primary,
-                ),
+                )),
               ]),
               const SizedBox(height: 24),
               _sectionTitle('مكتبتي'.tr),
@@ -126,7 +127,7 @@ class ProfileView extends GetView<ProfileController> {
             ],
           );
         }),
-      );
+      ));
 
   Widget _profileHeader() {
     if (controller.accountLoading.value) {

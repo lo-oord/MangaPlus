@@ -1,19 +1,21 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/cache/manga_cover_cache_manager.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/models/history.dart';
 import 'package:mangaplus/app/modules/history/controllers/history_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 class HistoryView extends GetView<HistoryController> {
   const HistoryView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ThemeAwareBuilder(builder: (context) => Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text('سجل القراءة'.tr),
@@ -42,7 +44,7 @@ class HistoryView extends GetView<HistoryController> {
           );
         });
       }),
-    );
+    ));
   }
 
   Widget _buildEmptyHistory() => BrandState(
@@ -72,6 +74,7 @@ class HistoryView extends GetView<HistoryController> {
                 borderRadius: BorderRadius.circular(8),
                 child: CachedNetworkImage(
                   imageUrl: history.coverImage,
+                  cacheManager: MangaCoverCacheManager.instance,
                   width: 85,
                   height: 114,
                   fit: BoxFit.cover,

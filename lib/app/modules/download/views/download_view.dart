@@ -1,16 +1,19 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/cache/manga_cover_cache_manager.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/data/models/download_task.dart';
 import 'package:mangaplus/app/modules/download/controllers/download_controller.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 class DownloadView extends GetView<DownloadController> {
   const DownloadView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ThemeAwareBuilder(builder: (context) => Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.background,
@@ -33,7 +36,7 @@ class DownloadView extends GetView<DownloadController> {
           itemBuilder: (_, index) => _taskCard(tasks[index]),
         );
       }),
-    );
+    ));
   }
 
   Widget _taskCard(DownloadTask task) {
@@ -60,10 +63,15 @@ class DownloadView extends GetView<DownloadController> {
                   height: 76,
                   child: task.coverImage.isEmpty
                       ? const MangaPlusLogo(size: 34)
-                      : Image.network(task.coverImage,
+                      : CachedNetworkImage(
+                          imageUrl: task.coverImage,
+                          cacheManager: MangaCoverCacheManager.instance,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              const MangaPlusLogo(size: 34)),
+                          placeholder: (_, __) =>
+                              const MangaPlusLogo(size: 34),
+                          errorWidget: (_, __, ___) =>
+                              const MangaPlusLogo(size: 34),
+                        ),
                 ),
               ),
               const SizedBox(width: 12),

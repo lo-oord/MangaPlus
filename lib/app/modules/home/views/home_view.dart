@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/cache/manga_cover_cache_manager.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/modules/home/controllers/home_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/custom_card_normal.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
@@ -15,7 +17,7 @@ class HomeView extends GetView<HomeController> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ThemeAwareBuilder(builder: (context) => Scaffold(
       backgroundColor: AppColors.background,
       body: Obx(() {
         if (controller.showGenrePage.value) return _buildInlineGenrePage();
@@ -45,7 +47,7 @@ class HomeView extends GetView<HomeController> {
           ),
         );
       }),
-    );
+    ));
   }
 
   Widget _buildInlineGenrePage() => SafeArea(
@@ -180,6 +182,7 @@ class HomeView extends GetView<HomeController> {
                       Positioned.fill(
                         child: CachedNetworkImage(
                           imageUrl: comic['image']!,
+                          cacheManager: MangaCoverCacheManager.instance,
                           httpHeaders: const {
                             'Referer': 'https://olympustaff.com/',
                             'User-Agent':
@@ -596,13 +599,14 @@ class KomikCardsSection extends GetView<HomeController> {
             padding: const EdgeInsets.only(right: 8),
             child: ActionChip(
               backgroundColor: AppColors.searchBar,
-              side: BorderSide.none,
+              side: BorderSide(color: AppColors.divider.withValues(alpha: 0.65)),
               padding: const EdgeInsets.symmetric(horizontal: 12),
               label: Text(
                 genre.name,
                 style: TextStyle(
-                  color: AppColors.textSecondary.withValues(alpha: 0.66),
+                  color: AppColors.textPrimary,
                   fontSize: 12,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               onPressed: () => controller.openGenre(

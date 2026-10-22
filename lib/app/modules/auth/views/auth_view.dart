@@ -3,13 +3,14 @@ import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/modules/auth/controllers/auth_controller.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 class AuthView extends GetView<AuthController> {
   const AuthView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ThemeAwareBuilder(builder: (context) => Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('حساب MangaPlus'),
@@ -20,7 +21,7 @@ class AuthView extends GetView<AuthController> {
       body: SafeArea(
         child: Obx(() => controller.emailVerificationRequired.value ? _verificationView() : _formView()),
       ),
-    );
+    ));
   }
 
   Widget _formView() => ListView(

@@ -4,6 +4,7 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/modules/genre_detail/controllers/genre_detail_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 import 'package:mangaplus/app/widgets/custom_card_normal.dart';
 
 class GenreDetailView extends GetView<GenreDetailController> {
@@ -11,7 +12,7 @@ class GenreDetailView extends GetView<GenreDetailController> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ThemeAwareBuilder(builder: (context) => Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.background,
@@ -90,6 +91,6 @@ class GenreDetailView extends GetView<GenreDetailController> {
           ),
         );
       }),
-    );
+    ));
   }
 }

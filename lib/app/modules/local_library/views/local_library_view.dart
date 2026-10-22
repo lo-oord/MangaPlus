@@ -1,17 +1,20 @@
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/cache/manga_cover_cache_manager.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/modules/local_library/controllers/local_library_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 class LocalLibraryView extends GetView<LocalLibraryController> {
   const LocalLibraryView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ThemeAwareBuilder(builder: (context) => Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.background,
@@ -70,7 +73,7 @@ class LocalLibraryView extends GetView<LocalLibraryController> {
           ],
         );
       }),
-    );
+    ));
   }
 
   Widget _groupCard(LocalComicGroup group) {
@@ -114,10 +117,15 @@ class LocalLibraryView extends GetView<LocalLibraryController> {
                           ? Image.file(File(group.coverImage), fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) =>
                                   const MangaPlusLogo(size: 42))
-                          : Image.network(group.coverImage,
+                          : CachedNetworkImage(
+                              imageUrl: group.coverImage,
+                              cacheManager: MangaCoverCacheManager.instance,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  const MangaPlusLogo(size: 42)),
+                              placeholder: (_, __) =>
+                                  const MangaPlusLogo(size: 42),
+                              errorWidget: (_, __, ___) =>
+                                  const MangaPlusLogo(size: 42),
+                            ),
                 ),
               ),
               const SizedBox(width: 12),

@@ -4,13 +4,14 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/modules/genre/controllers/genre_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 class GenreView extends GetView<GenreController> {
   const GenreView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ThemeAwareBuilder(builder: (context) => Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text('التصنيفات'.tr),
@@ -58,6 +59,6 @@ class GenreView extends GetView<GenreController> {
           },
         );
       }),
-    );
+    ));
   }
 }

@@ -24,6 +24,7 @@ environment:
 # versions available, run `flutter pub outdated`.
 dependencies:
   cached_network_image: ^3.4.1
+  flutter_cache_manager: ^3.4.1
   cloud_firestore: ^5.6.9
   device_info_plus: ^9.1.2
   dropdown_button2: ^2.3.9

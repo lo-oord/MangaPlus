@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/theme/theme_mode_preference.dart';
 import 'package:mangaplus/app/data/models/user_profile.dart';
 import 'package:mangaplus/app/data/services/account_sync_service.dart';
@@ -59,6 +60,7 @@ class ProfileController extends GetxController {
         if ((theme == 'dark' || theme == 'light') && _themeRevision == themeRevisionAtStart) {
           isDarkMode.value = theme == 'dark';
           Get.changeThemeMode(theme == 'dark' ? ThemeMode.dark : ThemeMode.light);
+          AppColors.refreshTheme(theme == 'dark');
           await _storage.write('themeMode', theme);
         }
         await AccountSyncService().syncLocalData();
@@ -196,6 +198,7 @@ class ProfileController extends GetxController {
     final mode = darkMode ? ThemeMode.dark : ThemeMode.light;
     isDarkMode.value = darkMode;
     Get.changeThemeMode(mode);
+    AppColors.refreshTheme(darkMode);
     try {
       await _storage.write('themeMode', ThemeModePreference.toStorage(mode));
     } catch (error) {

@@ -8,6 +8,7 @@ import 'package:mangaplus/app/modules/chapter/controllers/chapter_controller.dar
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 class ChapterView extends GetView<ChapterController> {
   ChapterView({super.key});
@@ -22,7 +23,7 @@ class ChapterView extends GetView<ChapterController> {
       }
     });
 
-    return Scaffold(
+    return ThemeAwareBuilder(builder: (context) => Scaffold(
       backgroundColor: AppColors.background,
       body: Stack(
         children: [
@@ -30,7 +31,7 @@ class ChapterView extends GetView<ChapterController> {
           _buildFloatingNavigation(),
         ],
       ),
-    );
+    ));
   }
 
   Widget _buildContent(BuildContext context) {

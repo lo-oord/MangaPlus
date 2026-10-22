@@ -6,13 +6,14 @@ import 'package:mangaplus/app/modules/home/views/home_view.dart';
 import 'package:mangaplus/app/modules/main/controllers/main_controller.dart';
 import 'package:mangaplus/app/modules/profile/views/profile_view.dart';
 import 'package:mangaplus/app/modules/search/views/search_view.dart';
+import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 class MainView extends GetView<MainController> {
   const MainView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ThemeAwareBuilder(builder: (context) => Scaffold(
       backgroundColor: AppColors.background,
       body: PageView(
         controller: controller.pageController,
@@ -23,8 +24,10 @@ class MainView extends GetView<MainController> {
       bottomNavigationBar: SafeArea(
         top: false,
         minimum: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-        child: Obx(
-          () => Container(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Obx(
+            () => Container(
             height: 58,
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
             decoration: BoxDecoration(
@@ -47,10 +50,11 @@ class MainView extends GetView<MainController> {
                 _navItem(3, Icons.account_circle_rounded, Icons.account_circle_outlined, 'profile'.tr),
               ],
             ),
+            ),
           ),
         ),
       ),
-    );
+    ));
   }
 
   Widget _navItem(int itemIndex, IconData activeIcon, IconData inactiveIcon, String label) {

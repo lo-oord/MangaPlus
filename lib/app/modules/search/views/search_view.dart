@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/cache/manga_cover_cache_manager.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/models/comic.dart';
@@ -9,13 +10,14 @@ import 'package:mangaplus/app/modules/search/controllers/search_controller.dart'
     as search_controller;
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 class SearchView extends GetView<search_controller.SearchController> {
   const SearchView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ThemeAwareBuilder(builder: (context) => Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.background,
@@ -107,7 +109,7 @@ class SearchView extends GetView<search_controller.SearchController> {
           ),
         ],
       ),
-    );
+    ));
   }
 
   Widget _comicList({
@@ -218,6 +220,7 @@ class _SearchComicTile extends StatelessWidget {
                     borderRadius: BorderRadius.circular(11),
                     child: CachedNetworkImage(
                       imageUrl: comic.image,
+                      cacheManager: MangaCoverCacheManager.instance,
                       httpHeaders: const {
                         'Referer': 'https://olympustaff.com/',
                         'User-Agent':
