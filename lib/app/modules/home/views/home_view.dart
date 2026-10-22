@@ -111,7 +111,7 @@ class HomeView extends GetView<HomeController> {
                   },
                   child: GridView.builder(
                     padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-                    physics: const BouncingScrollPhysics(),
+                    physics: const ClampingScrollPhysics(),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 3,
@@ -571,7 +571,7 @@ class KomikCardsSection extends GetView<HomeController> {
       margin: const EdgeInsets.only(bottom: 8),
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
+        physics: const ClampingScrollPhysics(),
         itemCount: genres.length,
         itemBuilder: (context, index) {
           final genre = genres[index];

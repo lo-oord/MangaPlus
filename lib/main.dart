@@ -138,6 +138,10 @@ void main() async {
     GetMaterialApp(
       debugShowCheckedModeBanner: false,
       title: "MangaPlus",
+      scrollBehavior: const MaterialScrollBehavior().copyWith(
+        physics: const ClampingScrollPhysics(),
+        overscroll: false,
+      ),
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeModePreference.fromStorage(savedTheme),

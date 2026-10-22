@@ -116,7 +116,7 @@ class SearchView extends GetView<search_controller.SearchController> {
     bool isLoadingMore = false,
   }) {
     return ListView.separated(
-      physics: const BouncingScrollPhysics(),
+      physics: const ClampingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 2, 16, 20),
       itemCount: items.length + 1 + (isLoadingMore ? 1 : 0),
       separatorBuilder: (_, index) => SizedBox(height: index == 0 ? 10 : 9),

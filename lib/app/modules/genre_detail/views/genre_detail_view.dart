@@ -56,7 +56,7 @@ class GenreDetailView extends GetView<GenreDetailController> {
           },
           child: GridView.builder(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            physics: const BouncingScrollPhysics(),
+            physics: const ClampingScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 3,
               crossAxisSpacing: 8,
