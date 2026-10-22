@@ -364,7 +364,7 @@ class ChapterController extends GetxController {
         ? savedPage.toInt()
         : int.tryParse('$savedPage') ?? 0;
     final savedOffset = saved is Map ? saved['offset'] : null;
-    final offset = savedOffset is num ? savedOffset.toDouble() : 0;
+    final offset = savedOffset is num ? savedOffset.toDouble() : 0.0;
     _restoredScrollOffset = offset.isFinite && offset > 0 ? offset : 0;
     currentPage.value = parsed < 0 ? 0 : parsed;
   }
