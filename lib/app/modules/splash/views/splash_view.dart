@@ -28,7 +28,7 @@ class _SplashViewState extends State<SplashView>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2700),
+      duration: const Duration(milliseconds: 700),
     );
 
     _logoOpacity = CurvedAnimation(
@@ -65,7 +65,7 @@ class _SplashViewState extends State<SplashView>
     );
 
     _controller.forward();
-    Timer(const Duration(milliseconds: 2850), () {
+    Timer(const Duration(milliseconds: 800), () {
       if (mounted) Get.offAllNamed(Routes.MAIN);
     });
   }

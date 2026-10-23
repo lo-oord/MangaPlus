@@ -227,14 +227,15 @@ class MknovSource extends ContentSource {
     final body = rawBody.isNotEmpty ? rawBody : _cleanFallback(document);
     if (body.isEmpty) throw Exception('MKNOV: لم يتم العثور على نص الفصل.');
 
+    final chaptersRequest = _loadChapters(parts.$1).catchError(
+      (_) => <Map<String, dynamic>>[],
+    );
     final content = rawBody.isNotEmpty && fontUrl != null
         ? await _decodeProtectedBody(rawBody, fontUrl, referer: chapterUrl)
         : _normalizeText(body);
     if (content.trim().isEmpty) throw Exception('MKNOV: تعذر فك نص الفصل.');
 
-    final chapters = await _loadChapters(parts.$1).catchError(
-      (_) => <Map<String, dynamic>>[],
-    );
+    final chapters = await chaptersRequest;
     final index = chapters.indexWhere((chapter) => '${chapter['id']}' == parts.$2);
     final previous = index >= 0 && index + 1 < chapters.length
         ? chapters[index + 1]['url']

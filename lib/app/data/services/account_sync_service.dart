@@ -3,6 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get_storage/get_storage.dart';
 
 class AccountSyncService {
+  static final Map<String, Future<void>> _syncRequests = {};
+  static final Set<String> _syncAgain = {};
+  static final Set<String> _syncAgainForce = {};
+
   AccountSyncService({FirebaseAuth? auth, FirebaseFirestore? firestore})
       : _auth = auth ?? FirebaseAuth.instance,
         _firestore = firestore ?? FirebaseFirestore.instance;
@@ -19,10 +23,44 @@ class AccountSyncService {
   }
 
   Future<void> syncLocalData({bool force = false}) async {
+    final user = _auth.currentUser;
+    if (user == null || user.isAnonymous) return;
+    final uid = user.uid;
+    final active = _syncRequests[uid];
+    if (active != null) {
+      _syncAgain.add(uid);
+      if (force) _syncAgainForce.add(uid);
+      try {
+        await active;
+      } catch (_) {
+        if (force) rethrow;
+      }
+      return;
+    }
+    final request = _drainSyncRequests(uid, force);
+    _syncRequests[uid] = request;
     try {
-      await _syncLocalData(force: force);
+      await request;
     } catch (_) {
       if (force) rethrow;
+    } finally {
+      if (identical(_syncRequests[uid], request)) _syncRequests.remove(uid);
+    }
+  }
+
+  Future<void> _drainSyncRequests(String uid, bool force) async {
+    var nextForce = force;
+    try {
+      while (_auth.currentUser?.uid == uid) {
+        _syncAgain.remove(uid);
+        await _syncLocalData(force: nextForce);
+        final shouldRepeat = _syncAgain.remove(uid);
+        nextForce = _syncAgainForce.remove(uid);
+        if (!shouldRepeat) return;
+      }
+    } finally {
+      _syncAgain.remove(uid);
+      _syncAgainForce.remove(uid);
     }
   }
 

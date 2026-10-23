@@ -22,7 +22,6 @@ class SearchController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    loadSuggestions();
   }
 
   Future<void> loadSuggestions() async {

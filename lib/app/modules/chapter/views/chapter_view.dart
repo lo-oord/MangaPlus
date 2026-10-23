@@ -87,7 +87,7 @@ class ChapterView extends GetView<ChapterController> {
                 }
               },
               itemBuilder: (context, index) =>
-                  _buildPagedImage(chapter.images[index]),
+                  _buildPagedImage(context, chapter.images[index]),
             ),
           ),
         );
@@ -132,7 +132,7 @@ class ChapterView extends GetView<ChapterController> {
             itemCount: chapter.images.length,
             itemBuilder: (context, index) => KeyedSubtree(
               key: _pageKeys[index],
-              child: _buildImage(chapter.images[index]),
+              child: _buildImage(context, chapter.images[index]),
             ),
           ),
         ),
@@ -145,11 +145,7 @@ class ChapterView extends GetView<ChapterController> {
       final background = _novelBackgroundColor(controller.novelBackground.value);
       final foreground = _novelTextColor(controller.novelBackground.value);
       final family = controller.novelFontFamily.value;
-      final paragraphs = chapter.content
-          .split(RegExp(r'\n+'))
-          .map((paragraph) => paragraph.trim())
-          .where((paragraph) => paragraph.isNotEmpty)
-          .toList(growable: false);
+      final paragraphs = controller.paragraphsFor(chapter.content);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) controller.syncScrollController();
       });
@@ -1076,9 +1072,14 @@ class ChapterView extends GetView<ChapterController> {
     );
   }
 
-  Widget _buildPagedImage(String imageUrl) {
+  Widget _buildPagedImage(BuildContext context, String imageUrl) {
     return Obx(() {
       final selectedFit = controller.readerFit.value;
+      final decodeWidth = selectedFit == 'natural'
+          ? null
+          : (MediaQuery.sizeOf(context).width *
+                  MediaQuery.devicePixelRatioOf(context))
+              .round();
       final fit = selectedFit == 'height'
           ? BoxFit.fitHeight
           : selectedFit == 'natural'
@@ -1089,6 +1090,7 @@ class ChapterView extends GetView<ChapterController> {
               File(imageUrl),
               width: double.infinity,
               height: double.infinity,
+              cacheWidth: decodeWidth,
               fit: fit,
               filterQuality: FilterQuality.medium,
               gaplessPlayback: true,
@@ -1099,6 +1101,7 @@ class ChapterView extends GetView<ChapterController> {
           : CachedNetworkImage(
               imageUrl: imageUrl,
               httpHeaders: _imageHeaders(imageUrl),
+              memCacheWidth: decodeWidth,
               imageBuilder: (context, imageProvider) => Image(
                 image: imageProvider,
                 width: double.infinity,
@@ -1125,15 +1128,23 @@ class ChapterView extends GetView<ChapterController> {
     });
   }
 
-  Widget _buildImage(String imageUrl) {
+  Widget _buildImage(BuildContext context, String imageUrl) {
     return Container(
       width: double.infinity,
       color: Colors.black,
       child: Obx(
-        () => controller.isOffline.value
+        () {
+          final selectedFit = controller.readerFit.value;
+          final decodeWidth = selectedFit == 'natural'
+              ? null
+              : (MediaQuery.sizeOf(context).width *
+                      MediaQuery.devicePixelRatioOf(context))
+                  .round();
+          return controller.isOffline.value
               ? Image.file(
                   File(imageUrl),
                   width: double.infinity,
+                  cacheWidth: decodeWidth,
                   fit: _imageFit(controller.readerFit.value),
                   filterQuality: FilterQuality.medium,
                   alignment: Alignment.topCenter,
@@ -1145,6 +1156,7 @@ class ChapterView extends GetView<ChapterController> {
               : CachedNetworkImage(
                 imageUrl: imageUrl,
                 httpHeaders: _imageHeaders(imageUrl),
+                memCacheWidth: decodeWidth,
                 imageBuilder: (context, imageProvider) => Image(
                   image: imageProvider,
                   width: double.infinity,
@@ -1186,7 +1198,8 @@ class ChapterView extends GetView<ChapterController> {
                     ],
                   ),
                 ),
-              ),
+              );
+        },
       ),
     );
   }
@@ -1197,8 +1210,13 @@ class ChapterView extends GetView<ChapterController> {
     int start = 0,
     int count = 3,
   }) async {
-    for (final url in imageUrls.skip(start).take(count)) {
-      if (!_preloadedImages.add(url)) continue;
+    if (!context.mounted) return;
+    final urls = imageUrls
+        .skip(start)
+        .take(count)
+        .where(_preloadedImages.add)
+        .toList(growable: false);
+    await Future.wait(urls.map((url) async {
       try {
         await precacheImage(
           CachedNetworkImageProvider(
@@ -1208,9 +1226,10 @@ class ChapterView extends GetView<ChapterController> {
           context,
         );
       } catch (error) {
+        _preloadedImages.remove(url);
         debugPrint('Unable to preload Team X page: $error');
       }
-    }
+    }));
   }
 
   Map<String, String> _imageHeaders(String imageUrl) {

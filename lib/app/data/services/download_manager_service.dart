@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
@@ -26,12 +27,23 @@ class DownloadManagerService extends GetxService {
   final chapterProgress = <String, double>{}.obs;
   final Set<String> _running = <String>{};
   bool _pumping = false;
+  bool _backgroundReady = false;
+  bool _notificationsReady = false;
 
   Future<DownloadManagerService> init() async {
     await _load();
-    await _initNotifications();
-    unawaited(_pump());
+    unawaited(_initializeBackgroundServices());
     return this;
+  }
+
+  Future<void> _initializeBackgroundServices() async {
+    try {
+      await _initNotifications();
+    } catch (error) {
+      debugPrint('Unable to initialize download notifications: $error');
+    }
+    _backgroundReady = true;
+    await _pump();
   }
 
   Future<void> _load() async {
@@ -77,7 +89,13 @@ class DownloadManagerService extends GetxService {
       description: 'تقدم تنزيل فصول المانجا',
       importance: Importance.low,
     ));
-    await android?.requestNotificationsPermission();
+    _notificationsReady = true;
+    final permissionRequest = android?.requestNotificationsPermission();
+    if (permissionRequest != null) {
+      unawaited(permissionRequest.then<void>((_) {}).catchError((Object error) {
+        debugPrint('Unable to request notification permission: $error');
+      }));
+    }
   }
 
   Future<String?> enqueue({
@@ -174,7 +192,7 @@ class DownloadManagerService extends GetxService {
   }
 
   Future<void> _pump() async {
-    if (_pumping) return;
+    if (!_backgroundReady || _pumping) return;
     _pumping = true;
     try {
       while (true) {
@@ -260,6 +278,7 @@ class DownloadManagerService extends GetxService {
     await temp.create(recursive: true);
     final source = TeamXSource();
     final paths = <String>[];
+    var lastNotifiedPercent = 0;
     try {
       for (var index = 0; index < data.chapter.images.length; index++) {
         final current = _task(task.id);
@@ -288,14 +307,23 @@ class DownloadManagerService extends GetxService {
         final progress = (index + 1) / data.chapter.images.length;
         chapterProgress[chapterId] = progress;
         chapterProgress.refresh();
-        await _storage.write(_progressKey, chapterProgress);
+        final isLastPage = index + 1 == data.chapter.images.length;
+        final shouldCheckpoint = isLastPage || (index + 1) % 5 == 0;
+        if (shouldCheckpoint) {
+          await _storage.write(_progressKey, chapterProgress);
+        }
         final live = _task(task.id);
         if (live != null) {
           await _replace(live.copyWith(
             chapterProgress: {...live.chapterProgress, chapterId: progress},
-          ), notify: false);
+          ), notify: false, persist: shouldCheckpoint);
         }
-        await _notify(_task(task.id)!);
+        final percent = (progress * 100).floor();
+        if (isLastPage || percent - lastNotifiedPercent >= 10) {
+          final current = _task(task.id);
+          if (current != null) await _notify(current);
+          lastNotifiedPercent = percent;
+        }
       }
       if (await finalDir.exists()) await finalDir.delete(recursive: true);
       await temp.rename(finalDir.path);
@@ -371,12 +399,16 @@ class DownloadManagerService extends GetxService {
     await _storage.write(_progressKey, chapterProgress);
   }
 
-  Future<void> _replace(DownloadTask task, {bool notify = true}) async {
+  Future<void> _replace(
+    DownloadTask task, {
+    bool notify = true,
+    bool persist = true,
+  }) async {
     final index = tasks.indexWhere((item) => item.id == task.id);
     if (index < 0) return;
     tasks[index] = task;
     tasks.refresh();
-    await _persist();
+    if (persist) await _persist();
     if (notify) await _notify(task);
   }
 
@@ -385,6 +417,7 @@ class DownloadManagerService extends GetxService {
   }
 
   Future<void> _notify(DownloadTask task) async {
+    if (!_notificationsReady) return;
     final status = task.status == DownloadTaskStatus.downloading
         ? 'جارٍ التحميل'
         : task.status == DownloadTaskStatus.completed

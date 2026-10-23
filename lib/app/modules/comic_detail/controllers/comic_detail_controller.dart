@@ -54,13 +54,30 @@ class ComicDetailController extends GetxController {
   final historyRevision = 0.obs;
   final bookmarkRevision = 0.obs;
   final downloadRevision = 0.obs;
+  final Set<String> _readChapterIds = <String>{};
+  final Set<String> _downloadedChapterIds = <String>{};
+  List<Chapter>? _sortedChapterSource;
+  List<Chapter> _sortedChapterCache = const [];
+  bool? _sortedChapterAscending;
 
   @override
   void onInit() {
     super.onInit();
     _syncDownloadingChapters();
+    _refreshChapterIndexes();
     _storage.listenKey('downloadingChapters', (_) => _syncDownloadingChapters());
-    _storage.listenKey('downloadedChapters', (_) => downloadRevision.value++);
+    _storage.listenKey('readChapters', (_) {
+      _refreshReadChapterIndex();
+      historyRevision.value++;
+    });
+    _storage.listenKey('reading_history', (_) {
+      _refreshReadChapterIndex();
+      historyRevision.value++;
+    });
+    _storage.listenKey('downloadedChapters', (_) {
+      _refreshDownloadedChapterIndex();
+      downloadRevision.value++;
+    });
     final arguments = Get.arguments;
     final comicId = arguments is Map
         ? '${arguments['comicId'] ?? ''}'
@@ -122,6 +139,37 @@ class ComicDetailController extends GetxController {
         )));
   }
 
+  void _refreshChapterIndexes() {
+    _refreshReadChapterIndex();
+    _refreshDownloadedChapterIndex();
+  }
+
+  void _refreshReadChapterIndex() {
+    final readChapters = _storage.read('readChapters');
+    _readChapterIds
+      ..clear()
+      ..addAll(readChapters is Map
+          ? readChapters.keys.map((key) => '$key')
+          : const <String>[]);
+    final history = _storage.read('reading_history');
+    if (history is Map) {
+      for (final entry in history.values) {
+        if (entry is Map && '${entry['chapterId'] ?? ''}'.isNotEmpty) {
+          _readChapterIds.add('${entry['chapterId']}');
+        }
+      }
+    }
+  }
+
+  void _refreshDownloadedChapterIndex() {
+    final downloaded = _storage.read<List<dynamic>>('downloadedChapters') ?? const [];
+    _downloadedChapterIds
+      ..clear()
+      ..addAll(downloaded.whereType<Map>()
+          .map((item) => '${item['chapterId'] ?? ''}')
+          .where((id) => id.isNotEmpty));
+  }
+
   Future<void> fetchComicDetail(String comicId) async {
     try {
       isLoading(true);
@@ -154,6 +202,11 @@ class ComicDetailController extends GetxController {
     List<Chapter> chapters, {
     bool? ascending,
   }) {
+    final isAscending = ascending ?? sortAscending.value;
+    if (identical(_sortedChapterSource, chapters) &&
+        _sortedChapterAscending == isAscending) {
+      return _sortedChapterCache;
+    }
     final indexed = chapters.asMap().entries.toList();
     final allHaveNumbers = chapters.every((chapter) => _chapterNumber(chapter.title) != null);
     final allHaveDates = chapters.every(
@@ -169,9 +222,12 @@ class ComicDetailController extends GetxController {
                   DateTime.parse(right.releaseTime),
                 )
               : leftEntry.key.compareTo(rightEntry.key);
-      return (ascending ?? sortAscending.value) ? order : -order;
+      return isAscending ? order : -order;
     });
-    return indexed.map((entry) => entry.value).toList(growable: false);
+    _sortedChapterSource = chapters;
+    _sortedChapterAscending = isAscending;
+    _sortedChapterCache = indexed.map((entry) => entry.value).toList(growable: false);
+    return _sortedChapterCache;
   }
 
   double? _chapterNumber(String title) {
@@ -278,26 +334,18 @@ class ComicDetailController extends GetxController {
       lastRead: DateTime.now(),
       type: comic.type,
     ));
+    _readChapterIds.add(chapterId);
     historyRevision.value++;
   }
 
   bool isChapterRead(String chapterId) {
     historyRevision.value;
-    final readChapters = _storage.read('readChapters');
-    if (readChapters is Map && readChapters.containsKey(chapterId)) return true;
-    final history = _storage.read('reading_history');
-    if (history is! Map) return false;
-    return history.values.any(
-      (entry) => entry is Map && entry['chapterId']?.toString() == chapterId,
-    );
+    return _readChapterIds.contains(chapterId);
   }
 
   bool isChapterDownloaded(String chapterId) {
     downloadRevision.value;
-    final downloaded = _storage.read<List<dynamic>>('downloadedChapters') ?? [];
-    return downloaded.any(
-      (item) => item is Map && item['chapterId']?.toString() == chapterId,
-    );
+    return _downloadedChapterIds.contains(chapterId);
   }
 
   Future<void> deleteDownloadedChapter(String chapterId) async {
@@ -313,6 +361,7 @@ class ComicDetailController extends GetxController {
     }
     raw.removeWhere((item) => item is Map && '${item['chapterId'] ?? ''}' == chapterId);
     await _storage.write('downloadedChapters', raw);
+    _downloadedChapterIds.remove(chapterId);
     downloadRevision.value++;
     downloadingChapters.remove(chapterId);
     historyRevision.value++;

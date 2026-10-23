@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/data/models/comic.dart';
@@ -26,8 +28,8 @@ class HomeController extends GetxController {
   final genreHasError = false.obs;
   final genreHasMore = true.obs;
   int _genrePage = 1;
-
   int _loadedPage = 0;
+  int _homeRequestId = 0;
   final List<Map<String, String>> heroComics = <Map<String, String>>[];
 
   final comicData = ComicData(
@@ -43,6 +45,7 @@ class HomeController extends GetxController {
   final isLoading = true.obs;
 
   Future<void> _loadHomeData() async {
+    _homeRequestId++;
     isLoading(true);
     canLoadMore(true);
     isLoadingMore(false);
@@ -64,8 +67,10 @@ class HomeController extends GetxController {
   Future<void> reload() => _loadHomeData();
 
   Future<void> fetchComics({int page = 1}) async {
+    final requestId = _homeRequestId;
     try {
       final loaded = await _comicService.fetchComics(page: page);
+      if (isClosed || requestId != _homeRequestId) return;
       final incoming = loaded.comicsList;
       if (page == 1) {
         comicData.value = loaded;
@@ -84,10 +89,13 @@ class HomeController extends GetxController {
                     'status': comic.status ?? '',
                     'releaseDate': comic.latestChapterDate,
                   }));
+        unawaited(_enrichHomeDates(requestId));
+        canLoadMore(incoming.isNotEmpty);
       } else {
         final existing = comicData.value.comicsList
             .map((comic) => comic.comicId)
             .toSet();
+        final previousLength = comicData.value.comicsList.length;
         final combined = [
           ...comicData.value.comicsList,
           ...incoming.where((comic) => existing.add(comic.comicId)),
@@ -110,8 +118,8 @@ class HomeController extends GetxController {
           orderby: loaded.orderby,
         );
         _loadedPage = page;
+        canLoadMore(combined.length > previousLength);
       }
-      canLoadMore(incoming.isNotEmpty);
     } catch (error) {
       debugPrint('Team X latest feed failed (page $page): $error');
       if (page == 1) {
@@ -122,6 +130,53 @@ class HomeController extends GetxController {
         );
       }
       canLoadMore(false);
+    }
+  }
+
+  Future<void> _enrichHomeDates(int requestId) async {
+    try {
+      final enriched = await _comicService.enrichLatestChapterDates(
+        comicData.value.comicsList,
+      );
+      if (isClosed || requestId != _homeRequestId || enriched.isEmpty) return;
+      final replacements = {for (final item in enriched) item.comicId: item};
+      final updated = comicData.value.comicsList
+          .map((item) => replacements[item.comicId] ?? item)
+          .toList(growable: false);
+      updated.sort((left, right) {
+        final leftDate = DateTime.tryParse(left.latestChapterDate.trim());
+        final rightDate = DateTime.tryParse(right.latestChapterDate.trim());
+        if (leftDate == null) return rightDate == null ? 0 : 1;
+        if (rightDate == null) return -1;
+        return rightDate.compareTo(leftDate);
+      });
+      final current = comicData.value;
+      comicData.value = ComicData(
+        comicsList: updated,
+        pagination: current.pagination,
+        source: current.source,
+        page: current.page,
+        genres: current.genres,
+        status: current.status,
+        type: current.type,
+        orderby: current.orderby,
+      );
+      heroComics
+        ..clear()
+        ..addAll(updated
+            .where((comic) => comic.image.isNotEmpty)
+            .take(4)
+            .map((comic) => {
+                  'comicId': comic.comicId,
+                  'title': comic.title,
+                  'subtitle': comic.chapter,
+                  'image': comic.image,
+                  'rating': comic.rating,
+                  'status': comic.status ?? '',
+                  'releaseDate': comic.latestChapterDate,
+                }));
+    } catch (error) {
+      debugPrint('Background Team X date enrichment failed: $error');
     }
   }
 
@@ -206,6 +261,7 @@ class HomeController extends GetxController {
 
   @override
   void onClose() {
+    _homeRequestId++;
     scrollController.removeListener(_checkScrollPosition);
     scrollController.dispose();
     pageController.dispose();

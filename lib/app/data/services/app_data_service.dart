@@ -8,8 +8,16 @@ import 'package:mangaplus/app/data/services/bookmark_state_service.dart';
 
 /// Device-local reading data. No account or authentication is required.
 class AppDataService {
+  static Timer? _syncDebounce;
   final GetStorage _storage = GetStorage();
   final AccountSyncService _sync = AccountSyncService();
+
+  void _scheduleSync() {
+    _syncDebounce?.cancel();
+    _syncDebounce = Timer(const Duration(milliseconds: 700), () {
+      unawaited(_sync.syncLocalData());
+    });
+  }
 
   Future<void> addHistory(HistoryItem history) async {
     final entries = Map<String, dynamic>.from(
@@ -17,7 +25,7 @@ class AppDataService {
     );
     entries[history.comicId] = history.toMap();
     await _storage.write('reading_history', entries);
-    unawaited(_sync.syncLocalData());
+    _scheduleSync();
   }
 
   Future<List<HistoryItem>?> getHistory() async {
@@ -44,7 +52,7 @@ class AppDataService {
     };
     await _storage.write('bookmarks', entries);
     BookmarkStateService.instance.changed();
-    unawaited(_sync.syncLocalData());
+    _scheduleSync();
   }
 
   Future<List<BookmarkItem>?> getBookmarks() async {

@@ -40,6 +40,20 @@ class ChapterController extends GetxController {
   bool get hasReadableContent => isNovel
       ? chapterData.value.chapter.content.trim().isNotEmpty
       : chapterData.value.chapter.images.isNotEmpty;
+  String? _paragraphSource;
+  List<String> _paragraphs = const [];
+
+  List<String> paragraphsFor(String content) {
+    if (!identical(_paragraphSource, content)) {
+      _paragraphSource = content;
+      _paragraphs = content
+          .split(RegExp(r'\n+'))
+          .map((paragraph) => paragraph.trim())
+          .where((paragraph) => paragraph.isNotEmpty)
+          .toList(growable: false);
+    }
+    return _paragraphs;
+  }
 
   final chapterData = ChapterData(
     chapter: DataChapter(

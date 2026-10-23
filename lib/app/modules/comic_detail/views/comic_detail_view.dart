@@ -386,7 +386,11 @@ class ComicDetailView extends GetView<ComicDetailController> {
     ComicDetail comic,
     Chapter chapter,
   ) async {
-    await controller.addToHistory(comic, chapter.chapterId, chapter.title);
+    try {
+      await controller.addToHistory(comic, chapter.chapterId, chapter.title);
+    } catch (error) {
+      debugPrint('Unable to save reading history: $error');
+    }
     if (!context.mounted) return;
     Get.toNamed(Routes.CHAPTER, arguments: {
       'chapterId': chapter.chapterId,

@@ -13,7 +13,18 @@ class GenreService extends GetxService {
   final TeamXSource _source;
 
   Future<GenreData> fetchGenres() async {
-    final entries = await _source.genres();
+    final entriesRequest = _source.genres();
+    final taggedSources = MangaSourceRegistry.searchableSources.where(
+      (source) => const {'azora', 'manga_swat', 'mangatime', 'manga_cloud'}.contains(source.id),
+    );
+    final batchesRequest = Future.wait(taggedSources.map((source) async {
+      try {
+        return await source.latest(page: 1).timeout(const Duration(seconds: 10));
+      } catch (_) {
+        return <Map<String, dynamic>>[];
+      }
+    }));
+    final entries = await entriesRequest;
     final names = <String, Genre>{};
     for (final entry in entries) {
       final name = '${entry['name'] ?? ''}'.trim();
@@ -26,16 +37,7 @@ class GenreService extends GetxService {
         ));
       }
     }
-    final taggedSources = MangaSourceRegistry.searchableSources.where(
-      (source) => const {'azora', 'manga_swat', 'mangatime', 'manga_cloud'}.contains(source.id),
-    );
-    final batches = await Future.wait(taggedSources.map((source) async {
-      try {
-        return await source.latest(page: 1).timeout(const Duration(seconds: 10));
-      } catch (_) {
-        return <Map<String, dynamic>>[];
-      }
-    }));
+    final batches = await batchesRequest;
     for (final batch in batches) {
       for (final item in batch) {
         final genres = item['genres'];
@@ -63,6 +65,11 @@ class GenreService extends GetxService {
     final sources = MangaSourceRegistry.searchableSources.where(
       (source) => source.id != _source.id,
     );
+    final teamXRequest = _source
+        .catalogPage(genre: genre, page: page)
+        .timeout(const Duration(seconds: 15))
+        .then<TeamXCatalogPage?>((value) => value)
+        .catchError((_) => null);
     final fetched = await Future.wait(sources.map((source) async {
       try {
         final items = await source.catalog(page: page).timeout(const Duration(seconds: 12));
@@ -71,15 +78,9 @@ class GenreService extends GetxService {
         return (source: source, items: <Map<String, dynamic>>[]);
       }
     }));
-    var teamXItems = <Map<String, dynamic>>[];
-    int? teamXNextPage;
-    try {
-      final teamX = await _source.catalogPage(genre: genre, page: page).timeout(const Duration(seconds: 15));
-      teamXItems = teamX.items;
-      teamXNextPage = teamX.nextPage;
-    } catch (_) {
-      // Continue with the other providers when Team X is unavailable.
-    }
+    final teamX = await teamXRequest;
+    final teamXItems = teamX?.items ?? <Map<String, dynamic>>[];
+    final teamXNextPage = teamX?.nextPage;
     final candidates = <(ContentSource, Map<String, dynamic>)>[];
     for (final batch in fetched) {
       var detailOnlyCount = 0;

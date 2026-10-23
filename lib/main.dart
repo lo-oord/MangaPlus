@@ -33,6 +33,18 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 late AndroidNotificationChannel channel;
 
 bool isFlutterLocalNotificationsInitialized = false;
+final List<RemoteMessage> _pendingForegroundNotifications = [];
+
+void _handleForegroundMessage(RemoteMessage message) {
+  if (kIsWeb) return;
+  if (!isFlutterLocalNotificationsInitialized) {
+    if (_pendingForegroundNotifications.length < 10) {
+      _pendingForegroundNotifications.add(message);
+    }
+    return;
+  }
+  showFlutterNotification(message);
+}
 
 Future<void> setupFlutterNotifications({required String languageCode}) async {
   if (isFlutterLocalNotificationsInitialized) {
@@ -127,13 +139,7 @@ void main() async {
       : const Locale('ar', 'SA');
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-  if (!kIsWeb) {
-    await setupFlutterNotifications(languageCode: savedLanguage);
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      showFlutterNotification(message);
-    });
-  }
-
+  if (!kIsWeb) FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
   runApp(
     GetMaterialApp(
       debugShowCheckedModeBanner: false,
@@ -160,4 +166,16 @@ void main() async {
       getPages: AppPages.routes,
     ),
   );
+  if (!kIsWeb) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      setupFlutterNotifications(languageCode: savedLanguage).then((_) {
+        for (final message in _pendingForegroundNotifications) {
+          showFlutterNotification(message);
+        }
+        _pendingForegroundNotifications.clear();
+      }).catchError((Object error) {
+        debugPrint('Unable to initialize local notifications: $error');
+      });
+    });
+  }
 }

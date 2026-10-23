@@ -9,6 +9,10 @@ import 'package:mangaplus/app/data/sources/team_x_source.dart';
 
 class ComicService {
   ComicService({TeamXSource? source}) : _teamX = source ?? MangaSourceRegistry.teamX;
+  static const Duration _detailCacheTtl = Duration(minutes: 3);
+  static final Map<String, ComicDetailData> _detailCache = {};
+  static final Map<String, DateTime> _detailCacheTimes = {};
+  static final Map<String, Future<ComicDetailData>> _detailRequests = {};
 
   final TeamXSource _teamX;
   final _azora = MangaSourceRegistry.azora;
@@ -59,7 +63,7 @@ class ComicService {
   /// Home/latest combines Team X and Azora into one date-ordered feed.
   Future<ComicData> fetchComics({int page = 1}) async {
     final results = await Future.wait([
-      _teamX.latestWithChapterDates(page: page).catchError((_) => <Map<String, dynamic>>[]),
+      _teamX.latest(page: page).catchError((_) => <Map<String, dynamic>>[]),
       _azora.latest(page: page).catchError((_) => <Map<String, dynamic>>[]),
     ]);
     final items = [...results[0], ...results[1]];
@@ -73,6 +77,31 @@ class ComicService {
       return byDate == 0 ? leftEntry.key.compareTo(rightEntry.key) : byDate;
     });
     return _comicData(indexed.map((entry) => entry.value).toList(growable: false), page: page);
+  }
+
+  Future<List<ComicsList>> enrichLatestChapterDates(
+    List<ComicsList> comics,
+  ) async {
+    final candidates = comics
+        .where((comic) => comic.comicId.startsWith('teamx://'))
+        .take(12)
+        .map((comic) => <String, dynamic>{
+              'url': comic.comicId,
+              'title': comic.title,
+              'image_url': comic.image,
+              'type': comic.type,
+              'latest_chapter_number': comic.chapter,
+              'latest_chapter_date': comic.latestChapterDate,
+              'rating': comic.rating,
+              'status': comic.status,
+              'genres': comic.genres,
+              'total_chapters': comic.totalChapters,
+              'source': comic.source,
+            })
+        .toList(growable: false);
+    if (candidates.isEmpty) return const [];
+    final enriched = await _teamX.enrichLatestChapterDates(candidates);
+    return enriched.map(mapComicItem).toList(growable: false);
   }
 
   /// Search streams batches from every configured manga source as they arrive.
@@ -143,6 +172,39 @@ class ComicService {
   }
 
   Future<ComicDetailData> fetchComicDetail(String comicId) async {
+    final key = comicId.trim();
+    final cached = _detailCache[key];
+    final cachedAt = _detailCacheTimes[key];
+    if (cached != null && cachedAt != null &&
+        DateTime.now().difference(cachedAt) < _detailCacheTtl) {
+      return cached;
+    }
+    final active = _detailRequests[key];
+    if (active != null) return active;
+    final request = _fetchComicDetailUncached(key);
+    _detailRequests[key] = request;
+    try {
+      final detail = await request;
+      _detailCache[key] = detail;
+      _detailCacheTimes[key] = DateTime.now();
+      if (_detailCache.length > 100) {
+        for (final oldKey in _detailCache.keys.take(25).toList()) {
+          _detailCache.remove(oldKey);
+          _detailCacheTimes.remove(oldKey);
+        }
+      }
+      return detail;
+    } catch (_) {
+      if (cached != null) return cached;
+      rethrow;
+    } finally {
+      if (identical(_detailRequests[key], request)) {
+        _detailRequests.remove(key);
+      }
+    }
+  }
+
+  Future<ComicDetailData> _fetchComicDetailUncached(String comicId) async {
     final source = MangaSourceRegistry.forUrl(comicId);
     if (source == null) throw StateError('لم يتم العثور على مصدر لهذا الرابط.');
     final raw = await source.details(comicId);

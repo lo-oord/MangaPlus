@@ -170,13 +170,20 @@ class TeamXSource extends ContentSource {
 
   Future<List<Map<String, dynamic>>> latestWithChapterDates({int page = 1}) async {
     final items = (await latest(page: page)).take(_latestFeedPageSize).toList();
+    return enrichLatestChapterDates(items);
+  }
+
+  Future<List<Map<String, dynamic>>> enrichLatestChapterDates(
+    List<Map<String, dynamic>> items,
+  ) async {
     final enriched = <Map<String, dynamic>>[];
-    for (var start = 0; start < items.length; start += _dateLookupConcurrency) {
-      final end = start + _dateLookupConcurrency < items.length
+    final boundedItems = items.take(_latestFeedPageSize).toList(growable: false);
+    for (var start = 0; start < boundedItems.length; start += _dateLookupConcurrency) {
+      final end = start + _dateLookupConcurrency < boundedItems.length
           ? start + _dateLookupConcurrency
-          : items.length;
+          : boundedItems.length;
       enriched.addAll(await Future.wait(
-        items.sublist(start, end).map(_withLatestChapterDate),
+        boundedItems.sublist(start, end).map(_withLatestChapterDate),
       ));
     }
     return _sortByLatestChapterDate(enriched);
@@ -424,7 +431,6 @@ class TeamXSource extends ContentSource {
     final chapterUrl = _chapterUrl(url);
     if (chapterUrl.isEmpty) return null;
     final identifier = Uri.tryParse(url);
-    final seriesUrl = _seriesUrl(identifier?.queryParameters['series'] ?? '');
     final document = await _document(chapterUrl);
     final pages = document
         .querySelectorAll('div.image_list canvas, div.image_list img')
@@ -433,28 +439,6 @@ class TeamXSource extends ContentSource {
         .toSet()
         .toList(growable: false);
     if (pages.isEmpty) throw Exception('Team X: لا توجد صور قراءة في صفحة الفصل.');
-    var previousChapter = '';
-    String? nextChapter;
-    List<Map<String, dynamic>> chapterEntries = const [];
-    if (seriesUrl.isNotEmpty) {
-      final chapters = _chapterCache[seriesUrl] ??
-          await _chapters(await _document(seriesUrl), seriesUrl);
-      chapterEntries = chapters
-          .map((chapter) => {
-                'chapterId': '${chapter['url'] ?? ''}',
-                'title': '${chapter['title'] ?? ''}',
-                'url': '${chapter['url'] ?? ''}',
-              })
-          .where((chapter) => '${chapter['chapterId']}'.isNotEmpty)
-          .toList(growable: false);
-      final index = chapters.indexWhere(
-        (chapter) => _chapterUrl('${chapter['url'] ?? ''}') == chapterUrl,
-      );
-      if (index >= 0 && index + 1 < chapters.length) {
-        previousChapter = '${chapters[index + 1]['url']}';
-      }
-      if (index > 0) nextChapter = '${chapters[index - 1]['url']}';
-    }
     final pageTitle = mangaHtmlText(
       document.querySelector('h1, .chapter-title, .head_chapter_name'),
     );
@@ -468,9 +452,9 @@ class TeamXSource extends ContentSource {
       'pages': pages,
       'images': pages.map((image) => {'url': image}).toList(),
       'url': chapterUrl,
-      'previousChapter': previousChapter,
-      'nextChapter': nextChapter,
-      'chapters': chapterEntries,
+      'previousChapter': '',
+      'nextChapter': null,
+      'chapters': const <Map<String, dynamic>>[],
     };
   }
 

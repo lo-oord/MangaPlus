@@ -36,15 +36,14 @@ class HomeView extends GetView<HomeController> {
             onAction: controller.reload,
           );
         }
-        return SingleChildScrollView(
+        return CustomScrollView(
           controller: controller.scrollController,
-          child: Column(
-            children: [
-              _buildHeroImage(context),
-              const SizedBox(height: 20),
-              const KomikCardsSection(),
-            ],
-          ),
+          slivers: [
+            SliverToBoxAdapter(child: _buildHeroImage(context)),
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
+            const KomikCardsSection(),
+            const SliverToBoxAdapter(child: SizedBox(height: 24)),
+          ],
         );
       }),
     ));
@@ -183,6 +182,13 @@ class HomeView extends GetView<HomeController> {
                         child: CachedNetworkImage(
                           imageUrl: comic['image']!,
                           cacheManager: MangaCoverCacheManager.instance,
+                          memCacheWidth: (MediaQuery.sizeOf(context).width *
+                                  MediaQuery.devicePixelRatioOf(context))
+                              .round(),
+                          maxWidthDiskCache: (MediaQuery.sizeOf(context).width *
+                                  MediaQuery.devicePixelRatioOf(context) *
+                                  1.5)
+                              .round(),
                           httpHeaders: const {
                             'Referer': 'https://olympustaff.com/',
                             'User-Agent':
@@ -354,29 +360,81 @@ class KomikCardsSection extends GetView<HomeController> {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      if (controller.isLoading.value) {
-        return _buildLoadingSkeleton();
-      }
       if (controller.comicData.value.comicsList.isEmpty) {
-        return Center(
-            child: Text('لا توجد قصص مصورة متاحة'.tr,
-                style: TextStyle(color: AppColors.textPrimary)));
+        return SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Center(
+              child: Text(
+                'لا توجد قصص مصورة متاحة'.tr,
+                style: TextStyle(color: AppColors.textPrimary),
+              ),
+            ),
+          ),
+        );
       }
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionTitle(context, "اختيار التصنيف".tr),
-            const SizedBox(height: 8),
-            _buildGenreChips(context),
-            const SizedBox(height: 12),
-            _buildSectionTitle(context, "الأحدث".tr),
-            const SizedBox(height: 8),
-            _buildTerbaruGrid(context),
-            const SizedBox(height: 12),
-          ],
-        ),
+      final comics = controller.comicData.value.comicsList;
+      return SliverMainAxisGroup(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSectionTitle(context, 'اختيار التصنيف'.tr),
+                  const SizedBox(height: 8),
+                  _buildGenreChips(context),
+                  const SizedBox(height: 12),
+                  _buildSectionTitle(context, 'الأحدث'.tr),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                childAspectRatio: 0.75,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                mainAxisExtent: 240,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final comic = comics[index];
+                  return GestureDetector(
+                    onTap: () => Get.toNamed(
+                      Routes.COMIC_DETAIL,
+                      arguments: comic.comicId,
+                    ),
+                    child: CustomCardNormal(
+                      comicId: comic.comicId,
+                      title: comic.title,
+                      chapter: comic.chapter,
+                      imageUrl: comic.image,
+                      type: comic.type,
+                      releaseDate: comic.latestChapterDate,
+                      rating: comic.rating,
+                      status: comic.status ?? '',
+                    ),
+                  );
+                },
+                childCount: comics.length,
+                addAutomaticKeepAlives: false,
+              ),
+            ),
+          ),
+          if (controller.isLoadingMore.value)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Center(child: MangaPlusLoader(size: 42)),
+              ),
+            ),
+        ],
       );
     });
   }

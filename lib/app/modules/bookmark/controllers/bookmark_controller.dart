@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
@@ -17,9 +19,9 @@ class BookmarkController extends GetxController {
 
   Future<void> getBookmark({bool syncCloud = true}) async {
     try {
-      if (syncCloud) await AccountSyncService().syncLocalData();
       final values = await _appDataService.getBookmarks();
       bookmarks.assignAll(values ?? const <BookmarkItem>[]);
+      if (syncCloud) unawaited(_syncThenRefresh());
     } catch (error) {
       debugPrint('Unable to load local bookmarks: $error');
       AppFeedback.show(
@@ -29,6 +31,17 @@ class BookmarkController extends GetxController {
       );
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  Future<void> _syncThenRefresh() async {
+    try {
+      await AccountSyncService().syncLocalData();
+      if (isClosed) return;
+      final values = await _appDataService.getBookmarks();
+      bookmarks.assignAll(values ?? const <BookmarkItem>[]);
+    } catch (_) {
+      // Locally saved bookmarks remain available while cloud sync is unavailable.
     }
   }
 
