@@ -12,6 +12,7 @@ class ComicService {
 
   final TeamXSource _teamX;
   final _azora = MangaSourceRegistry.azora;
+  final _mknov = MangaSourceRegistry.mknov;
   static const String sourceName = 'Team X';
 
   static ComicsList mapComicItem(Map<String, dynamic> item) {
@@ -95,19 +96,44 @@ class ComicService {
       _azora
           .searchNovelSuggestions(limit: limit * 2)
           .catchError((_) => <Map<String, dynamic>>[]),
+      _mknov
+          .searchSuggestions(limit: limit)
+          .timeout(const Duration(seconds: 15))
+          .catchError((_) => <Map<String, dynamic>>[]),
     ]);
-    final items = <Map<String, dynamic>>[
-      ...results[0].map((item) => {
-            ...item,
-            'source_id': item['source_id'] ?? 'team_x',
-            'source': item['source'] ?? 'Team X',
-          }),
-      ...results[1].map((item) => {
-            ...item,
-            'source_id': item['source_id'] ?? 'azora',
-            'source': item['source'] ?? 'Azora Manga',
-          }),
+    final bySource = <List<Map<String, dynamic>>>[
+      results[0]
+          .map((item) => {
+                ...item,
+                'source_id': item['source_id'] ?? 'team_x',
+                'source': item['source'] ?? 'Team X',
+              })
+          .toList(growable: false),
+      results[1]
+          .map((item) => {
+                ...item,
+                'source_id': item['source_id'] ?? 'azora',
+                'source': item['source'] ?? 'Azora Manga',
+              })
+          .toList(growable: false),
+      results[2]
+          .map((item) => {
+                ...item,
+                'source_id': item['source_id'] ?? 'mknov',
+                'source': item['source'] ?? 'MKNOV',
+              })
+          .toList(growable: false),
     ];
+    final items = <Map<String, dynamic>>[];
+    final maxPerSource = bySource.fold<int>(
+      0,
+      (max, items) => items.length > max ? items.length : max,
+    );
+    for (var index = 0; index < maxPerSource; index++) {
+      for (final sourceItems in bySource) {
+        if (index < sourceItems.length) items.add(sourceItems[index]);
+      }
+    }
     final seen = <String>{};
     final unique = items.where((item) {
       final id = '${item['source_id']}|${item['url']}';

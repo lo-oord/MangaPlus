@@ -40,7 +40,8 @@ dependencies:
     sdk: flutter
   flutter_downloader: ^1.12.0
   flutter_local_notifications: ^19.3.0
-  flutter_tts: ^4.2.5
+  # 4.2.5 raised the Android minimum to API 24; 4.2.4 supports API 21+.
+  flutter_tts: 4.2.4
   get: 4.6.6
   get_storage: ^2.1.1
   google_sign_in: ^6.2.2
@@ -72,6 +73,7 @@ flutter:
     - assets/images/mangaplus_plus.png
     - assets/images/mangaplus_loader_base.png
     - assets/licenses/GPL-3.0.txt
+    - assets/licenses/NovelSourcery-Apache-2.0.txt
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
   # For details regarding adding assets from package dependencies, see
