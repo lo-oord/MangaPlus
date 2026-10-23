@@ -155,61 +155,70 @@ class ChapterView extends GetView<ChapterController> {
       });
       return ColoredBox(
         color: background,
-        child: GestureDetector(
-          onTap: controller.toggleNavigationVisibility,
-          behavior: HitTestBehavior.opaque,
-          child: NotificationListener<ScrollNotification>(
-            onNotification: (notification) {
-              if (notification is ScrollUpdateNotification ||
-                  notification is ScrollEndNotification) {
-                controller.updateNovelProgress(
-                  notification.metrics.pixels,
-                  notification.metrics.maxScrollExtent,
-                );
-                controller.handleScroll(notification.metrics);
-              }
-              if (notification is ScrollEndNotification) {
-                controller.persistScrollOffset(notification.metrics.pixels);
-              }
-              return false;
-            },
-            child: SingleChildScrollView(
-              controller: controller.scrollController,
-              padding: EdgeInsets.fromLTRB(
-                24,
-                MediaQuery.paddingOf(context).top + 28,
-                24,
-                MediaQuery.paddingOf(context).bottom + 110,
-              ),
-              child: Directionality(
-                textDirection: controller.readingDirection.value == 'rtl'
-                    ? TextDirection.rtl
-                    : TextDirection.ltr,
-                child: SelectionArea(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      for (var index = 0; index < paragraphs.length; index++) ...[
-                        Text(
-                          paragraphs[index],
-                          textAlign:
-                              controller.readingDirection.value == 'rtl'
-                                  ? TextAlign.right
-                                  : TextAlign.left,
-                          style: TextStyle(
-                            color: foreground,
-                            fontSize: controller.novelFontSize.value,
-                            fontFamily: family == 'default' ? null : family,
-                            height: controller.novelLineHeight.value,
-                            letterSpacing: 0.05,
+        child: Listener(
+          onPointerDown: (event) =>
+              controller.beginReaderPointer(event.position),
+          onPointerMove: (event) =>
+              controller.updateReaderPointer(event.position),
+          child: GestureDetector(
+            onTap: controller.toggleNavigationVisibilityAfterTap,
+            behavior: HitTestBehavior.opaque,
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification is ScrollUpdateNotification ||
+                    notification is ScrollEndNotification) {
+                  controller.updateNovelProgress(
+                    notification.metrics.pixels,
+                    notification.metrics.maxScrollExtent,
+                  );
+                  controller.handleScroll(notification.metrics);
+                }
+                if (notification is ScrollEndNotification) {
+                  controller.persistScrollOffset(notification.metrics.pixels);
+                }
+                return false;
+              },
+              child: SingleChildScrollView(
+                controller: controller.scrollController,
+                padding: EdgeInsets.fromLTRB(
+                  24,
+                  MediaQuery.paddingOf(context).top + 28,
+                  24,
+                  MediaQuery.paddingOf(context).bottom + 110,
+                ),
+                child: Directionality(
+                  textDirection: controller.readingDirection.value == 'rtl'
+                      ? TextDirection.rtl
+                      : TextDirection.ltr,
+                  child: SelectionArea(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (var index = 0;
+                            index < paragraphs.length;
+                            index++) ...[
+                          Text(
+                            paragraphs[index],
+                            textAlign:
+                                controller.readingDirection.value == 'rtl'
+                                    ? TextAlign.right
+                                    : TextAlign.left,
+                            style: TextStyle(
+                              color: foreground,
+                              fontSize: controller.novelFontSize.value,
+                              fontFamily:
+                                  family == 'default' ? null : family,
+                              height: controller.novelLineHeight.value,
+                              letterSpacing: 0.05,
+                            ),
                           ),
-                        ),
-                        if (index < paragraphs.length - 1)
-                          SizedBox(
-                            height: controller.novelParagraphSpacing.value,
-                          ),
+                          if (index < paragraphs.length - 1)
+                            SizedBox(
+                              height: controller.novelParagraphSpacing.value,
+                            ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),

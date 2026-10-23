@@ -452,7 +452,9 @@ class MknovSource extends ContentSource {
 
   String _normalizeText(String text) => text
       .replaceAll('\r\n', '\n')
-      .replaceAll(RegExp(r'[\t ]+\n'), '\n')
+      .replaceAll('\r', '\n')
+      .replaceAll(RegExp(r'[\t ]+'), ' ')
+      .replaceAll(RegExp(r' *\n *'), '\n')
       .replaceAll(RegExp(r'\n{3,}'), '\n\n')
       .trim();
 }

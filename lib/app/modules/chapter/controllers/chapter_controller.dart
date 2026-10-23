@@ -82,6 +82,8 @@ class ChapterController extends GetxController {
   bool _speechSessionActive = false;
   bool endNoticeShown = false;
   bool _isLoadingChapterNavigation = false;
+  Offset? _readerPointerDownPosition;
+  bool _readerPointerMoved = false;
 
   List<ChapterElement> get availableChapters {
     chapterNavigationRevision.value;
@@ -1015,6 +1017,23 @@ class ChapterController extends GetxController {
   void toggleNavigationVisibility() {
     showNavigation.toggle();
     if (!showNavigation.value) showChapterList.value = false;
+  }
+
+  void beginReaderPointer(Offset position) {
+    _readerPointerDownPosition = position;
+    _readerPointerMoved = false;
+  }
+
+  void updateReaderPointer(Offset position) {
+    final start = _readerPointerDownPosition;
+    if (start != null && (position - start).distance > 8) {
+      _readerPointerMoved = true;
+    }
+  }
+
+  void toggleNavigationVisibilityAfterTap() {
+    if (_readerPointerMoved) return;
+    toggleNavigationVisibility();
   }
 
   void toggleChapterListVisibility() {

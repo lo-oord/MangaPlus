@@ -189,7 +189,11 @@ class ComicService {
       synopsis: '${raw['synopsis'] ?? raw['description'] ?? ''}',
       chapters: chapters,
     );
-    return ComicDetailData(comicDetail: detail, source: source.name);
+    final sourceName = source.id == 'azora' &&
+            detail.type.trim().toLowerCase() == 'novel'
+        ? 'Azora Novels'
+        : source.name;
+    return ComicDetailData(comicDetail: detail, source: sourceName);
   }
 
   Future<ChapterData> fetchChapter(String chapterId) async {
@@ -256,10 +260,11 @@ class ComicService {
   Future<ChapterData> fetchNovelChapter(String chapterId) async {
     final source = MangaSourceRegistry.forUrl(chapterId);
     if (source == null) throw StateError('لم يتم العثور على مصدر لهذا الفصل.');
+    final sourceName = source.id == 'azora' ? 'Azora Novels' : source.name;
     final raw = await source.chapterContent(chapterId);
-    if (raw == null) throw StateError('${source.name} لم يرجع محتوى الفصل النصي.');
+    if (raw == null) throw StateError('$sourceName لم يرجع محتوى الفصل النصي.');
     final content = '${raw['content'] ?? ''}'.trim();
-    if (content.isEmpty) throw StateError('${source.name} أرجع فصلًا نصيًا فارغًا.');
+    if (content.isEmpty) throw StateError('$sourceName أرجع فصلًا نصيًا فارغًا.');
     final chapterItems = (raw['chapters'] as List? ?? const [])
         .whereType<Map>()
         .map((item) {
@@ -296,7 +301,7 @@ class ComicService {
         ], baseUrl: chapterId),
         chapters: chapterItems,
       ),
-      source: source.name,
+      source: sourceName,
     );
   }
 

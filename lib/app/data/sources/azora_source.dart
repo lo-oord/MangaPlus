@@ -47,7 +47,7 @@ class AzoraSource extends ContentSource {
     required int page,
   }) async {
     final results = await Future.wait<List<Map<String, dynamic>>>([
-      _query(query: query, page: page, includeNovels: true)
+      _query(query: query, page: page)
           .catchError((_) => <Map<String, dynamic>>[]),
       _query(
         query: query,
@@ -269,6 +269,7 @@ class AzoraSource extends ContentSource {
   Map<String, dynamic> _series(Map<String, dynamic> raw) {
     final slug = (raw['slug'] ?? '').toString();
     final id = (raw['id'] ?? '').toString();
+    final isNovel = _isNovel(raw);
     final genres = _genres(raw);
     final chapters = raw['chapters'];
     final latest = chapters is List && chapters.isNotEmpty && chapters.first is Map
@@ -278,7 +279,7 @@ class AzoraSource extends ContentSource {
       title: (raw['postTitle'] ?? raw['title'] ?? '').toString(),
       url: _seriesUrl(slug, id),
       image: (raw['featuredImage'] ?? '').toString(),
-      type: _isNovel(raw)
+      type: isNovel
           ? 'novel'
           : SourceValues.type([
               raw['seriesType'],
@@ -289,6 +290,8 @@ class AzoraSource extends ContentSource {
       description: mangaHtmlToText((raw['postContent'] ?? '').toString()),
       rating: SourceValues.rating(raw),
     )..addAll({
+        'source_id': isNovel ? 'azora_novel' : 'azora',
+        'source': isNovel ? 'Azora Novels' : name,
         'manga_id': id,
         'series_id': id,
         'slug': slug,
