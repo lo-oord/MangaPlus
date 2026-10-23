@@ -1081,7 +1081,7 @@ class _ChapterListState extends State<_ChapterList> {
     final selected = widget.controller.selectedChapterIds.contains(chapter.chapterId);
     final downloaded = widget.controller.isChapterDownloaded(chapter.chapterId);
     final read = widget.controller.isChapterRead(chapter.chapterId);
-    final progress = widget.controller.downloadingChapters[chapter.chapterId];
+    final progress = widget.controller.chapterDownloadProgress(chapter.chapterId);
     final task = widget.controller.downloadTaskForChapter(chapter.chapterId);
     final taskStatus = task?.status.name;
     final failed = !downloaded &&
@@ -1092,8 +1092,8 @@ class _ChapterListState extends State<_ChapterList> {
         (taskStatus == 'queued' ||
             (taskStatus == 'downloading' && !isCurrentTaskChapter));
     final downloading = !downloaded && !failed && !paused && !queued &&
-        (progress != null ||
-            (taskStatus == 'downloading' && isCurrentTaskChapter));
+        taskStatus == 'downloading' &&
+        (progress != null || isCurrentTaskChapter);
     final readColor = read ? AppColors.success : AppColors.textSecondary;
 
     return Card(
@@ -1189,25 +1189,37 @@ class _ChapterListState extends State<_ChapterList> {
           children: [
             if (downloading)
               SizedBox(
-                width: 38,
-                height: 38,
-                child: Stack(
-                  alignment: Alignment.center,
+                width: 54,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    CircularProgressIndicator(
-                      value: progress,
-                      strokeWidth: 3,
-                      color: AppColors.primary,
-                      backgroundColor: AppColors.divider,
-                    ),
-                    if (progress != null)
-                      Text(
-                        '${(progress * 100).round()}%',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 9,
-                        ),
+                    SizedBox(
+                      width: 36,
+                      height: 36,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          CircularProgressIndicator(
+                            value: progress?.clamp(0.0, 1.0),
+                            strokeWidth: 3,
+                            strokeCap: StrokeCap.round,
+                            color: AppColors.primary,
+                            backgroundColor: AppColors.divider,
+                          ),
+                          Icon(Icons.downloading_rounded,
+                              size: 16, color: AppColors.primary),
+                        ],
                       ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      progress == null ? '…' : '${(progress * 100).round()}%',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ],
                 ),
               )

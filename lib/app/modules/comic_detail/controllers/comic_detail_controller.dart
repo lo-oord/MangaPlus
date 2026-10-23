@@ -343,6 +343,10 @@ class ComicDetailController extends GetxController {
     return _readChapterIds.contains(chapterId);
   }
 
+  double? chapterDownloadProgress(String chapterId) {
+    final liveProgress = Get.find<DownloadManagerService>().chapterProgress[chapterId];
+    return liveProgress ?? downloadingChapters[chapterId];
+  }
   bool isChapterDownloaded(String chapterId) {
     downloadRevision.value;
     return _downloadedChapterIds.contains(chapterId);

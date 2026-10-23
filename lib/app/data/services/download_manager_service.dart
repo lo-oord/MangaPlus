@@ -23,6 +23,7 @@ class DownloadManagerService extends GetxService {
   final ComicService _comicService = ComicService();
   final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
+  final http.Client _httpClient = http.Client();
   final tasks = <DownloadTask>[].obs;
   final chapterProgress = <String, double>{}.obs;
   final Set<String> _running = <String>{};
@@ -46,6 +47,11 @@ class DownloadManagerService extends GetxService {
     await _pump();
   }
 
+  @override
+  void onClose() {
+    _httpClient.close();
+    super.onClose();
+  }
   Future<void> _load() async {
     final raw = _storage.read<List<dynamic>>(_tasksKey) ?? const [];
     tasks.assignAll(raw.whereType<Map>().map((item) {
@@ -76,9 +82,13 @@ class DownloadManagerService extends GetxService {
       onDidReceiveNotificationResponse: (response) {
         final parts = response.payload?.split('|') ?? const [];
         if (parts.length != 2) return;
-        if (parts.first == 'pause') pause(parts.last);
-        if (parts.first == 'resume') resume(parts.last);
-        if (parts.first == 'cancel') cancel(parts.last);
+        final action = response.actionId?.isNotEmpty == true
+            ? response.actionId!
+            : parts.first;
+        if (action == 'pause') pause(parts.last);
+        if (action == 'resume') resume(parts.last);
+        if (action == 'retry') retry(parts.last);
+        if (action == 'cancel') cancel(parts.last);
       },
     );
     final android = _notifications.resolvePlatformSpecificImplementation<
@@ -140,6 +150,7 @@ class DownloadManagerService extends GetxService {
     );
     tasks.add(task);
     await _persist();
+    unawaited(_notify(task));
     unawaited(_pump());
     return task.id;
   }
@@ -308,10 +319,14 @@ class DownloadManagerService extends GetxService {
     final finalDir = Directory('${root.path}/$chapterKey');
     await temp.create(recursive: true);
     final source = TeamXSource();
-    final paths = <String>[];
+    final paths = List<String?>.filled(data.chapter.images.length, null);
+    var completedPages = 0;
     var lastNotifiedPercent = 0;
-    try {
-      for (var index = 0; index < data.chapter.images.length; index++) {
+    var nextIndex = 0;
+    Future<void> downloadImage() async {
+      while (true) {
+        final index = nextIndex++;
+        if (index >= data.chapter.images.length) return;
         final current = _task(task.id);
         if (current?.status == DownloadTaskStatus.paused ||
             current?.status == DownloadTaskStatus.cancelled) return;
@@ -323,7 +338,7 @@ class DownloadManagerService extends GetxService {
                 'User-Agent':
                     'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
               };
-        final response = await http
+        final response = await _httpClient
             .get(imageUri, headers: headers)
             .timeout(const Duration(seconds: 35));
         if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -333,13 +348,13 @@ class DownloadManagerService extends GetxService {
             ? 'png'
             : 'jpg';
         final file = File('${temp.path}/page_${index + 1}.$extension');
-        await file.writeAsBytes(response.bodyBytes, flush: true);
-        paths.add(file.path);
-        final progress = (index + 1) / data.chapter.images.length;
+        await file.writeAsBytes(response.bodyBytes, flush: false);
+        paths[index] = file.path;
+        completedPages++;
+        final progress = completedPages / data.chapter.images.length;
         chapterProgress[chapterId] = progress;
-        chapterProgress.refresh();
-        final isLastPage = index + 1 == data.chapter.images.length;
-        final shouldCheckpoint = isLastPage || (index + 1) % 5 == 0;
+        final isLastPage = completedPages == data.chapter.images.length;
+        final shouldCheckpoint = isLastPage || completedPages % 3 == 0;
         if (shouldCheckpoint) {
           await _storage.write(_progressKey, chapterProgress);
         }
@@ -350,15 +365,27 @@ class DownloadManagerService extends GetxService {
           ), notify: false, persist: shouldCheckpoint);
         }
         final percent = (progress * 100).floor();
-        if (isLastPage || percent - lastNotifiedPercent >= 10) {
-          final current = _task(task.id);
-          if (current != null) await _notify(current);
+        if (isLastPage || percent - lastNotifiedPercent >= 12) {
+          final notificationTask = _task(task.id);
+          if (notificationTask != null) unawaited(_notify(notificationTask));
           lastNotifiedPercent = percent;
         }
       }
+    }
+    try {
+      final concurrency = data.chapter.images.length < 5
+          ? data.chapter.images.length
+          : 5;
+      await Future.wait(List.generate(concurrency, (_) => downloadImage()));
+      final current = _task(task.id);
+      if (completedPages != data.chapter.images.length ||
+          current?.status == DownloadTaskStatus.paused ||
+          current?.status == DownloadTaskStatus.cancelled) return;
       if (await finalDir.exists()) await finalDir.delete(recursive: true);
       await temp.rename(finalDir.path);
-      final finalPaths = paths.map((path) => path.replaceFirst(temp.path, finalDir.path)).toList();
+      final finalPaths = paths
+          .map((path) => path!.replaceFirst(temp.path, finalDir.path))
+          .toList(growable: false);
       await _saveDownloadedChapter(task, chapterId, chapterTitle, finalPaths);
     } catch (_) {
       if (await temp.exists()) await temp.delete(recursive: true);
@@ -399,7 +426,7 @@ class DownloadManagerService extends GetxService {
         return cachedFile.path;
       }
       final coverUri = Uri.parse(cover);
-      final response = await http.get(coverUri, headers: {
+      final response = await _httpClient.get(coverUri, headers: {
         'Referer': '${coverUri.scheme}://${coverUri.host}/',
         'User-Agent':
             'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
@@ -469,24 +496,23 @@ class DownloadManagerService extends GetxService {
     } else if (task.status == DownloadTaskStatus.paused ||
         task.status == DownloadTaskStatus.queued) {
       actions.add(const AndroidNotificationAction('resume', 'استئناف'));
+    } else if (task.status == DownloadTaskStatus.failed ||
+        task.status == DownloadTaskStatus.partiallyCompleted) {
+      actions.add(const AndroidNotificationAction('retry', 'إعادة المحاولة'));
     }
     if (task.status != DownloadTaskStatus.completed &&
         task.status != DownloadTaskStatus.cancelled) {
       actions.add(const AndroidNotificationAction('cancel', 'إلغاء'));
     }
     final coverPath = await _notificationCover(task);
-    final styleInformation = coverPath == null
-        ? null
-        : BigPictureStyleInformation(
-            FilePathAndroidBitmap(coverPath),
-            hideExpandedLargeIcon: true,
-            contentTitle: task.comicTitle,
-            summaryText: '${task.completedCount}/${task.totalChapters} • $status',
-          );
+    final currentChapter = task.chapters.firstWhereOrNull(
+      (chapter) => chapter['id'] == task.currentChapterId,
+    );
+    final chapterLabel = currentChapter?['title'];
     await _notifications.show(
       task.id.hashCode,
       task.comicTitle,
-      '${task.completedCount}/${task.totalChapters} • $status • $percent%',
+      '${chapterLabel == null ? '' : 'الفصل الحالي: $chapterLabel • '}${task.completedCount}/${task.totalChapters} • $status • $percent%',
       NotificationDetails(
         android: AndroidNotificationDetails(
           _channelId,
@@ -495,16 +521,23 @@ class DownloadManagerService extends GetxService {
           importance: Importance.low,
           priority: Priority.low,
           onlyAlertOnce: true,
-          showProgress: task.status == DownloadTaskStatus.downloading,
+          largeIcon: coverPath == null ? null : FilePathAndroidBitmap(coverPath),
+          showProgress: task.status != DownloadTaskStatus.cancelled,
           maxProgress: 100,
           progress: percent,
           ongoing: task.status == DownloadTaskStatus.downloading,
           autoCancel: task.status != DownloadTaskStatus.downloading,
-          styleInformation: styleInformation,
+
           actions: actions,
         ),
       ),
-      payload: '${task.status == DownloadTaskStatus.downloading ? 'pause' : 'resume'}|${task.id}',
+      payload: task.status == DownloadTaskStatus.downloading
+          ? 'pause|${task.id}'
+          : task.status == DownloadTaskStatus.paused || task.status == DownloadTaskStatus.queued
+              ? 'resume|${task.id}'
+              : task.status == DownloadTaskStatus.failed || task.status == DownloadTaskStatus.partiallyCompleted
+                  ? 'retry|${task.id}'
+                  : null,
     );
   }
 
