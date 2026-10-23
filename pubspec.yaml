@@ -72,6 +72,8 @@ flutter:
     - assets/images/mangaplus_logo.png
     - assets/images/mangaplus_plus.png
     - assets/images/mangaplus_loader_base.png
+    - assets/images/mangacloud_source_logo.png
+    - assets/images/mangatek_source_logo.png
     - assets/licenses/GPL-3.0.txt
     - assets/licenses/NovelSourcery-Apache-2.0.txt
   # An image asset can refer to one or more resolution-specific "variants", see

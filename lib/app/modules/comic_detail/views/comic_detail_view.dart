@@ -312,7 +312,8 @@ class ComicDetailView extends GetView<ComicDetailController> {
 
   Widget _buildBody(BuildContext context, ComicDetail comic) {
     final isNovel = comic.type.trim().toLowerCase() == 'novel';
-    final hasMetadata = [comic.author, comic.status, comic.type, comic.updatedOn, comic.releaseYear]
+    final source = controller.comicDetailData.value.source;
+    final hasMetadata = [source, comic.status, comic.type, comic.updatedOn, comic.releaseYear]
         .any((value) => value.trim().isNotEmpty && value != '0' && value != '0.0');
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
@@ -340,7 +341,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
           ],
           if (hasMetadata) ...[
             const SizedBox(height: 16),
-            _MetadataGrid(comic: comic),
+            _MetadataGrid(comic: comic, source: source),
           ],
 
         ],
@@ -548,12 +549,13 @@ class _InfoCard extends StatelessWidget {
 }
 
 class _MetadataGrid extends StatelessWidget {
-  const _MetadataGrid({required this.comic});
+  const _MetadataGrid({required this.comic, required this.source});
   final ComicDetail comic;
+  final String source;
   @override
   Widget build(BuildContext context) {
     final values = <(IconData, String, String)>[
-      (Icons.person_outline_rounded, 'المؤلف'.tr, comic.author),
+      (Icons.public_rounded, 'المصدر'.tr, source),
       (Icons.palette_outlined, 'النوع'.tr, localizeContentType(comic.type)),
       (Icons.circle_outlined, 'الحالة'.tr, localizeContentStatus(comic.status)),
       (Icons.calendar_today_rounded, 'تاريخ النشر'.tr,
@@ -574,7 +576,9 @@ class _MetadataGrid extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(entry.$1, size: 20, color: AppColors.primary),
+                  index == 0
+                      ? _SourceLogo(source: source)
+                      : Icon(entry.$1, size: 20, color: AppColors.primary),
                   const SizedBox(height: 7),
                   Text(entry.$2, maxLines: 1, overflow: TextOverflow.ellipsis,
                       style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
@@ -591,61 +595,74 @@ class _MetadataGrid extends StatelessWidget {
     );
   }
 }
-class _SourceBadge extends StatelessWidget {
-  const _SourceBadge({required this.source});
+class _SourceLogo extends StatelessWidget {
+  const _SourceLogo({required this.source});
 
   final String source;
 
-  String get logoUrl {
-    final value = source.toLowerCase();
-    if (value.contains('swat')) return 'https://appswat.com/favicon.ico';
-    if (value.contains('azora')) return 'https://azorafly.com/favicon.ico';
-    if (value.contains('time')) return 'https://mangatime.org/favicon.ico';
-    if (value.contains('online')) return 'https://onma.top/favicon.ico';
-    if (value.contains('lava')) return 'https://lavascans.com/favicon.ico';
-    if (value.contains('mangatek')) return 'https://mangatek.com/favicon.ico';
-    if (value.contains('mangacloud')) return 'https://mangacloud.online/favicon.ico';
-    if (value.contains('team')) return 'https://olympustaff.com/favicon.ico';
-    return 'https://mangaplus.com/favicon.ico';
+  String get _normalizedSource =>
+      source.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+  String? get localLogoAsset {
+    final value = _normalizedSource;
+    if (value.contains('mangacloud')) {
+      return 'assets/images/mangacloud_source_logo.png';
+    }
+    if (value.contains('mangatek')) {
+      return 'assets/images/mangatek_source_logo.png';
+    }
+    return null;
   }
 
+  String? get logoUrl {
+    final value = _normalizedSource;
+    if (value.contains('swat')) {
+      return 'https://meshmanga.com/_next/static/media/swatManga.795f6613.png';
+    }
+    if (value.contains('azora')) {
+      return 'https://storage.azorafly.com/public/upload/2025/12/24/c925c7f3-2310-4e90-9b62-7fae04fe1c36.webp';
+    }
+    if (value.contains('mangatime')) {
+      return 'https://mangatime.org/brand/v2/icons/icon-192.png';
+    }
+    if (value.contains('mangaonline') || value.contains('onma')) {
+      return 'https://onma.top/uploads/logo.png';
+    }
+    if (value.contains('lava')) {
+      return 'https://lavascans.com/wp-content/uploads/2024/09/2024-09-28-10-58-25-1727564305679-192x192.png';
+    }
+    if (value.contains('mangatek') || value.contains('mangacloud')) return null;
+    if (value.contains('teamx') || value.contains('olympus')) {
+      return 'https://olympustaff.com/images/TeamX.png';
+    }
+    if (value.contains('mknov')) return 'https://mknov.com/logo.png';
+    return null;
+  }
+
+  Widget _fallback() => Icon(Icons.public_rounded, size: 22, color: AppColors.primary);
+
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.34),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(5),
-              child: CachedNetworkImage(
-                imageUrl: logoUrl,
-                width: 18,
-                height: 18,
-                fit: BoxFit.cover,
-                errorWidget: (_, __, ___) => const Icon(
-                  Icons.public_rounded,
-                  size: 17,
-                  color: Colors.white70,
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              source,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
+  Widget build(BuildContext context) {
+    final asset = localLogoAsset;
+    if (asset != null) {
+      return Image.asset(
+        asset,
+        width: 24,
+        height: 24,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => _fallback(),
       );
+    }
+    final url = logoUrl;
+    if (url == null) return _fallback();
+    return CachedNetworkImage(
+      imageUrl: url,
+      width: 24,
+      height: 24,
+      fit: BoxFit.contain,
+      errorWidget: (_, __, ___) => _fallback(),
+    );
+  }
 }
 
 class _SectionTitle extends StatelessWidget {
