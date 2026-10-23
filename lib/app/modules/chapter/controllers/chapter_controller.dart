@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/data/models/chapter.dart';
@@ -13,6 +14,7 @@ import 'package:mangaplus/app/widgets/app_feedback.dart';
 
 class ChapterController extends GetxController {
   final ComicService _comicService = ComicService();
+  final FlutterTts _flutterTts = FlutterTts();
   final GetStorage _storage = GetStorage();
   final List<ChapterElement> _argumentChapterNavigation = [];
   final List<ChapterElement> _fallbackChapterNavigation = [];
@@ -68,8 +70,16 @@ class ChapterController extends GetxController {
   final novelFontFamily = 'default'.obs;
   final novelBackground = 'app'.obs;
   final novelLineHeight = 1.85.obs;
+  final novelParagraphSpacing = 18.0.obs;
   final novelProgress = 0.0.obs;
   final novelBookmarks = <Map<String, dynamic>>[].obs;
+  final novelSpeechPlaying = false.obs;
+  final novelSpeechPaused = false.obs;
+  final novelSpeechRate = 0.42.obs;
+  final novelSpeechLanguage = 'ar-SA'.obs;
+  List<String> _speechChunks = [];
+  int _speechChunkIndex = 0;
+  bool _speechSessionActive = false;
   bool endNoticeShown = false;
   bool _isLoadingChapterNavigation = false;
 
@@ -361,6 +371,9 @@ class ChapterController extends GetxController {
         isNavigating.value) {
       return;
     }
+    if (novelSpeechPlaying.value || novelSpeechPaused.value) {
+      await stopNovelSpeech();
+    }
 
     final previousId = chapterId;
     final previousTitle = currentChapterTitle;
@@ -611,6 +624,19 @@ class ChapterController extends GetxController {
             .toDouble()
             .clamp(1.4, 2.3)
             .toDouble();
+    novelParagraphSpacing.value =
+        (_storage.read<num>(_readerSettingKey('novel_paragraph_spacing')) ?? 18)
+            .toDouble()
+            .clamp(8.0, 36.0)
+            .toDouble();
+    novelSpeechRate.value =
+        (_storage.read<num>(_readerSettingKey('novel_speech_rate')) ?? 0.42)
+            .toDouble()
+            .clamp(0.25, 0.75)
+            .toDouble();
+    novelSpeechLanguage.value =
+        _storage.read<String>(_readerSettingKey('novel_speech_language')) ??
+            'ar-SA';
     final storedBookmarks =
         _storage.read<List<dynamic>>(_readerSettingKey('novel_bookmarks')) ?? [];
     novelBookmarks.assignAll(
@@ -644,6 +670,196 @@ class ChapterController extends GetxController {
       _readerSettingKey('novel_line_height'),
       novelLineHeight.value,
     );
+  }
+
+  Future<void> setNovelParagraphSpacing(double value) async {
+    novelParagraphSpacing.value = value.clamp(8.0, 36.0).toDouble();
+    await _storage.write(
+      _readerSettingKey('novel_paragraph_spacing'),
+      novelParagraphSpacing.value,
+    );
+  }
+
+  Future<void> setNovelSpeechRate(double value) async {
+    novelSpeechRate.value = value.clamp(0.25, 0.75).toDouble();
+    await _storage.write(
+      _readerSettingKey('novel_speech_rate'),
+      novelSpeechRate.value,
+    );
+    if (novelSpeechPlaying.value) {
+      try {
+        await _flutterTts.setSpeechRate(novelSpeechRate.value);
+      } catch (error) {
+        debugPrint('Unable to update TTS rate: $error');
+        _failNovelSpeech();
+      }
+    }
+  }
+
+  Future<void> setNovelSpeechLanguage(String value) async {
+    if (value != 'ar-SA' && value != 'en-US') return;
+    novelSpeechLanguage.value = value;
+    await _storage.write(_readerSettingKey('novel_speech_language'), value);
+    if (novelSpeechPlaying.value) {
+      try {
+        await _flutterTts.setLanguage(await _resolvedSpeechLanguage());
+      } catch (error) {
+        debugPrint('Unable to update TTS language: $error');
+        _failNovelSpeech();
+      }
+    }
+  }
+
+  Future<String> _resolvedSpeechLanguage() async {
+    final preferred = novelSpeechLanguage.value;
+    final dynamic rawLanguages = await _flutterTts.getLanguages;
+    if (rawLanguages is! Iterable) return preferred;
+    final available = rawLanguages.map((value) => '$value').toList();
+    final exact = available.firstWhereOrNull(
+      (value) => value.toLowerCase() == preferred.toLowerCase(),
+    );
+    if (exact != null) return exact;
+    final languageCode = preferred.split('-').first.toLowerCase();
+    final regional = available.firstWhereOrNull(
+      (value) => value.toLowerCase().startsWith('$languageCode-'),
+    );
+    if (regional != null) return regional;
+    final baseLanguage = available.firstWhereOrNull(
+      (value) => value.toLowerCase() == languageCode,
+    );
+    if (baseLanguage != null) return baseLanguage;
+    throw StateError('Selected TTS language is not installed.');
+  }
+
+  void _configureNovelSpeech() {
+    _flutterTts.setStartHandler(() {
+      if (!_speechSessionActive) return;
+      novelSpeechPlaying.value = true;
+      novelSpeechPaused.value = false;
+    });
+    _flutterTts.setPauseHandler(() {
+      if (!_speechSessionActive) return;
+      novelSpeechPlaying.value = false;
+      novelSpeechPaused.value = true;
+    });
+    _flutterTts.setContinueHandler(() {
+      if (!_speechSessionActive) return;
+      novelSpeechPlaying.value = true;
+      novelSpeechPaused.value = false;
+    });
+    _flutterTts.setCompletionHandler(_onSpeechChunkCompleted);
+    _flutterTts.setCancelHandler(() {
+      if (_speechSessionActive) return;
+      novelSpeechPlaying.value = false;
+      novelSpeechPaused.value = false;
+    });
+    _flutterTts.setErrorHandler((_) {
+      if (_speechSessionActive) _failNovelSpeech();
+    });
+  }
+
+  Future<void> toggleNovelSpeech() async {
+    if (!isNovel || chapterData.value.chapter.content.trim().isEmpty) return;
+    if (novelSpeechPlaying.value) {
+      novelSpeechPlaying.value = false;
+      novelSpeechPaused.value = true;
+      try {
+        await _flutterTts.pause();
+      } catch (_) {
+        await stopNovelSpeech();
+      }
+      return;
+    }
+    if (novelSpeechPaused.value && _speechChunkIndex < _speechChunks.length) {
+      novelSpeechPaused.value = false;
+      novelSpeechPlaying.value = true;
+      await _playSpeechChunk();
+      return;
+    }
+    await _startNovelSpeech();
+  }
+
+  Future<void> _startNovelSpeech() async {
+    _speechChunks = _splitSpeechText(chapterData.value.chapter.content);
+    if (_speechChunks.isEmpty) return;
+    _speechChunkIndex = 0;
+    _speechSessionActive = true;
+    novelSpeechPlaying.value = true;
+    novelSpeechPaused.value = false;
+    try {
+      await _flutterTts.setLanguage(await _resolvedSpeechLanguage());
+      await _flutterTts.setSpeechRate(novelSpeechRate.value);
+      await _playSpeechChunk();
+    } catch (error) {
+      debugPrint('Novel TTS failed: $error');
+      _failNovelSpeech();
+    }
+  }
+
+  Future<void> _playSpeechChunk() async {
+    if (!_speechSessionActive || _speechChunkIndex >= _speechChunks.length) {
+      return;
+    }
+    try {
+      final result = await _flutterTts.speak(_speechChunks[_speechChunkIndex]);
+      if ((result is num && result != 1) || result == false || result == '0') {
+        _failNovelSpeech();
+      }
+    } catch (error) {
+      debugPrint('Novel TTS playback failed: $error');
+      _failNovelSpeech();
+    }
+  }
+
+  void _failNovelSpeech() {
+    _speechSessionActive = false;
+    novelSpeechPlaying.value = false;
+    novelSpeechPaused.value = false;
+    AppFeedback.show(
+      title: 'تعذر تشغيل القراءة الصوتية'.tr,
+      message: 'تحقق من تثبيت صوت اللغة المختارة على الجهاز'.tr,
+    );
+  }
+
+  List<String> _splitSpeechText(String value) {
+    final words = value.trim().split(RegExp(r'\s+'));
+    final chunks = <String>[];
+    final buffer = StringBuffer();
+    for (final word in words) {
+      if (word.isEmpty) continue;
+      final extraLength = word.length + (buffer.isEmpty ? 0 : 1);
+      if (buffer.length + extraLength > 2500 && buffer.isNotEmpty) {
+        chunks.add(buffer.toString());
+        buffer.clear();
+      }
+      if (buffer.isNotEmpty) buffer.write(' ');
+      buffer.write(word);
+    }
+    if (buffer.isNotEmpty) chunks.add(buffer.toString());
+    return chunks;
+  }
+
+  void _onSpeechChunkCompleted() {
+    if (!_speechSessionActive || novelSpeechPaused.value) return;
+    if (_speechChunkIndex + 1 < _speechChunks.length) {
+      _speechChunkIndex++;
+      unawaited(_playSpeechChunk());
+      return;
+    }
+    _speechSessionActive = false;
+    novelSpeechPlaying.value = false;
+    novelSpeechPaused.value = false;
+  }
+
+  Future<void> stopNovelSpeech() async {
+    _speechSessionActive = false;
+    novelSpeechPlaying.value = false;
+    novelSpeechPaused.value = false;
+    _speechChunks = [];
+    _speechChunkIndex = 0;
+    try {
+      await _flutterTts.stop();
+    } catch (_) {}
   }
 
   Future<void> saveNovelBookmark() async {
@@ -811,6 +1027,7 @@ class ChapterController extends GetxController {
     super.onInit();
     _readChapterNavigationArguments();
     _loadReaderPreferences();
+    _configureNovelSpeech();
     if (isNovel) readerMode.value = 'scroll';
     unawaited(fetchChapter(chapterId).then((_) async {
       if (!hasError.value && hasReadableContent) {
@@ -822,6 +1039,7 @@ class ChapterController extends GetxController {
 
   @override
   void onClose() {
+    unawaited(stopNovelSpeech());
     _pageController?.dispose();
     _scrollController?.dispose();
     super.onClose();

@@ -45,7 +45,6 @@ class AzoraApi {
         record.containsKey('type') ||
         record.containsKey('postType')) {
       if (isNovel(record)) return Future.value(true);
-      if (record['isNovel'] == false) return Future.value(false);
     }
     final slug = '${record['slug'] ?? ''}'.trim();
     final id = '${record['id'] ?? ''}'.trim();

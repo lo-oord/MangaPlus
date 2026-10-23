@@ -145,6 +145,11 @@ class ChapterView extends GetView<ChapterController> {
       final background = _novelBackgroundColor(controller.novelBackground.value);
       final foreground = _novelTextColor(controller.novelBackground.value);
       final family = controller.novelFontFamily.value;
+      final paragraphs = chapter.content
+          .split(RegExp(r'\n+'))
+          .map((paragraph) => paragraph.trim())
+          .where((paragraph) => paragraph.isNotEmpty)
+          .toList(growable: false);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) controller.syncScrollController();
       });
@@ -180,17 +185,31 @@ class ChapterView extends GetView<ChapterController> {
                 textDirection: controller.readingDirection.value == 'rtl'
                     ? TextDirection.rtl
                     : TextDirection.ltr,
-                child: SelectableText(
-                  chapter.content,
-                  textAlign: controller.readingDirection.value == 'rtl'
-                      ? TextAlign.right
-                      : TextAlign.left,
-                  style: TextStyle(
-                    color: foreground,
-                    fontSize: controller.novelFontSize.value,
-                    fontFamily: family == 'default' ? null : family,
-                    height: controller.novelLineHeight.value,
-                    letterSpacing: 0.05,
+                child: SelectionArea(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (var index = 0; index < paragraphs.length; index++) ...[
+                        Text(
+                          paragraphs[index],
+                          textAlign:
+                              controller.readingDirection.value == 'rtl'
+                                  ? TextAlign.right
+                                  : TextAlign.left,
+                          style: TextStyle(
+                            color: foreground,
+                            fontSize: controller.novelFontSize.value,
+                            fontFamily: family == 'default' ? null : family,
+                            height: controller.novelLineHeight.value,
+                            letterSpacing: 0.05,
+                          ),
+                        ),
+                        if (index < paragraphs.length - 1)
+                          SizedBox(
+                            height: controller.novelParagraphSpacing.value,
+                          ),
+                      ],
+                    ],
                   ),
                 ),
               ),
@@ -340,6 +359,20 @@ class ChapterView extends GetView<ChapterController> {
                         icon: Icons.bookmarks_outlined,
                         tooltip: 'العلامات المرجعية'.tr,
                         onPressed: _openNovelBookmarks,
+                      ),
+                    if (controller.isNovel)
+                      _readerIconButton(
+                        icon: controller.novelSpeechPlaying.value
+                            ? Icons.pause_rounded
+                            : controller.novelSpeechPaused.value
+                                ? Icons.play_arrow_rounded
+                                : Icons.volume_up_rounded,
+                        tooltip: controller.novelSpeechPlaying.value
+                            ? 'إيقاف مؤقت'.tr
+                            : controller.novelSpeechPaused.value
+                                ? 'استئناف القراءة'.tr
+                                : 'القراءة الصوتية'.tr,
+                        onPressed: () => controller.toggleNovelSpeech(),
                       ),
                     Expanded(
                       child: GestureDetector(
@@ -670,6 +703,20 @@ class ChapterView extends GetView<ChapterController> {
                       onChanged: controller.setNovelLineHeight,
                     ),
                     const SizedBox(height: 8),
+                    Text('تباعد الفقرات'.tr,
+                        style: TextStyle(color: AppColors.textSecondary)),
+                    Slider(
+                      value: controller.novelParagraphSpacing.value
+                          .clamp(8.0, 36.0)
+                          .toDouble(),
+                      min: 8,
+                      max: 36,
+                      divisions: 14,
+                      label:
+                          '${controller.novelParagraphSpacing.value.round()} px',
+                      onChanged: controller.setNovelParagraphSpacing,
+                    ),
+                    const SizedBox(height: 8),
                     Text('نوع الخط'.tr,
                         style: TextStyle(color: AppColors.textSecondary)),
                     const SizedBox(height: 7),
@@ -682,6 +729,44 @@ class ChapterView extends GetView<ChapterController> {
                         _novelChoice('monospace', 'أحادي المسافة'.tr),
                       ],
                     ),
+                    const SizedBox(height: 16),
+                    Text('القراءة الصوتية'.tr,
+                        style: TextStyle(color: AppColors.textSecondary)),
+                    const SizedBox(height: 7),
+                    Text('لغة القراءة الصوتية'.tr,
+                        style: TextStyle(color: AppColors.textSecondary)),
+                    const SizedBox(height: 7),
+                    Wrap(
+                      spacing: 7,
+                      children: [
+                        _speechLanguageChoice('ar-SA', 'العربية'.tr),
+                        _speechLanguageChoice('en-US', 'الإنجليزية'.tr),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text('سرعة القراءة الصوتية'.tr,
+                        style: TextStyle(color: AppColors.textSecondary)),
+                    Slider(
+                      value: controller.novelSpeechRate.value
+                          .clamp(0.25, 0.75)
+                          .toDouble(),
+                      min: 0.25,
+                      max: 0.75,
+                      divisions: 10,
+                      label:
+                          controller.novelSpeechRate.value.toStringAsFixed(2),
+                      onChanged: controller.setNovelSpeechRate,
+                    ),
+                    if (controller.novelSpeechPlaying.value ||
+                        controller.novelSpeechPaused.value)
+                      Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: TextButton.icon(
+                          onPressed: () => controller.stopNovelSpeech(),
+                          icon: const Icon(Icons.stop_rounded),
+                          label: Text('إيقاف القراءة'.tr),
+                        ),
+                      ),
                     const SizedBox(height: 14),
                     Text('خلفية القراءة'.tr,
                         style: TextStyle(color: AppColors.textSecondary)),
@@ -695,6 +780,17 @@ class ChapterView extends GetView<ChapterController> {
                         _novelChoice('dark', 'داكن'.tr),
                         _novelChoice('black', 'أسود خالص'.tr),
                       ],
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      value: controller.continuousNavigation.value,
+                      onChanged: controller.setContinuousNavigation,
+                      title: Text('التنقل المتصل بين الفصول'.tr,
+                          style: TextStyle(color: AppColors.textPrimary)),
+                      subtitle: Text('الانتقال التلقائي عند نهاية الفصل'.tr,
+                          style: TextStyle(color: AppColors.textSecondary)),
+                      activeColor: AppColors.primary,
                     ),
                   ],
                 ),
@@ -720,6 +816,20 @@ class ChapterView extends GetView<ChapterController> {
       onSelected: (_) => isFont
           ? controller.setNovelFontFamily(value)
           : controller.setNovelBackground(value),
+      selectedColor: AppColors.primary.withValues(alpha: 0.22),
+      labelStyle: TextStyle(
+        color: selected ? AppColors.primary : AppColors.textSecondary,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+
+  Widget _speechLanguageChoice(String value, String label) {
+    final selected = controller.novelSpeechLanguage.value == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => controller.setNovelSpeechLanguage(value),
       selectedColor: AppColors.primary.withValues(alpha: 0.22),
       labelStyle: TextStyle(
         color: selected ? AppColors.primary : AppColors.textSecondary,

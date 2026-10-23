@@ -87,8 +87,34 @@ class ComicService {
     return _comicData(result.isEmpty ? items : result, source: 'Manga sources');
   }
 
-  Future<ComicData> fetchSearchSuggestions({int limit = 8}) async =>
-      _comicData((await _teamX.searchSuggestions(limit: limit)).take(limit).toList());
+  Future<ComicData> fetchSearchSuggestions({int limit = 8}) async {
+    final results = await Future.wait<List<Map<String, dynamic>>>([
+      _teamX
+          .searchSuggestions(limit: limit)
+          .catchError((_) => <Map<String, dynamic>>[]),
+      _azora
+          .searchNovelSuggestions(limit: limit * 2)
+          .catchError((_) => <Map<String, dynamic>>[]),
+    ]);
+    final items = <Map<String, dynamic>>[
+      ...results[0].map((item) => {
+            ...item,
+            'source_id': item['source_id'] ?? 'team_x',
+            'source': item['source'] ?? 'Team X',
+          }),
+      ...results[1].map((item) => {
+            ...item,
+            'source_id': item['source_id'] ?? 'azora',
+            'source': item['source'] ?? 'Azora Manga',
+          }),
+    ];
+    final seen = <String>{};
+    final unique = items.where((item) {
+      final id = '${item['source_id']}|${item['url']}';
+      return seen.add(id);
+    }).take(limit * 3).toList(growable: false);
+    return _comicData(unique, source: 'Search suggestions');
+  }
 
   Future<ComicDetailData> fetchComicDetail(String comicId) async {
     final source = MangaSourceRegistry.forUrl(comicId);

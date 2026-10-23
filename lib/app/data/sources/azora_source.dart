@@ -19,8 +19,18 @@ class AzoraSource extends ContentSource {
   @override
   Future<List<Map<String, dynamic>>> search(String query) async {
     if (query.trim().isEmpty) return const [];
-    return _query(query: query.trim(), page: 1, includeNovels: true);
+    return _searchAllTypes(query.trim(), page: 1);
   }
+
+  Future<List<Map<String, dynamic>>> searchNovelSuggestions({int limit = 12}) =>
+      _query(
+        query: '',
+        page: 1,
+        perPage: limit.clamp(1, 18).toInt(),
+        includeNovels: true,
+        verifyNovelTypes: false,
+        seriesType: 'NOVEL',
+      );
 
   @override
   Future<List<Map<String, dynamic>>> latest({int page = 1}) =>
@@ -28,23 +38,48 @@ class AzoraSource extends ContentSource {
 
   @override
   Future<List<Map<String, dynamic>>> nextPage({String query = '', int page = 2}) =>
+      query.trim().isEmpty
+          ? _query(query: '', page: page < 1 ? 1 : page)
+          : _searchAllTypes(query.trim(), page: page < 1 ? 1 : page);
+
+  Future<List<Map<String, dynamic>>> _searchAllTypes(
+    String query, {
+    required int page,
+  }) async {
+    final results = await Future.wait<List<Map<String, dynamic>>>([
+      _query(query: query, page: page, includeNovels: true)
+          .catchError((_) => <Map<String, dynamic>>[]),
       _query(
-        query: query.trim(),
-        page: page < 1 ? 1 : page,
-        includeNovels: query.trim().isNotEmpty,
-      );
+        query: query,
+        page: page,
+        includeNovels: true,
+        verifyNovelTypes: false,
+        seriesType: 'NOVEL',
+      ).catchError((_) => <Map<String, dynamic>>[]),
+    ]);
+    final byUrl = <String, Map<String, dynamic>>{};
+    for (final item in [...results[0], ...results[1]]) {
+      final url = '${item['url'] ?? ''}'.trim();
+      if (url.isNotEmpty) byUrl[url] = item;
+    }
+    return byUrl.values.toList(growable: false);
+  }
 
   Future<List<Map<String, dynamic>>> _query({
     required String query,
     required int page,
     bool includeNovels = false,
+    bool verifyNovelTypes = true,
+    String? seriesType,
+    int perPage = 18,
   }) async {
     final response = await AzoraApi.getJson('query', {
       'page': '$page',
-      'perPage': '18',
+      'perPage': '$perPage',
       'searchTerm': query,
       'orderBy': 'lastChapterAddedAt',
       'orderDirection': 'desc',
+      if (seriesType != null) 'seriesType': seriesType,
     });
     final rawPosts = response['posts'];
     if (rawPosts is! List) return const [];
@@ -55,6 +90,12 @@ class AzoraSource extends ContentSource {
     if (!includeNovels) {
       return posts
           .where((raw) => !_isNovel(raw))
+          .map(_series)
+          .where((entry) => (entry['title'] as String).trim().isNotEmpty)
+          .toList(growable: false);
+    }
+    if (!verifyNovelTypes) {
+      return posts
           .map(_series)
           .where((entry) => (entry['title'] as String).trim().isNotEmpty)
           .toList(growable: false);
@@ -70,7 +111,7 @@ class AzoraSource extends ContentSource {
       }
     }
 
-    final workerCount = posts.length < 4 ? posts.length : 4;
+    final workerCount = posts.length < 8 ? posts.length : 8;
     await Future.wait(List.generate(workerCount, (_) => worker()));
     return posts
         .asMap()

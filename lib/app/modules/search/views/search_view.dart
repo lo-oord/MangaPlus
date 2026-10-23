@@ -93,6 +93,11 @@ class SearchView extends GetView<search_controller.SearchController> {
                     },
                   );
                 }
+                if (controller.visibleSuggestions.isEmpty) {
+                  return BrandState(
+                    title: 'لا توجد اقتراحات لهذا التصنيف'.tr,
+                  );
+                }
                 return _comicList(
                   title: 'اقتراحات'.tr,
                   items: controller.visibleSuggestions,

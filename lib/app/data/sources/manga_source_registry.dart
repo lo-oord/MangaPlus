@@ -48,7 +48,9 @@ class MangaSourceRegistry {
     await Future.wait(searchableSources.map((source) async {
       try {
         final result = await source.search(query).timeout(
-              const Duration(seconds: 18),
+              source.id == 'azora'
+                  ? const Duration(seconds: 35)
+                  : const Duration(seconds: 18),
             );
         final tagged = result.map((item) => {
               ...item,
