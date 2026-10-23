@@ -166,10 +166,12 @@ class ProfileController extends GetxController {
   Future<void> signOut() async {
     try {
       final hadAccount = _auth?.currentUser != null;
+      if (hadAccount) await AccountSyncService().syncLocalData();
       await _auth?.signOut();
       if (hadAccount) {
         await _storage.write('bookmarks', <String, dynamic>{});
         await _storage.write('reading_history', <String, dynamic>{});
+        await _storage.write('readChapters', <String, dynamic>{});
         BookmarkStateService.instance.changed();
         if (Get.isRegistered<HistoryController>()) {
           await Get.find<HistoryController>().getHistory();

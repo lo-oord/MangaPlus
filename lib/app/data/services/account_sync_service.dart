@@ -73,8 +73,10 @@ class AccountSyncService {
 
     final localBookmarks = _mapValue(_storage.read('bookmarks'));
     final localHistory = _mapValue(_storage.read('reading_history'));
+    final localReadChapters = _mapValue(_storage.read('readChapters'));
     final snapshot = await ref.get();
     final remote = snapshot.data() ?? const <String, dynamic>{};
+    final remoteReadChapters = _mapValue(remote['readChapters']);
     final deletedBookmarks = _mergeDeletionMaps(
       _mapValue(remote['deletedBookmarks']),
       _mapValue(_storage.read('deletedBookmarks_${user.uid}')),
@@ -83,6 +85,8 @@ class AccountSyncService {
       _mapValue(remote['bookmarks']), localBookmarks, deletedBookmarks);
     final mergedHistory = _mergeMaps(
       _mapValue(remote['history']), localHistory, dateField: 'lastRead');
+    final mergedReadChapters = _mergeReadChapters(
+      remoteReadChapters, localReadChapters);
 
     // لا نكتب أو نعيد ملء التخزين المحلي إذا تغيّر الحساب أثناء انتظار الشبكة.
     if (_auth.currentUser?.uid != user.uid) return;
@@ -90,11 +94,13 @@ class AccountSyncService {
       'bookmarks': mergedBookmarks,
       'deletedBookmarks': deletedBookmarks,
       'history': mergedHistory,
+      'readChapters': mergedReadChapters,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
     if (_auth.currentUser?.uid != user.uid) return;
     await _storage.write('bookmarks', mergedBookmarks);
     await _storage.write('reading_history', mergedHistory);
+    await _storage.write('readChapters', mergedReadChapters);
     await _storage.write('deletedBookmarks_${user.uid}', deletedBookmarks);
   }
 
@@ -187,6 +193,32 @@ class AccountSyncService {
           ? entry.value['updatedAt'] ?? entry.value[dateField]
           : null);
       if (old == null || newDate == null || oldDate == null || !oldDate.isAfter(newDate)) {
+        merged[entry.key] = entry.value;
+      }
+    }
+    return merged;
+  }
+
+  Map<String, dynamic> _mergeReadChapters(
+    Map<String, dynamic> remote,
+    Map<String, dynamic> local,
+  ) {
+    final merged = <String, dynamic>{...remote};
+    for (final entry in local.entries) {
+      final old = remote[entry.key];
+      if (old == null) {
+        merged[entry.key] = entry.value;
+        continue;
+      }
+      final oldValue = old is Map
+          ? old['readAt'] ?? old['lastRead'] ?? old['updatedAt']
+          : old;
+      final newValue = entry.value is Map
+          ? entry.value['readAt'] ?? entry.value['lastRead'] ?? entry.value['updatedAt']
+          : entry.value;
+      final oldDate = _date(oldValue);
+      final newDate = _date(newValue);
+      if (newDate != null && (oldDate == null || newDate.isAfter(oldDate))) {
         merged[entry.key] = entry.value;
       }
     }

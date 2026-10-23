@@ -1100,6 +1100,8 @@ class ChapterController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    _storage.listenKey('readChapters', (_) => chapterNavigationRevision.value++);
+    _storage.listenKey('reading_history', (_) => chapterNavigationRevision.value++);
     _readChapterNavigationArguments();
     _loadReaderPreferences();
     _configureNovelSpeech();

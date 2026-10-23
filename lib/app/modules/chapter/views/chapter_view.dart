@@ -1028,7 +1028,9 @@ class ChapterView extends GetView<ChapterController> {
                 ),
               ),
               Expanded(
-                child: ListView.separated(
+                child: Obx(() {
+                  controller.chapterNavigationRevision.value;
+                  return ListView.separated(
                   padding: const EdgeInsets.fromLTRB(14, 0, 14, 18),
                   itemCount: chapters.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 6),
@@ -1075,7 +1077,8 @@ class ChapterView extends GetView<ChapterController> {
                             },
                     );
                   },
-                ),
+                  );
+                }),
               ),
             ],
           ),
