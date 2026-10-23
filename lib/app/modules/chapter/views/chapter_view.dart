@@ -145,82 +145,99 @@ class ChapterView extends GetView<ChapterController> {
       final background = _novelBackgroundColor(controller.novelBackground.value);
       final foreground = _novelTextColor(controller.novelBackground.value);
       final family = controller.novelFontFamily.value;
-      final paragraphs = controller.paragraphsFor(chapter.content);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted) controller.syncScrollController();
-      });
-      return ColoredBox(
-        color: background,
-        child: Listener(
-          onPointerDown: (event) =>
-              controller.beginReaderPointer(event.position),
-          onPointerMove: (event) =>
-              controller.updateReaderPointer(event.position),
-          child: GestureDetector(
-            onTap: controller.toggleNavigationVisibilityAfterTap,
-            behavior: HitTestBehavior.opaque,
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (notification) {
-                if (notification is ScrollUpdateNotification ||
-                    notification is ScrollEndNotification) {
-                  controller.updateNovelProgress(
-                    notification.metrics.pixels,
-                    notification.metrics.maxScrollExtent,
-                  );
-                  controller.handleScroll(notification.metrics);
-                }
-                if (notification is ScrollEndNotification) {
-                  controller.persistScrollOffset(notification.metrics.pixels);
-                }
-                return false;
-              },
-              child: SingleChildScrollView(
-                controller: controller.scrollController,
-                padding: EdgeInsets.fromLTRB(
-                  24,
-                  MediaQuery.paddingOf(context).top + 28,
-                  24,
-                  MediaQuery.paddingOf(context).bottom + 110,
-                ),
+      return FutureBuilder<List<String>>(
+        future: controller.paragraphsFor(chapter.content),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return ColoredBox(
+              color: background,
+              child: Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              ),
+            );
+          }
+          if (snapshot.hasError || !snapshot.hasData) {
+            return BrandState(
+              title: 'تعذر تحميل الفصل'.tr,
+              actionLabel: 'إعادة المحاولة'.tr,
+              onAction: () => controller.fetchChapter(controller.chapterId),
+            );
+          }
+
+          final paragraphs = snapshot.data!;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) controller.syncScrollController();
+          });
+          return ColoredBox(
+            color: background,
+            child: Listener(
+              behavior: HitTestBehavior.opaque,
+              onPointerDown: (event) => controller.beginReaderPointer(
+                event.position,
+                event.timeStamp,
+              ),
+              onPointerMove: (event) =>
+                  controller.updateReaderPointer(event.position),
+              onPointerUp: (event) =>
+                  controller.endReaderPointer(event.timeStamp),
+              onPointerCancel: (_) => controller.cancelReaderPointer(),
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (notification) {
+                  if (notification is ScrollUpdateNotification ||
+                      notification is ScrollEndNotification) {
+                    controller.updateNovelProgress(
+                      notification.metrics.pixels,
+                      notification.metrics.maxScrollExtent,
+                    );
+                    controller.handleScroll(notification.metrics);
+                  }
+                  if (notification is ScrollEndNotification) {
+                    controller.persistScrollOffset(notification.metrics.pixels);
+                  }
+                  return false;
+                },
                 child: Directionality(
                   textDirection: controller.readingDirection.value == 'rtl'
                       ? TextDirection.rtl
                       : TextDirection.ltr,
                   child: SelectionArea(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        for (var index = 0;
-                            index < paragraphs.length;
-                            index++) ...[
-                          Text(
-                            paragraphs[index],
-                            textAlign:
-                                controller.readingDirection.value == 'rtl'
-                                    ? TextAlign.right
-                                    : TextAlign.left,
-                            style: TextStyle(
-                              color: foreground,
-                              fontSize: controller.novelFontSize.value,
-                              fontFamily:
-                                  family == 'default' ? null : family,
-                              height: controller.novelLineHeight.value,
-                              letterSpacing: 0.05,
-                            ),
+                    child: ListView.builder(
+                      controller: controller.scrollController,
+                      padding: EdgeInsets.fromLTRB(
+                        24,
+                        MediaQuery.paddingOf(context).top + 28,
+                        24,
+                        MediaQuery.paddingOf(context).bottom + 110,
+                      ),
+                      itemCount: paragraphs.length,
+                      itemBuilder: (context, index) => Padding(
+                        padding: EdgeInsets.only(
+                          bottom: index == paragraphs.length - 1
+                              ? 0
+                              : controller.novelParagraphSpacing.value,
+                        ),
+                        child: Text(
+                          paragraphs[index],
+                          textAlign:
+                              controller.readingDirection.value == 'rtl'
+                                  ? TextAlign.right
+                                  : TextAlign.left,
+                          style: TextStyle(
+                            color: foreground,
+                            fontSize: controller.novelFontSize.value,
+                            fontFamily: family == 'default' ? null : family,
+                            height: controller.novelLineHeight.value,
+                            letterSpacing: 0.05,
                           ),
-                          if (index < paragraphs.length - 1)
-                            SizedBox(
-                              height: controller.novelParagraphSpacing.value,
-                            ),
-                        ],
-                      ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       );
     });
   }

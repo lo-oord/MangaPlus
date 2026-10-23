@@ -12,6 +12,12 @@ import 'package:mangaplus/app/data/services/app_data_service.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 
+List<String> _splitNovelParagraphs(String content) => content
+    .split(RegExp(r'\n+'))
+    .map((paragraph) => paragraph.trim())
+    .where((paragraph) => paragraph.isNotEmpty)
+    .toList(growable: false);
+
 class ChapterController extends GetxController {
   final ComicService _comicService = ComicService();
   final FlutterTts _flutterTts = FlutterTts();
@@ -41,18 +47,23 @@ class ChapterController extends GetxController {
       ? chapterData.value.chapter.content.trim().isNotEmpty
       : chapterData.value.chapter.images.isNotEmpty;
   String? _paragraphSource;
-  List<String> _paragraphs = const [];
+  Future<List<String>>? _paragraphsFuture;
 
-  List<String> paragraphsFor(String content) {
-    if (!identical(_paragraphSource, content)) {
-      _paragraphSource = content;
-      _paragraphs = content
-          .split(RegExp(r'\n+'))
-          .map((paragraph) => paragraph.trim())
-          .where((paragraph) => paragraph.isNotEmpty)
-          .toList(growable: false);
+  Future<List<String>> paragraphsFor(String content) {
+    if (identical(_paragraphSource, content) && _paragraphsFuture != null) {
+      return _paragraphsFuture!;
     }
-    return _paragraphs;
+    _paragraphSource = content;
+    final computation = compute(_splitNovelParagraphs, content);
+    late final Future<List<String>> cachedFuture;
+    cachedFuture = computation.catchError((Object error) {
+      if (identical(_paragraphsFuture, cachedFuture)) {
+        _paragraphsFuture = null;
+      }
+      throw error;
+    });
+    _paragraphsFuture = cachedFuture;
+    return cachedFuture;
   }
 
   final chapterData = ChapterData(
@@ -97,6 +108,7 @@ class ChapterController extends GetxController {
   bool endNoticeShown = false;
   bool _isLoadingChapterNavigation = false;
   Offset? _readerPointerDownPosition;
+  Duration? _readerPointerDownTime;
   bool _readerPointerMoved = false;
 
   List<ChapterElement> get availableChapters {
@@ -1033,21 +1045,36 @@ class ChapterController extends GetxController {
     if (!showNavigation.value) showChapterList.value = false;
   }
 
-  void beginReaderPointer(Offset position) {
+  void beginReaderPointer(Offset position, Duration timeStamp) {
     _readerPointerDownPosition = position;
+    _readerPointerDownTime = timeStamp;
     _readerPointerMoved = false;
   }
 
   void updateReaderPointer(Offset position) {
     final start = _readerPointerDownPosition;
-    if (start != null && (position - start).distance > 8) {
+    if (start != null && (position - start).distance > 14) {
       _readerPointerMoved = true;
     }
   }
 
-  void toggleNavigationVisibilityAfterTap() {
-    if (_readerPointerMoved) return;
-    toggleNavigationVisibility();
+  void endReaderPointer(Duration timeStamp) {
+    final startedAt = _readerPointerDownTime;
+    final elapsed = startedAt == null ? null : timeStamp - startedAt;
+    final isTap = !_readerPointerMoved &&
+        elapsed != null &&
+        elapsed >= Duration.zero &&
+        elapsed <= const Duration(milliseconds: 450);
+    _readerPointerDownPosition = null;
+    _readerPointerDownTime = null;
+    _readerPointerMoved = false;
+    if (isTap) toggleNavigationVisibility();
+  }
+
+  void cancelReaderPointer() {
+    _readerPointerDownPosition = null;
+    _readerPointerDownTime = null;
+    _readerPointerMoved = false;
   }
 
   void toggleChapterListVisibility() {
@@ -1061,7 +1088,10 @@ class ChapterController extends GetxController {
     _readChapterNavigationArguments();
     _loadReaderPreferences();
     _configureNovelSpeech();
-    if (isNovel) readerMode.value = 'scroll';
+    if (isNovel) {
+      readerMode.value = 'scroll';
+      showNavigation.value = true;
+    }
     unawaited(fetchChapter(chapterId).then((_) async {
       if (!hasError.value && hasReadableContent) {
         await _markAsRead(chapterId, currentChapterTitle);
