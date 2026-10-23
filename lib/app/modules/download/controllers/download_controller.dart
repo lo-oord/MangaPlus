@@ -29,8 +29,11 @@ class DownloadController extends GetxController {
       for (final item in raw.whereType<Map>()) {
         try {
           final chapter = DownloadedChapter.fromJson(Map<String, dynamic>.from(item));
-          if (chapter.localImagePaths.isNotEmpty &&
-              chapter.localImagePaths.every((path) => File(path).existsSync()) &&
+          final isAvailable = chapter.isNovel
+              ? chapter.content.trim().isNotEmpty
+              : chapter.localImagePaths.isNotEmpty &&
+                  chapter.localImagePaths.every((path) => File(path).existsSync());
+          if (isAvailable &&
               seen.add(chapter.chapterId)) {
             result.add(chapter);
           }

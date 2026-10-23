@@ -121,7 +121,7 @@ class ComicDetailController extends GetxController {
         releaseYear: '',
         author: '',
         status: 'محفوظ محليًا',
-        type: 'manga',
+        type: first['isNovel'] == true ? 'novel' : 'manga',
         totalChapters: '${chapters.length}',
         updatedOn: '',
         rating: '',
@@ -423,6 +423,7 @@ class ComicDetailController extends GetxController {
       coverImage: comic.coverImage,
       chapters: chapters,
       grouped: true,
+      isNovel: comic.type.trim().toLowerCase() == 'novel',
     );
     clearChapterSelection();
     AppFeedback.show(
@@ -447,6 +448,7 @@ class ComicDetailController extends GetxController {
       coverImage: coverImage,
       chapters: [chapter],
       grouped: false,
+      isNovel: comicDetailData.value.comicDetail.type.trim().toLowerCase() == 'novel',
     );
     if (showFeedback) {
       AppFeedback.show(

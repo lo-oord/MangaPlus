@@ -222,34 +222,49 @@ class ChapterController extends GetxController {
         final localNext = localIndex > 0
             ? '${localChapterRecords[localIndex - 1]['chapterId']}'
             : null;
-        final paths = List<String>.from(
-          downloadedChapter['localImagePaths'] ?? const [],
-        )
-            .where((path) => File(path).existsSync())
-            .toList()
-          ..sort((left, right) => _pageNumber(left).compareTo(_pageNumber(right)));
-        if (paths.isEmpty) {
-          throw StateError('لا توجد صفحات محلية صالحة لهذا الفصل.');
+        final localNavigation = localChapterRecords
+            .map((item) => ChapterElement(
+                  chapterId: '${item['chapterId'] ?? ''}',
+                  title: '${item['chapterTitle'] ?? ''}',
+                  url: '${item['chapterId'] ?? ''}',
+                ))
+            .where((item) => item.chapterId.isNotEmpty)
+            .toList(growable: false);
+        final savedContent = '${downloadedChapter['content'] ?? ''}';
+        if (isNovel || savedContent.isNotEmpty) {
+          if (savedContent.trim().isEmpty) {
+            throw StateError('لا يوجد نص محلي صالح لهذا الفصل.');
+          }
+          chapterData.value = ChapterData(
+            chapter: DataChapter(
+              chapterId: id,
+              title: '${downloadedChapter['chapterTitle'] ?? id}',
+              images: const [],
+              content: savedContent,
+              previousChapter: localPrevious,
+              nextChapter: localNext,
+              chapters: localNavigation,
+            ),
+            source: 'local',
+          );
+        } else {
+          final paths = List<String>.from(downloadedChapter['localImagePaths'] ?? const [])
+              .where((path) => File(path).existsSync()).toList()
+            ..sort((left, right) => _pageNumber(left).compareTo(_pageNumber(right)));
+          if (paths.isEmpty) throw StateError('لا توجد صفحات محلية صالحة لهذا الفصل.');
+          localImages.assignAll(paths);
+          chapterData.value = ChapterData(
+            chapter: DataChapter(
+              chapterId: id,
+              title: '${downloadedChapter['chapterTitle'] ?? id}',
+              images: localImages.toList(growable: false),
+              previousChapter: localPrevious,
+              nextChapter: localNext,
+              chapters: localNavigation,
+            ),
+            source: 'local',
+          );
         }
-        localImages.assignAll(paths);
-        chapterData.value = ChapterData(
-          chapter: DataChapter(
-            chapterId: id,
-            title: '${downloadedChapter['chapterTitle'] ?? id}',
-            images: localImages.toList(growable: false),
-            previousChapter: localPrevious,
-            nextChapter: localNext,
-            chapters: localChapterRecords
-                .map((item) => ChapterElement(
-                      chapterId: '${item['chapterId'] ?? ''}',
-                      title: '${item['chapterTitle'] ?? ''}',
-                      url: '${item['chapterId'] ?? ''}',
-                    ))
-                .where((item) => item.chapterId.isNotEmpty)
-                .toList(growable: false),
-          ),
-          source: 'local',
-        );
       } else {
         isOffline.value = false;
         final loaded = isNovel

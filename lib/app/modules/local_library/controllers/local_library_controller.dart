@@ -51,8 +51,9 @@ class LocalLibraryController extends GetxController {
       for (final item in raw.whereType<Map>()) {
         try {
           final chapter = DownloadedChapter.fromJson(Map<String, dynamic>.from(item));
-          if (chapter.localImagePaths.isEmpty ||
-              !chapter.localImagePaths.every((path) => File(path).existsSync())) {
+          if (chapter.isNovel ? chapter.content.trim().isEmpty :
+              (chapter.localImagePaths.isEmpty ||
+               !chapter.localImagePaths.every((path) => File(path).existsSync()))) {
             continue;
           }
           byComic.putIfAbsent(chapter.comicId, () => []).add(chapter);
@@ -63,9 +64,13 @@ class LocalLibraryController extends GetxController {
         final chapters = entry.value;
         var bytes = 0;
         for (final chapter in chapters) {
-          for (final path in chapter.localImagePaths) {
-            final file = File(path);
-            if (file.existsSync()) bytes += file.lengthSync();
+          if (chapter.isNovel) {
+            bytes += chapter.content.length * 2;
+          } else {
+            for (final path in chapter.localImagePaths) {
+              final file = File(path);
+              if (file.existsSync()) bytes += file.lengthSync();
+            }
           }
         }
         result.add(LocalComicGroup(

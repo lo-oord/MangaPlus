@@ -5,6 +5,8 @@ class DownloadedChapter {
   final String chapterTitle;
   final String coverImage;
   final List<String> localImagePaths;
+  final String content;
+  final bool isNovel;
   final DateTime downloadedAt;
 
   DownloadedChapter({
@@ -14,6 +16,8 @@ class DownloadedChapter {
     required this.chapterTitle,
     required this.coverImage,
     required this.localImagePaths,
+    this.content = '',
+    this.isNovel = false,
     required this.downloadedAt,
   });
 
@@ -24,6 +28,8 @@ class DownloadedChapter {
         chapterTitle: json['chapterTitle'] ?? '',
         coverImage: json['coverImage'] ?? '',
         localImagePaths: List<String>.from(json['localImagePaths'] ?? []),
+        content: json['content']?.toString() ?? '',
+        isNovel: json['isNovel'] == true || (json['content']?.toString().isNotEmpty ?? false),
         downloadedAt: DateTime.parse(json['downloadedAt'] ?? DateTime.now().toIso8601String()),
       );
 
@@ -34,6 +40,8 @@ class DownloadedChapter {
         'chapterTitle': chapterTitle,
         'coverImage': coverImage,
         'localImagePaths': localImagePaths,
+        'content': content,
+        'isNovel': isNovel,
         'downloadedAt': downloadedAt.toIso8601String(),
       };
 }

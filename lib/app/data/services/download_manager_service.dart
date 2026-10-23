@@ -86,7 +86,7 @@ class DownloadManagerService extends GetxService {
     await android?.createNotificationChannel(const AndroidNotificationChannel(
       _channelId,
       'تنزيلات MangaPlus',
-      description: 'تقدم تنزيل فصول المانجا',
+      description: 'تقدم تنزيل الفصول',
       importance: Importance.low,
     ));
     _notificationsReady = true;
@@ -104,15 +104,18 @@ class DownloadManagerService extends GetxService {
     required String coverImage,
     required List<Chapter> chapters,
     bool grouped = false,
+    bool isNovel = false,
   }) async {
     final downloaded = _storage.read<List<dynamic>>('downloadedChapters') ?? const [];
     final downloadedIds = downloaded
         .whereType<Map>()
+        .where((item) => (item['isNovel'] == true || (item['content']?.toString().isNotEmpty ?? false)) == isNovel)
         .map((item) => '${item['chapterId'] ?? ''}')
         .toSet();
     final activeIds = tasks
         .where((task) => task.status != DownloadTaskStatus.completed &&
             task.status != DownloadTaskStatus.cancelled)
+        .where((task) => task.isNovel == isNovel)
         .expand((task) => task.chapters)
         .map((chapter) => chapter['id'])
         .whereType<String>()
@@ -130,6 +133,7 @@ class DownloadManagerService extends GetxService {
       comicId: comicId,
       comicTitle: comicTitle,
       coverImage: coverImage,
+      isNovel: isNovel,
       chapters: requested,
       createdAt: now,
       updatedAt: now,
@@ -226,7 +230,11 @@ class DownloadManagerService extends GetxService {
       if (task.completedChapterIds.contains(id)) continue;
       await _replace(task.copyWith(currentChapterId: id));
       try {
-        await _downloadChapter(task, id, chapter['title'] ?? 'الفصل');
+        if (task.isNovel) {
+          await _downloadNovelChapter(task, id, chapter['title'] ?? 'الفصل');
+        } else {
+          await _downloadChapter(task, id, chapter['title'] ?? 'الفصل');
+        }
         await _clearChapterProgress(id);
         task = _task(original.id);
         if (task == null) return;
@@ -262,6 +270,29 @@ class DownloadManagerService extends GetxService {
     await _notify(_task(original.id)!);
   }
 
+  Future<void> _downloadNovelChapter(DownloadTask task, String chapterId, String chapterTitle) async {
+    final current = _task(task.id);
+    if (current?.status == DownloadTaskStatus.paused || current?.status == DownloadTaskStatus.cancelled) return;
+    final data = await _comicService.fetchNovelChapter(chapterId);
+    final afterFetch = _task(task.id);
+    if (afterFetch?.status == DownloadTaskStatus.paused ||
+        afterFetch?.status == DownloadTaskStatus.cancelled) return;
+    final content = data.chapter.content.trim();
+    if (content.isEmpty) throw StateError('لا يوجد محتوى نصي للفصل');
+    chapterProgress[chapterId] = 1.0;
+    chapterProgress.refresh();
+    await _storage.write(_progressKey, chapterProgress);
+    final live = _task(task.id);
+    if (live != null) await _replace(live.copyWith(chapterProgress: {...live.chapterProgress, chapterId: 1.0}), notify: false);
+    await _saveDownloadedNovelChapter(task, chapterId, chapterTitle, content);
+  }
+  Future<void> _saveDownloadedNovelChapter(DownloadTask task, String chapterId, String chapterTitle, String content) async {
+    final localCover = await _ensureLocalCover(task);
+    final raw = _storage.read<List<dynamic>>('downloadedChapters') ?? [];
+    raw.removeWhere((item) => item is Map && item['chapterId'] == chapterId);
+    raw.add(DownloadedChapter(comicId: task.comicId, chapterId: chapterId, comicTitle: task.comicTitle, chapterTitle: chapterTitle, coverImage: localCover, localImagePaths: const [], content: content, isNovel: true, downloadedAt: DateTime.now()).toJson());
+    await _storage.write('downloadedChapters', raw);
+  }
   Future<void> _downloadChapter(
     DownloadTask task,
     String chapterId,
@@ -460,7 +491,7 @@ class DownloadManagerService extends GetxService {
         android: AndroidNotificationDetails(
           _channelId,
           'تنزيلات MangaPlus',
-          channelDescription: 'تقدم تنزيل فصول المانجا',
+          channelDescription: 'تقدم تنزيل الفصول',
           importance: Importance.low,
           priority: Priority.low,
           onlyAlertOnce: true,

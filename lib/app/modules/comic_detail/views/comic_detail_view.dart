@@ -877,8 +877,7 @@ class _ChapterListState extends State<_ChapterList> {
                         ),
                         visualDensity: VisualDensity.compact,
                       ),
-                      if (!isNovel)
-                        IconButton(
+                      IconButton(
                           tooltip: selecting ? 'إلغاء التحديد'.tr : 'تحديد الفصول'.tr,
                           onPressed: widget.controller.toggleSelectionMode,
                           icon: Icon(
@@ -889,7 +888,7 @@ class _ChapterListState extends State<_ChapterList> {
                         ),
                     ],
                   ),
-                  if (!isNovel && (selecting || selectedCount > 0)) ...[
+                  if (selecting || selectedCount > 0) ...[
                     Container(
                       margin: const EdgeInsets.only(bottom: 10),
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -981,7 +980,7 @@ class _ChapterListState extends State<_ChapterList> {
                           'مقروء',
                           Icons.check_circle_outline_rounded,
                         ),
-                        if (!isNovel) ...[
+                        ...[
                           const SizedBox(width: 7),
                           _chapterFilterChip(
                             'downloaded',
@@ -1118,9 +1117,7 @@ class _ChapterListState extends State<_ChapterList> {
             _openChapter(context, chapter);
           }
         },
-        onLongPress: isNovel
-            ? null
-            : () => widget.controller.toggleChapterSelection(chapter),
+        onLongPress: () => widget.controller.toggleChapterSelection(chapter),
         leading: widget.controller.isSelectionMode.value
             ? Icon(
                 selected ? Icons.check_circle_rounded : Icons.circle_outlined,
@@ -1239,7 +1236,7 @@ class _ChapterListState extends State<_ChapterList> {
                 onPressed: () => _confirmDeleteChapter(chapter),
                 icon: Icon(Icons.delete_outline_rounded, color: AppColors.error),
               )
-            else if (!isNovel)
+            else
               IconButton(
                 tooltip: 'تنزيل الفصل'.tr,
                 onPressed: () => widget.controller.downloadChapter(

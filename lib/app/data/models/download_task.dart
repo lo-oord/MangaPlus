@@ -20,6 +20,7 @@ class DownloadTask {
   final String comicId;
   final String comicTitle;
   final String coverImage;
+  final bool isNovel;
   final List<Map<String, String>> chapters;
   final List<String> completedChapterIds;
   final List<String> failedChapterIds;
@@ -35,6 +36,7 @@ class DownloadTask {
     required this.comicId,
     required this.comicTitle,
     required this.coverImage,
+    this.isNovel = false,
     required this.chapters,
     this.completedChapterIds = const [],
     this.failedChapterIds = const [],
@@ -71,6 +73,7 @@ class DownloadTask {
       comicId: comicId,
       comicTitle: comicTitle,
       coverImage: coverImage,
+      isNovel: isNovel,
       chapters: chapters,
       completedChapterIds: completedChapterIds ?? this.completedChapterIds,
       failedChapterIds: failedChapterIds ?? this.failedChapterIds,
@@ -93,6 +96,7 @@ class DownloadTask {
       comicId: '${json['comicId'] ?? ''}',
       comicTitle: '${json['comicTitle'] ?? ''}',
       coverImage: '${json['coverImage'] ?? ''}',
+      isNovel: json['isNovel'] == true,
       chapters: rawChapters.whereType<Map>().map((item) => {
         'id': '${item['id'] ?? ''}',
         'title': '${item['title'] ?? ''}',
@@ -116,6 +120,7 @@ class DownloadTask {
         'comicId': comicId,
         'comicTitle': comicTitle,
         'coverImage': coverImage,
+        'isNovel': isNovel,
         'chapters': chapters,
         'completedChapterIds': completedChapterIds,
         'failedChapterIds': failedChapterIds,
