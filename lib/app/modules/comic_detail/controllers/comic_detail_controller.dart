@@ -416,27 +416,38 @@ class ComicDetailController extends GetxController {
 
   Future<void> downloadSelectedChapters(ComicDetail comic) async {
     final selection = selectedChapterIds.toSet();
-    if (selection.isEmpty) return;
+    if (selection.isEmpty || isBulkDownloading.value) return;
     final chapters = comic.chapters
         .where((chapter) => selection.contains(chapter.chapterId))
         .toList(growable: false);
-    final manager = Get.find<DownloadManagerService>();
-    final taskId = await manager.enqueue(
-      comicId: comic.comicId,
-      comicTitle: comic.title,
-      coverImage: comic.coverImage,
-      chapters: chapters,
-      grouped: true,
-      isNovel: comic.type.trim().toLowerCase() == 'novel',
-    );
-    clearChapterSelection();
-    AppFeedback.show(
-      title: taskId == null ? 'معلومة'.tr : 'نجاح'.tr,
-      message: taskId == null
-          ? 'لا توجد فصول جديدة للتنزيل'.tr
-          : 'تمت إضافة المهمة إلى قائمة التحميلات'.tr,
-      type: taskId == null ? AppNoticeType.info : AppNoticeType.success,
-    );
+    isBulkDownloading.value = true;
+    try {
+      final taskId = await Get.find<DownloadManagerService>().enqueue(
+        comicId: comic.comicId,
+        comicTitle: comic.title,
+        coverImage: comic.coverImage,
+        chapters: chapters,
+        grouped: true,
+        isNovel: comic.type.trim().toLowerCase() == 'novel',
+      );
+      clearChapterSelection();
+      AppFeedback.show(
+        title: taskId == null ? 'معلومة'.tr : 'نجاح'.tr,
+        message: taskId == null
+            ? 'لا توجد فصول جديدة للتنزيل'.tr
+            : 'تمت إضافة المهمة إلى قائمة التحميلات'.tr,
+        type: taskId == null ? AppNoticeType.info : AppNoticeType.success,
+      );
+    } catch (error) {
+      debugPrint('Unable to queue selected chapters: $error');
+      AppFeedback.show(
+        title: 'تعذر التنزيل'.tr,
+        message: 'تعذر إضافة الفصول المحددة إلى قائمة التنزيلات'.tr,
+        type: AppNoticeType.error,
+      );
+    } finally {
+      isBulkDownloading.value = false;
+    }
   }
 
   Future<bool> downloadChapter(

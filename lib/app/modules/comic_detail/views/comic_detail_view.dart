@@ -130,7 +130,6 @@ class ComicDetailView extends GetView<ComicDetailController> {
         );
       });
   Widget _buildHero(BuildContext context, ComicDetail comic) {
-    final isNovel = comic.type.trim().toLowerCase() == 'novel';
     final stats = <Widget>[
       _HeroStat(icon: Icons.menu_book_rounded, value: comic.totalChapters, label: 'فصل'.tr),
       if (comic.rating.trim().isNotEmpty && comic.rating != '0.0')
@@ -190,17 +189,6 @@ class ComicDetailView extends GetView<ComicDetailController> {
                           fit: StackFit.expand,
                           children: [
                             _coverArtwork(comic.coverImage, fit: BoxFit.cover, logoSize: 34),
-                            Align(
-                              alignment: Alignment.bottomCenter,
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 6),
-                                color: AppColors.primary.withValues(alpha: 0.92),
-                                child: Text(comic.status.trim().isEmpty ? 'غير معروف'.tr : localizeContentStatus(comic.status), textAlign: TextAlign.center,
-                                    maxLines: 1, overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
-                              ),
-                            ),
                           ],
                         ),
                       ),
@@ -238,9 +226,6 @@ class ComicDetailView extends GetView<ComicDetailController> {
                                 ))).toList(growable: false),
                               ),
                             ],
-                            const SizedBox(height: 4),
-                            Text(isNovel ? 'رواية'.tr : 'مانجا'.tr,
-                                style: TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w700)),
                           ],
                         ),
                       ),
@@ -267,53 +252,16 @@ class ComicDetailView extends GetView<ComicDetailController> {
             Positioned(
               top: MediaQuery.of(context).padding.top + 8,
               right: 12,
-              child: Row(
-                textDirection: TextDirection.ltr,
-                children: [
-                  Obx(() {
-                    controller.bookmarkRevision.value;
-                    final bookmarked = controller.isBookmarked(comic.comicId);
-                    return IconButton(
-                      tooltip: bookmarked ? 'إزالة من المفضلة'.tr : 'إضافة للمفضلة'.tr,
-                      onPressed: () => controller.toggleBookmark(comic),
-                      icon: Icon(bookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded),
-                      style: IconButton.styleFrom(
-                        minimumSize: const Size(48, 48),
-                        foregroundColor: AppColors.primary,
-                        backgroundColor: AppColors.card.withValues(alpha: 0.94),
-                        shape: const CircleBorder(),
-                      ),
-                    );
-                  }),
-                  IconButton(
-                    tooltip: 'مشاركة'.tr,
-                    onPressed: () => _showShareOptions(comic),
-                    icon: const Icon(Icons.share_rounded),
-                    style: IconButton.styleFrom(
-                      minimumSize: const Size(48, 48),
-                      foregroundColor: AppColors.primary,
-                      backgroundColor: AppColors.card.withValues(alpha: 0.94),
-                      shape: const CircleBorder(),
-                    ),
-                  ),
-                  PopupMenuButton<String>(
-                    tooltip: 'المزيد'.tr,
-                    icon: const Icon(Icons.more_vert_rounded),
-                    color: AppColors.card,
-                    onSelected: (value) {
-                      if (value == 'refresh') controller.fetchComicDetail(comic.comicId);
-                      if (value == 'copy') {
-                        Clipboard.setData(ClipboardData(text: comic.comicId));
-                        AppFeedback.show(title: 'تم النسخ'.tr, message: 'تم نسخ معرّف العمل'.tr,
-                            type: AppNoticeType.success);
-                      }
-                    },
-                    itemBuilder: (_) => [
-                      PopupMenuItem(value: 'refresh', child: Text('تحديث المعلومات'.tr)),
-                      PopupMenuItem(value: 'copy', child: Text('نسخ معرّف العمل'.tr)),
-                    ],
-                  ),
-                ],
+              child: IconButton(
+                tooltip: 'مشاركة'.tr,
+                onPressed: () => _showShareOptions(comic),
+                icon: const Icon(Icons.share_rounded),
+                style: IconButton.styleFrom(
+                  minimumSize: const Size(48, 48),
+                  foregroundColor: AppColors.primary,
+                  backgroundColor: AppColors.card.withValues(alpha: 0.94),
+                  shape: const CircleBorder(),
+                ),
               ),
             ),
           ],
@@ -863,6 +811,12 @@ class _ChapterListState extends State<_ChapterList> {
       final selecting = widget.controller.isSelectionMode.value;
       final selectedCount = widget.controller.selectedChapterIds.length;
       final ascending = widget.controller.sortAscending.value;
+      final selectableIds = sorted
+          .where((chapter) => !widget.controller.isChapterDownloaded(chapter.chapterId))
+          .map((chapter) => chapter.chapterId)
+          .toList(growable: false);
+      final allVisibleSelectableSelected = selectableIds.isNotEmpty &&
+          selectableIds.every(widget.controller.selectedChapterIds.contains);
       return SliverMainAxisGroup(
         slivers: [
           SliverToBoxAdapter(
@@ -923,43 +877,64 @@ class _ChapterListState extends State<_ChapterList> {
                   if (selecting || selectedCount > 0) ...[
                     Container(
                       margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsetsDirectional.fromSTEB(12, 8, 12, 8),
                       decoration: BoxDecoration(
-                        color: AppColors.card,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.divider),
+                        color: AppColors.primary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.32)),
                       ),
-                      child: Wrap(
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 8,
-                        runSpacing: 4,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text(
-                            'تم تحديد @value فصل'.trParams({'value': '$selectedCount'}),
-                            style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w700,
-                            ),
+                          Row(
+                            children: [
+                              Icon(Icons.checklist_rounded, color: AppColors.primary, size: 19),
+                              const SizedBox(width: 7),
+                              Expanded(
+                                child: Text(
+                                  'تم تحديد @value فصل'.trParams({'value': '$selectedCount'}),
+                                  style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800),
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'إلغاء التحديد'.tr,
+                                visualDensity: VisualDensity.compact,
+                                onPressed: widget.controller.clearChapterSelection,
+                                icon: Icon(Icons.close_rounded, color: AppColors.icon, size: 20),
+                              ),
+                            ],
                           ),
-                          TextButton.icon(
-                            onPressed: () =>
-                                widget.controller.selectAllChapters(sorted),
-                            icon: const Icon(Icons.select_all_rounded, size: 18),
-                            label: Text('تحديد الكل'.tr),
-                          ),
-                          FilledButton.tonalIcon(
-                            onPressed: selectedCount == 0 ||
-                                    widget.controller.isBulkDownloading.value
-                                ? null
-                                : () => widget.controller.downloadSelectedChapters(widget.comic),
-                            icon: widget.controller.isBulkDownloading.value
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  )
-                                : const Icon(Icons.download_rounded, size: 18),
-                            label: Text('تنزيل المحدد'.tr),
+                          Wrap(
+                            alignment: WrapAlignment.spaceBetween,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: [
+                              TextButton.icon(
+                                onPressed: selectableIds.isEmpty
+                                    ? null
+                                    : () => widget.controller.selectAllChapters(sorted),
+                                icon: Icon(
+                                  allVisibleSelectableSelected
+                                      ? Icons.check_box_outline_blank_rounded
+                                      : Icons.select_all_rounded,
+                                  size: 18,
+                                ),
+                                label: Text(allVisibleSelectableSelected
+                                    ? 'إلغاء تحديد المعروض'.tr
+                                    : 'تحديد الكل'.tr),
+                              ),
+                              FilledButton.tonalIcon(
+                                onPressed: selectedCount == 0 || widget.controller.isBulkDownloading.value
+                                    ? null
+                                    : () => widget.controller.downloadSelectedChapters(widget.comic),
+                                icon: widget.controller.isBulkDownloading.value
+                                    ? const SizedBox(width: 16, height: 16,
+                                        child: CircularProgressIndicator(strokeWidth: 2))
+                                    : const Icon(Icons.download_rounded, size: 18),
+                                label: Text('تنزيل المحدد'.tr),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -1111,7 +1086,7 @@ class _ChapterListState extends State<_ChapterList> {
       );
 
   Widget _buildChapterTile(BuildContext context, Chapter chapter) {
-    final isNovel = widget.comic.type.trim().toLowerCase() == 'novel';
+    final selecting = widget.controller.isSelectionMode.value;
     final selected = widget.controller.selectedChapterIds.contains(chapter.chapterId);
     final downloaded = widget.controller.isChapterDownloaded(chapter.chapterId);
     final read = widget.controller.isChapterRead(chapter.chapterId);
@@ -1130,20 +1105,91 @@ class _ChapterListState extends State<_ChapterList> {
         (progress != null || isCurrentTaskChapter);
     final readColor = read ? AppColors.success : AppColors.textSecondary;
 
+    Widget trailingAction;
+    if (selecting) {
+      trailingAction = const SizedBox.shrink();
+    } else if (downloading) {
+      trailingAction = SizedBox(
+        width: 44,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 30,
+              height: 30,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  CircularProgressIndicator(
+                    value: progress?.clamp(0.0, 1.0),
+                    strokeWidth: 3,
+                    strokeCap: StrokeCap.round,
+                    color: AppColors.primary,
+                    backgroundColor: AppColors.divider,
+                  ),
+                  Icon(Icons.downloading_rounded, size: 14, color: AppColors.primary),
+                ],
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(progress == null ? '…' : '${(progress * 100).round()}%',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 9, fontWeight: FontWeight.w700)),
+          ],
+        ),
+      );
+    } else if (queued) {
+      trailingAction = Padding(
+        padding: const EdgeInsetsDirectional.only(end: 10),
+        child: Icon(Icons.schedule_rounded, color: AppColors.icon),
+      );
+    } else if (paused) {
+      trailingAction = IconButton(
+        tooltip: 'استئناف التنزيل'.tr,
+        onPressed: () => widget.controller.resumeChapterDownload(chapter.chapterId),
+        icon: Icon(Icons.play_circle_outline_rounded, color: AppColors.primary),
+      );
+    } else if (failed) {
+      trailingAction = IconButton(
+        tooltip: 'إعادة المحاولة'.tr,
+        onPressed: () => widget.controller.retryChapterDownload(chapter.chapterId),
+        icon: Icon(Icons.refresh_rounded, color: AppColors.error),
+      );
+    } else if (downloaded) {
+      trailingAction = IconButton(
+        tooltip: 'حذف الفصل المحلي'.tr,
+        onPressed: () => _confirmDeleteChapter(chapter),
+        icon: Icon(Icons.delete_outline_rounded, color: AppColors.error),
+      );
+    } else {
+      trailingAction = IconButton(
+        tooltip: 'تنزيل الفصل'.tr,
+        onPressed: () => widget.controller.downloadChapter(
+          chapter,
+          widget.comic.comicId,
+          widget.comic.title,
+          widget.comic.coverImage,
+        ),
+        icon: Icon(Icons.download_rounded, color: AppColors.primary),
+      );
+    }
+
     return Card(
       margin: EdgeInsets.zero,
       elevation: 0,
       color: selected
-          ? AppColors.primary.withValues(alpha: 0.13)
-          : AppColors.searchBar,
+          ? AppColors.primary.withValues(alpha: 0.12)
+          : AppColors.card,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: selected ? AppColors.primary.withValues(alpha: 0.55) : AppColors.divider,
+          color: selected
+              ? AppColors.primary.withValues(alpha: 0.65)
+              : AppColors.divider.withValues(alpha: 0.82),
+          width: selected ? 1.4 : 1,
         ),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsetsDirectional.fromSTEB(14, 7, 8, 7),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
         onTap: () {
           if (widget.controller.isSelectionMode.value) {
             widget.controller.toggleChapterSelection(chapter);
@@ -1152,148 +1198,67 @@ class _ChapterListState extends State<_ChapterList> {
           }
         },
         onLongPress: () => widget.controller.toggleChapterSelection(chapter),
-        leading: widget.controller.isSelectionMode.value
-            ? Icon(
-                selected ? Icons.check_circle_rounded : Icons.circle_outlined,
-                color: selected ? AppColors.primary : AppColors.icon,
-                size: 26,
-              )
-            : null,
-        title: Text(
-          chapter.title,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-          ),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 5),
-          child: Wrap(
-            spacing: 7,
-            runSpacing: 5,
-            crossAxisAlignment: WrapCrossAlignment.center,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 14, 10),
+          child: Row(
             children: [
-              _chapterStateChip(
-                read ? 'مقروء' : 'غير مقروء',
-                read ? Icons.check_circle_outline_rounded : Icons.circle_outlined,
-                readColor,
-              ),
-              if (chapter.releaseTime.isNotEmpty)
-                Text(
-                  chapter.releaseTime,
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
-                ),
-              if (downloaded)
-                _chapterStateChip(
-                  'تم التنزيل',
-                  Icons.download_done_rounded,
-                  AppColors.success,
-                )
-              else if (failed)
-                _chapterStateChip(
-                  'فشل التنزيل',
-                  Icons.error_outline_rounded,
-                  AppColors.error,
-                )
-              else if (downloading)
-                _chapterStateChip(
-                  'جارٍ التنزيل',
-                  Icons.downloading_rounded,
-                  AppColors.primary,
-                )
-              else if (paused)
-                _chapterStateChip(
-                  'متوقف مؤقتًا',
-                  Icons.pause_circle_outline_rounded,
-                  AppColors.warning,
-                )
-              else if (queued)
-                _chapterStateChip(
-                  'قيد الانتظار',
-                  Icons.schedule_rounded,
-                  AppColors.textSecondary,
-                ),
-            ],
-          ),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (downloading)
-              SizedBox(
-                width: 54,
+              selecting
+                  ? Icon(
+                      selected ? Icons.check_circle_rounded : Icons.circle_outlined,
+                      color: selected ? AppColors.primary : AppColors.icon,
+                      size: 24,
+                    )
+                  : Icon(Icons.menu_book_rounded, color: AppColors.primary, size: 21),
+              const SizedBox(width: 11),
+              Expanded(
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    SizedBox(
-                      width: 36,
-                      height: 36,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          CircularProgressIndicator(
-                            value: progress?.clamp(0.0, 1.0),
-                            strokeWidth: 3,
-                            strokeCap: StrokeCap.round,
-                            color: AppColors.primary,
-                            backgroundColor: AppColors.divider,
-                          ),
-                          Icon(Icons.downloading_rounded,
-                              size: 16, color: AppColors.primary),
-                        ],
+                    Text(
+                      chapter.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        height: 1.25,
+                        fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      progress == null ? '…' : '${(progress * 100).round()}%',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 5,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        if (chapter.releaseTime.isNotEmpty)
+                          Text(chapter.releaseTime,
+                              style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
+                        _chapterStateChip(
+                          read ? 'مقروء' : 'غير مقروء',
+                          read ? Icons.check_circle_outline_rounded : Icons.circle_outlined,
+                          readColor,
+                        ),
+                        if (downloaded)
+                          _chapterStateChip('تم التنزيل', Icons.download_done_rounded, AppColors.success)
+                        else if (failed)
+                          _chapterStateChip('فشل التنزيل', Icons.error_outline_rounded, AppColors.error)
+                        else if (downloading)
+                          _chapterStateChip('جارٍ التنزيل', Icons.downloading_rounded, AppColors.primary)
+                        else if (paused)
+                          _chapterStateChip('متوقف مؤقتًا', Icons.pause_circle_outline_rounded, AppColors.warning)
+                        else if (queued)
+                          _chapterStateChip('قيد الانتظار', Icons.schedule_rounded, AppColors.textSecondary),
+                      ],
                     ),
                   ],
                 ),
-              )
-            else if (queued)
-              Padding(
-                padding: const EdgeInsetsDirectional.only(end: 12),
-                child: Icon(Icons.schedule_rounded, color: AppColors.icon),
-              )
-            else if (paused)
-              IconButton(
-                tooltip: 'استئناف التنزيل'.tr,
-                onPressed: () =>
-                    widget.controller.resumeChapterDownload(chapter.chapterId),
-                icon: Icon(Icons.play_circle_outline_rounded, color: AppColors.primary),
-              )
-            else if (failed)
-              IconButton(
-                tooltip: 'إعادة المحاولة'.tr,
-                onPressed: () =>
-                    widget.controller.retryChapterDownload(chapter.chapterId),
-                icon: Icon(Icons.refresh_rounded, color: AppColors.error),
-              )
-            else if (downloaded)
-              IconButton(
-                tooltip: 'حذف الفصل المحلي'.tr,
-                onPressed: () => _confirmDeleteChapter(chapter),
-                icon: Icon(Icons.delete_outline_rounded, color: AppColors.error),
-              )
-            else
-              IconButton(
-                tooltip: 'تنزيل الفصل'.tr,
-                onPressed: () => widget.controller.downloadChapter(
-                  chapter,
-                  widget.comic.comicId,
-                  widget.comic.title,
-                  widget.comic.coverImage,
-                ),
-                icon: Icon(Icons.download_rounded, color: AppColors.primary),
               ),
-          ],
+              const SizedBox(width: 7),
+              trailingAction,
+            ],
+          ),
         ),
       ),
     );
