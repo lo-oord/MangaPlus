@@ -201,8 +201,14 @@ class ComicDetailView extends GetView<ComicDetailController> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(comic.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                                style: TextStyle(color: AppColors.textPrimary, fontSize: 23, height: 1.12, fontWeight: FontWeight.w900)),
+                            GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onLongPress: () {
+                                Clipboard.setData(ClipboardData(text: comic.title));
+                              },
+                              child: Text(comic.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(color: AppColors.textPrimary, fontSize: 23, height: 1.12, fontWeight: FontWeight.w900)),
+                            ),
                             if (comic.nativeTitle.trim().isNotEmpty) ...[
                               const SizedBox(height: 5),
                               Text(comic.nativeTitle, maxLines: 1, overflow: TextOverflow.ellipsis,

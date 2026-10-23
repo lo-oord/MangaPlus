@@ -305,6 +305,9 @@ class ComicDetailController extends GetxController {
         title: comic.title,
         coverImage: comic.coverImage,
         type: comic.type,
+        status: comic.status,
+        rating: comic.rating,
+        createdAt: DateTime.now().toUtc().toIso8601String(),
       ));
       bookmarkRevision.value++;
       AppFeedback.show(

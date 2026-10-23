@@ -46,9 +46,18 @@ class AppDataService {
     final entries = Map<String, dynamic>.from(
       _storage.read('bookmarks') ?? <String, dynamic>{},
     );
+    final existing = entries[bookmark.comicId];
+    final existingData = existing is Map
+        ? Map<String, dynamic>.from(existing)
+        : <String, dynamic>{};
+    final now = DateTime.now().toUtc().toIso8601String();
+    final createdAt = bookmark.createdAt.trim().isNotEmpty
+        ? bookmark.createdAt
+        : '${existingData['createdAt'] ?? existingData['updatedAt'] ?? now}';
     entries[bookmark.comicId] = {
       ...bookmark.toJson(),
-      'updatedAt': DateTime.now().toUtc().toIso8601String(),
+      'createdAt': createdAt,
+      'updatedAt': now,
     };
     await _storage.write('bookmarks', entries);
     BookmarkStateService.instance.changed();

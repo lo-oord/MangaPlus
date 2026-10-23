@@ -10,17 +10,83 @@ import 'package:mangaplus/app/data/services/account_sync_service.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 
+enum BookmarkSortOrder {
+  newest,
+  oldest,
+  titleAscending,
+  titleDescending,
+  ratingHighest,
+  ratingLowest,
+}
+
+enum BookmarkTypeFilter { all, manga, novel }
+
 class BookmarkController extends GetxController {
   final AppDataService _appDataService = AppDataService();
   final GetStorage _storage = GetStorage();
   final AccountGateService _accountGate = AccountGateService();
   final RxBool isLoading = true.obs;
   final RxList<BookmarkItem> bookmarks = <BookmarkItem>[].obs;
+  final sortOrder = BookmarkSortOrder.newest.obs;
+  final typeFilter = BookmarkTypeFilter.all.obs;
+  final searchQuery = ''.obs;
+  bool _metadataBackfillInProgress = false;
+
+  List<BookmarkItem> get visibleBookmarks {
+    final query = searchQuery.value.trim().toLowerCase();
+    final filter = typeFilter.value;
+    final result = bookmarks.where((bookmark) {
+      if (query.isNotEmpty && !bookmark.title.toLowerCase().contains(query)) {
+        return false;
+      }
+      final type = bookmark.type.trim().toLowerCase();
+      final isNovel = type == 'novel' || type == 'رواية';
+      if (filter == BookmarkTypeFilter.novel && !isNovel) return false;
+      if (filter == BookmarkTypeFilter.manga && isNovel) return false;
+      return true;
+    }).toList(growable: true);
+
+    DateTime addedAt(BookmarkItem item) =>
+        DateTime.tryParse(item.createdAt) ?? DateTime.fromMillisecondsSinceEpoch(0);
+    double rating(BookmarkItem item) {
+      final value = RegExp(r'\d+(?:[.,]\d+)?').firstMatch(item.rating)?.group(0);
+      return double.tryParse(value?.replaceAll(',', '.') ?? '') ?? 0;
+    }
+    int byTitle(BookmarkItem a, BookmarkItem b) =>
+        a.title.toLowerCase().compareTo(b.title.toLowerCase());
+
+    switch (sortOrder.value) {
+      case BookmarkSortOrder.newest:
+        result.sort((a, b) => addedAt(b).compareTo(addedAt(a)));
+        break;
+      case BookmarkSortOrder.oldest:
+        result.sort((a, b) => addedAt(a).compareTo(addedAt(b)));
+        break;
+      case BookmarkSortOrder.titleAscending:
+        result.sort(byTitle);
+        break;
+      case BookmarkSortOrder.titleDescending:
+        result.sort((a, b) => byTitle(b, a));
+        break;
+      case BookmarkSortOrder.ratingHighest:
+        result.sort((a, b) => rating(b).compareTo(rating(a)));
+        break;
+      case BookmarkSortOrder.ratingLowest:
+        result.sort((a, b) => rating(a).compareTo(rating(b)));
+        break;
+    }
+    return result;
+  }
+
+  void setSortOrder(BookmarkSortOrder value) => sortOrder.value = value;
+  void setTypeFilter(BookmarkTypeFilter value) => typeFilter.value = value;
+  void setSearchQuery(String value) => searchQuery.value = value;
 
   Future<void> getBookmark({bool syncCloud = true}) async {
     try {
       final values = await _appDataService.getBookmarks();
       bookmarks.assignAll(values ?? const <BookmarkItem>[]);
+      unawaited(_refreshMissingMetadata());
       if (syncCloud) unawaited(_syncThenRefresh());
     } catch (error) {
       debugPrint('Unable to load local bookmarks: $error');
@@ -40,8 +106,61 @@ class BookmarkController extends GetxController {
       if (isClosed) return;
       final values = await _appDataService.getBookmarks();
       bookmarks.assignAll(values ?? const <BookmarkItem>[]);
+      unawaited(_refreshMissingMetadata());
     } catch (_) {
       // Locally saved bookmarks remain available while cloud sync is unavailable.
+    }
+  }
+
+  Future<void> _refreshMissingMetadata() async {
+    if (_metadataBackfillInProgress || isClosed) return;
+    final pending = bookmarks
+        .where((item) => item.status.trim().isEmpty && item.rating.trim().isEmpty)
+        .toList(growable: false);
+    if (pending.isEmpty) return;
+
+    _metadataBackfillInProgress = true;
+    var nextIndex = 0;
+    Future<void> worker() async {
+      while (!isClosed) {
+        final index = nextIndex++;
+        if (index >= pending.length) return;
+        final saved = pending[index];
+        try {
+          final detail = await ComicService()
+              .fetchComicDetail(saved.comicId)
+              .timeout(const Duration(seconds: 15));
+          final comic = detail.comicDetail;
+          if (comic.title.trim().isEmpty || isClosed) continue;
+          final currentIndex = bookmarks.indexWhere(
+            (item) => item.comicId == saved.comicId,
+          );
+          if (currentIndex < 0) continue;
+          final current = bookmarks[currentIndex];
+          final refreshed = BookmarkItem(
+            comicId: current.comicId,
+            title: current.title.isNotEmpty ? current.title : comic.title,
+            coverImage: current.coverImage.isNotEmpty
+                ? current.coverImage
+                : comic.coverImage,
+            type: current.type.isNotEmpty ? current.type : comic.type,
+            status: comic.status,
+            rating: comic.rating,
+            createdAt: current.createdAt,
+          );
+          await _appDataService.addBookmark(refreshed);
+          if (!isClosed) bookmarks[currentIndex] = refreshed;
+        } catch (error) {
+          debugPrint('Unable to refresh bookmark metadata: $error');
+        }
+      }
+    }
+
+    try {
+      final workerCount = pending.length < 3 ? pending.length : 3;
+      await Future.wait(List.generate(workerCount, (_) => worker()));
+    } finally {
+      _metadataBackfillInProgress = false;
     }
   }
 
@@ -80,11 +199,16 @@ class BookmarkController extends GetxController {
       final data = await ComicService().fetchComicDetail(comicId);
       final comic = data.comicDetail;
       if (comic.title.isEmpty) return;
+      final existingIndex = bookmarks.indexWhere((item) => item.comicId == comicId);
+      final existing = existingIndex < 0 ? null : bookmarks[existingIndex];
       await addBookmark(BookmarkItem(
         comicId: comic.comicId,
         title: comic.title,
         coverImage: comic.coverImage,
         type: comic.type,
+        status: comic.status,
+        rating: comic.rating,
+        createdAt: existing?.createdAt ?? DateTime.now().toUtc().toIso8601String(),
       ));
     } catch (error) {
       debugPrint('Unable to refresh Team X bookmark metadata: $error');

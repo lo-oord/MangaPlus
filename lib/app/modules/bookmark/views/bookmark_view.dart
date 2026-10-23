@@ -1,13 +1,11 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:mangaplus/app/core/cache/manga_cover_cache_manager.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
-import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/models/bookmark.dart';
 import 'package:mangaplus/app/modules/bookmark/controllers/bookmark_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/custom_card_normal.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 class BookmarkView extends GetView<BookmarkController> {
@@ -15,154 +13,195 @@ class BookmarkView extends GetView<BookmarkController> {
 
   @override
   Widget build(BuildContext context) {
-    return ThemeAwareBuilder(builder: (context) => Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text('الإشارات المرجعية'.tr),
-        centerTitle: true,
+    return ThemeAwareBuilder(
+      builder: (context) => Scaffold(
         backgroundColor: AppColors.background,
-        foregroundColor: AppColors.textPrimary,
-        elevation: 0,
+        appBar: AppBar(
+          title: Text('الإشارات المرجعية'.tr),
+          centerTitle: true,
+          backgroundColor: AppColors.background,
+          foregroundColor: AppColors.textPrimary,
+          elevation: 0,
+          actions: [
+            Obx(() {
+              final selectedOrder = controller.sortOrder.value;
+              return PopupMenuButton<BookmarkSortOrder>(
+                initialValue: selectedOrder,
+                tooltip: 'ترتيب'.tr,
+                icon: Icon(Icons.sort_rounded, color: AppColors.textPrimary),
+                onSelected: controller.setSortOrder,
+                itemBuilder: (context) => [
+                  PopupMenuItem(value: BookmarkSortOrder.newest, child: Text('الأحدث إضافة'.tr)),
+                  PopupMenuItem(value: BookmarkSortOrder.oldest, child: Text('الأقدم إضافة'.tr)),
+                  PopupMenuItem(value: BookmarkSortOrder.titleAscending, child: Text('الاسم: أ إلى ي'.tr)),
+                  PopupMenuItem(value: BookmarkSortOrder.titleDescending, child: Text('الاسم: ي إلى أ'.tr)),
+                  PopupMenuItem(value: BookmarkSortOrder.ratingHighest, child: Text('أعلى تقييم'.tr)),
+                  PopupMenuItem(value: BookmarkSortOrder.ratingLowest, child: Text('أقل تقييم'.tr)),
+                ],
+              );
+            }),
+          ],
+        ),
+        body: Obx(() {
+          if (controller.isLoading.value) {
+            return BrandState(title: 'جارٍ تحميل المفضلة'.tr, loading: true);
+          }
+          if (controller.bookmarks.isEmpty) return _buildEmptyBookmark();
+          final bookmarks = controller.visibleBookmarks;
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: TextField(
+                  onChanged: controller.setSearchQuery,
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    hintText: 'بحث في المفضلة'.tr,
+                    prefixIcon: Icon(Icons.search_rounded, color: AppColors.icon),
+                    filled: true,
+                    fillColor: AppColors.searchBar,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 13),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(color: AppColors.divider),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(color: AppColors.primary),
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(
+                height: 42,
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    _typeFilterChip(BookmarkTypeFilter.all, 'الكل'.tr),
+                    const SizedBox(width: 8),
+                    _typeFilterChip(BookmarkTypeFilter.manga, 'مانجا'.tr),
+                    const SizedBox(width: 8),
+                    _typeFilterChip(BookmarkTypeFilter.novel, 'روايات'.tr),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 9, 18, 2),
+                child: Row(
+                  children: [
+                    Icon(Icons.favorite_rounded, size: 16, color: AppColors.primary),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${bookmarks.length}',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: bookmarks.isEmpty
+                    ? BrandState(title: 'لا توجد نتائج'.tr)
+                    : _buildBookmarkGrid(context, bookmarks),
+              ),
+            ],
+          );
+        }),
       ),
-      body: Obx(() {
-        if (controller.isLoading.value) {
-          return BrandState(title: 'جارٍ تحميل المفضلة'.tr, loading: true);
-        }
-        final bookmarks = controller.bookmarks;
-
-        if (bookmarks.isEmpty) {
-          return _buildEmptyBookmark();
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.only(top: 8, bottom: 16),
-          itemCount: bookmarks.length,
-          itemBuilder: (context, index) {
-            return _buildBookmarkItem(bookmarks[index]);
-          },
-        );
-      }),
-    ));
+    );
   }
 
-  Widget _buildEmptyBookmark() => BrandState(
-        title: 'لا توجد إشارات مرجعية بعد'.tr,
-      );
+  Widget _typeFilterChip(BookmarkTypeFilter value, String label) => Obx(() {
+        final selected = controller.typeFilter.value == value;
+        return ChoiceChip(
+          label: Text(label),
+          selected: selected,
+          onSelected: (_) => controller.setTypeFilter(value),
+          showCheckmark: false,
+          labelStyle: TextStyle(
+            color: selected ? Colors.white : AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+          backgroundColor: AppColors.searchBar,
+          selectedColor: AppColors.primary,
+          side: BorderSide(color: selected ? AppColors.primary : AppColors.divider),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+        );
+      });
 
-  Widget _buildBookmarkItem(BookmarkItem bookmark) {
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      color: AppColors.searchBar,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
+  Widget _buildEmptyBookmark() => BrandState(title: 'لا توجد إشارات مرجعية بعد'.tr);
+
+  Widget _buildBookmarkGrid(BuildContext context, List<BookmarkItem> bookmarks) {
+    final width = MediaQuery.sizeOf(context).width;
+    final columns = width >= 600 ? 4 : (width >= 390 ? 3 : 2);
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 18),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: columns,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 14,
+        mainAxisExtent: 222,
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: () {
-          Get.toNamed(Routes.COMIC_DETAIL, arguments: bookmark.comicId);
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Cover image with a persistent favorite indicator.
-              Stack(
-                clipBehavior: Clip.none,
+      itemCount: bookmarks.length,
+      itemBuilder: (context, index) {
+        final bookmark = bookmarks[index];
+        final rawRating = bookmark.rating.trim();
+        final rating = rawRating.isEmpty || rawRating == '0.0' ? '—' : rawRating;
+        final status = bookmark.status.trim().isEmpty ? 'غير معروف'.tr : bookmark.status;
+        return Align(
+          alignment: Alignment.topCenter,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: 120,
+              child: Stack(
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: CachedNetworkImage(
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => Get.toNamed(
+                      Routes.COMIC_DETAIL,
+                      arguments: bookmark.comicId,
+                    ),
+                    child: CustomCardNormal(
+                      comicId: bookmark.comicId,
+                      title: bookmark.title,
+                      chapter: '',
                       imageUrl: bookmark.coverImage,
-                      cacheManager: MangaCoverCacheManager.instance,
-                      httpHeaders: const {
-                        'Referer': 'https://olympustaff.com/',
-                        'User-Agent':
-                            'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
-                      },
-                      width: 85,
-                      height: 114,
-                      memCacheWidth: 255,
-                      maxWidthDiskCache: 720,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(
-                        width: 80,
-                        height: 100,
-                        color: AppColors.background,
-                        child: const Center(child: MangaPlusLogo(size: 48)),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        width: 80,
-                        height: 100,
-                        color: AppColors.card,
-                        child: const Center(child: MangaPlusLogo(size: 48)),
-                      ),
+                      type: bookmark.type,
+                      rating: rating,
+                      status: status,
                     ),
                   ),
                   Positioned(
-                    top: 6,
-                    right: 6,
-                    child: Container(
-                      padding: const EdgeInsets.all(5),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        shape: BoxShape.circle,
-                        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                    top: 2,
+                    left: 2,
+                    child: Material(
+                      color: Colors.black.withValues(alpha: 0.62),
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        tooltip: 'إزالة من المفضلة'.tr,
+                        onPressed: () => controller.deleteBookmark(bookmark.comicId),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(width: 30, height: 30),
+                        icon: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
                       ),
-                      child: const Icon(Icons.favorite_rounded, color: Colors.red, size: 18),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(width: 12),
-
-              // Bookmark Details
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Comic Title
-                    Text(
-                      bookmark.title,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 8),
-
-                    if (bookmark.type.toLowerCase() != 'novel') ...[
-                      Text(
-                        localizeContentType(bookmark.type),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-
-                    // Status or other comic information if needed
-                    // You can add additional fields here as needed
-                    // For example:
-                    // Text(
-                    //   bookmark.status ?? '',
-                    //   style: TextStyle(
-                    //     fontSize: 12,
-                    //     color: AppColors.textSecondary,
-                    //   ),
-                    // ),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
