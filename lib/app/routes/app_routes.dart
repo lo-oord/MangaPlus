@@ -19,6 +19,7 @@ abstract class Routes {
   static const DOWNLOAD = _Paths.DOWNLOAD;
   static const LOCAL_LIBRARY = _Paths.LOCAL_LIBRARY;
   static const BOOKMARK = _Paths.BOOKMARK;
+  static const NOTIFICATIONS = _Paths.NOTIFICATIONS;
   static const SPLASH = _Paths.SPLASH;
 }
 
@@ -38,5 +39,6 @@ abstract class _Paths {
   static const DOWNLOAD = '/download';
   static const LOCAL_LIBRARY = '/local-library';
   static const BOOKMARK = '/bookmark';
+  static const NOTIFICATIONS = '/notifications';
   static const SPLASH = '/splash';
 }
