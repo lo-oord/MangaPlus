@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/data/models/app_notification.dart';
@@ -48,17 +49,74 @@ class NotificationsView extends GetView<NotificationsController> {
               onRefresh: controller.load,
               child: ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-                itemCount: controller.notifications.length + 1,
+                itemCount: controller.notifications.length + 2,
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   if (index == 0) return _introCard();
-                  return _notificationCard(controller.notifications[index - 1]);
+                  if (index == 1) return _trackingSettings();
+                  return _notificationCard(controller.notifications[index - 2]);
                 },
               ),
             );
           }),
         ),
       );
+
+  Widget _trackingSettings() => Obx(() => Container(
+        padding: const EdgeInsets.fromLTRB(15, 8, 15, 10),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Column(
+          children: [
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              value: controller.backgroundEnabled.value,
+              onChanged: controller.setBackgroundEnabled,
+              activeColor: AppColors.primary,
+              secondary: Icon(Icons.update_rounded, color: AppColors.primary),
+              title: Text('إشعارات الفصول الجديدة'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
+              subtitle: Text('يفحص المفضلة على جهازك دون خادم مركزي'.tr, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+            ),
+            if (controller.backgroundEnabled.value) ...[
+              Divider(height: 1, color: AppColors.divider),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.schedule_rounded, color: AppColors.icon),
+                title: Text('فترة الفحص'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                trailing: DropdownButton<int>(
+                  value: controller.frequencyHours.value,
+                  underline: const SizedBox.shrink(),
+                  items: [6, 12, 24].map((hours) => DropdownMenuItem<int>(value: hours, child: Text('$hours ${'ساعة'.tr}'))).toList(),
+                  onChanged: (value) {
+                    if (value != null) controller.setFrequency(value);
+                  },
+                ),
+              ),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                value: controller.wifiOnly.value,
+                onChanged: controller.setWifiOnly,
+                activeColor: AppColors.primary,
+                secondary: Icon(Icons.wifi_rounded, color: AppColors.icon),
+                title: Text('الفحص عبر Wi‑Fi فقط'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+              ),
+              Divider(height: 1, color: AppColors.divider),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.battery_saver_rounded, color: AppColors.icon),
+                title: Text('تحسين عمل الخلفية'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                subtitle: Text(controller.batteryOptimizationActive.value ? 'قد يؤخر النظام الفحص'.tr : 'السماح بالعمل في الخلفية مفعّل'.tr, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                trailing: controller.batteryOptimizationActive.value
+                    ? TextButton(onPressed: controller.requestBatteryExemption, child: Text('السماح'.tr))
+                    : Icon(Icons.check_circle_rounded, color: AppColors.success),
+              ),
+            ],
+          ],
+        ),
+      ));
 
   Widget _introCard() => Container(
         padding: const EdgeInsets.all(17),
@@ -125,11 +183,25 @@ class NotificationsView extends GetView<NotificationsController> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: .13), shape: BoxShape.circle),
-              child: Icon(Icons.notifications_active_rounded, color: AppColors.primary, size: 22),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(13),
+              child: SizedBox(
+                width: 48,
+                height: 60,
+                child: item.imageUrl.trim().isEmpty
+                    ? Container(
+                        color: AppColors.primary.withValues(alpha: .13),
+                        child: Icon(Icons.notifications_active_rounded, color: AppColors.primary, size: 22),
+                      )
+                    : CachedNetworkImage(
+                        imageUrl: item.imageUrl,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => Container(
+                          color: AppColors.primary.withValues(alpha: .13),
+                          child: Icon(Icons.notifications_active_rounded, color: AppColors.primary, size: 22),
+                        ),
+                      ),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(

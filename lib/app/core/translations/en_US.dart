@@ -465,4 +465,12 @@ const Map<String, String> enUS = {
   'تعذر الفحص': 'Check failed',
   'لم يتم العثور على فصول جديدة.': 'No new chapters found.',
   'أعمال لديها تحديثات': 'titles have updates',
+  'إشعارات الفصول الجديدة': 'New chapter notifications',
+  'يفحص المفضلة على جهازك دون خادم مركزي': 'Checks your favorites on this device without a central server',
+  'فترة الفحص': 'Check interval',
+  'الفحص عبر Wi‑Fi فقط': 'Check over Wi‑Fi only',
+  'تحسين عمل الخلفية': 'Background activity',
+  'قد يؤخر النظام الفحص': 'The system may delay checks',
+  'السماح بالعمل في الخلفية مفعّل': 'Background activity is allowed',
+  'السماح': 'Allow',
 };

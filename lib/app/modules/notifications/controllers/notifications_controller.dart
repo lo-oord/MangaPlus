@@ -9,6 +9,10 @@ class NotificationsController extends GetxController {
   final ChapterUpdateService chapterService = Get.find<ChapterUpdateService>();
   final RxBool isLoading = true.obs;
   final RxBool isCheckingFavorites = false.obs;
+  final RxBool backgroundEnabled = false.obs;
+  final RxBool wifiOnly = false.obs;
+  final RxInt frequencyHours = 12.obs;
+  final RxBool batteryOptimizationActive = true.obs;
   final RxBool hasError = false.obs;
   final RxList<AppNotification> notifications = <AppNotification>[].obs;
 
@@ -17,7 +21,36 @@ class NotificationsController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    backgroundEnabled.value = chapterService.backgroundEnabled;
+    wifiOnly.value = chapterService.wifiOnly;
+    frequencyHours.value = chapterService.frequencyHours;
+    _loadBatteryState();
     load();
+  }
+
+  Future<void> _loadBatteryState() async {
+    batteryOptimizationActive.value = !(await chapterService.isBatteryOptimizationIgnored());
+  }
+
+  Future<void> setBackgroundEnabled(bool value) async {
+    backgroundEnabled.value = value;
+    await chapterService.setBackgroundEnabled(value);
+  }
+
+  Future<void> setWifiOnly(bool value) async {
+    wifiOnly.value = value;
+    await chapterService.setWifiOnly(value);
+  }
+
+  Future<void> setFrequency(int value) async {
+    frequencyHours.value = value;
+    await chapterService.setFrequencyHours(value);
+  }
+
+  Future<void> requestBatteryExemption() async {
+    await chapterService.requestBatteryOptimizationExemption();
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await _loadBatteryState();
   }
 
   Future<void> load() async {

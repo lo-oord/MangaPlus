@@ -1,5 +1,9 @@
 package com.mangaplus.app
 
+import android.content.Intent
+import android.net.Uri
+import android.os.PowerManager
+import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -45,6 +49,30 @@ class MainActivity : FlutterActivity() {
                     }
                 }
             }.start()
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "com.mangaplus.app/system",
+        ).setMethodCallHandler { call, result ->
+            val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+            when (call.method) {
+                "isBatteryOptimizationIgnored" -> {
+                    result.success(powerManager.isIgnoringBatteryOptimizations(packageName))
+                }
+                "requestBatteryOptimizationExemption" -> {
+                    if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
+                        startActivity(
+                            Intent(
+                                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                Uri.parse("package:$packageName"),
+                            ),
+                        )
+                    }
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
         }
     }
 }

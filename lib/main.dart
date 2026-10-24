@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:workmanager/workmanager.dart';
 
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
@@ -147,6 +148,12 @@ void main() async {
       : const Locale('ar', 'SA');
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  if (!kIsWeb) {
+    await Workmanager().initialize(
+      chapterUpdateCallbackDispatcher,
+      isInDebugMode: false,
+    );
+  }
   if (!kIsWeb) FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
   final notificationService = Get.put(AppNotificationService(), permanent: true);
   final chapterUpdateService = Get.put(
@@ -198,6 +205,8 @@ void main() async {
           flutterLocalNotificationsPlugin,
           languageCode: savedLanguage,
         );
+        unawaited(chapterUpdateService.initializeBackground());
+        unawaited(chapterUpdateService.checkOnAppOpen());
         for (final message in _pendingForegroundNotifications) {
           showFlutterNotification(message);
         }

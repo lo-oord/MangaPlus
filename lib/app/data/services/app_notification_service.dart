@@ -90,6 +90,7 @@ class AppNotificationService {
     required String id,
     required String title,
     required String body,
+    String imageUrl = '',
     Map<String, dynamic> data = const {},
   }) async {
     await GetStorage.init();
@@ -98,6 +99,7 @@ class AppNotificationService {
       title: title,
       body: body,
       createdAt: DateTime.now(),
+      imageUrl: imageUrl,
       data: data,
     );
     final current = _storage.read<List<dynamic>>(_localKey) ?? const [];
