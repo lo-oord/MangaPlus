@@ -37,6 +37,8 @@ class AccountGateService {
     if (shouldOpen != true) return false;
     await Get.toNamed(Routes.AUTH);
     final refreshed = auth.currentUser;
-    return refreshed != null && !refreshed.isAnonymous;
+    return refreshed != null &&
+        !refreshed.isAnonymous &&
+        refreshed.emailVerified;
   }
 }

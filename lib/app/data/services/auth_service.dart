@@ -24,7 +24,13 @@ class AuthService {
 
   Future<UserProfile?> loadProfile(String uid) async {
     final doc = await _profiles.doc(uid).get();
-    return doc.exists ? UserProfile.fromFirestore(doc) : null;
+    if (!doc.exists) return null;
+    final profile = UserProfile.fromFirestore(doc);
+    final user = _auth.currentUser;
+    if (user?.uid == uid && user?.isAnonymous == false) {
+      return profile.copyWith(emailVerified: user!.emailVerified);
+    }
+    return profile;
   }
 
   Future<bool> isUsernameAvailable(String username) async {
