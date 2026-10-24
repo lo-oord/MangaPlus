@@ -47,7 +47,7 @@ class MainView extends GetView<MainController> {
                 _navItem(0, Icons.home_rounded, Icons.home_outlined, 'home'.tr),
                 _navItem(1, Icons.search_rounded, Icons.search, 'بحث'.tr),
                 _navItem(2, Icons.bookmarks_rounded, Icons.bookmark_border_rounded, 'المفضلة'.tr),
-                _navItem(3, Icons.account_circle_rounded, Icons.account_circle_outlined, 'profile'.tr),
+                _navItem(3, Icons.settings_rounded, Icons.settings_outlined, 'settings'.tr),
               ],
             ),
             ),

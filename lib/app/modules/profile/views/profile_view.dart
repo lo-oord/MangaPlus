@@ -16,7 +16,7 @@ class ProfileView extends GetView<ProfileController> {
   Widget build(BuildContext context) => ThemeAwareBuilder(builder: (context) => Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
-          title: Text('الملف الشخصي'.tr),
+          title: Text('الإعدادات'.tr),
           centerTitle: true,
           backgroundColor: AppColors.background,
           foregroundColor: AppColors.textPrimary,
@@ -24,29 +24,15 @@ class ProfileView extends GetView<ProfileController> {
         ),
         body: Obx(() {
           final account = controller.accountProfile.value;
-          final registeredAccount =
-              account != null && !account.isGuest ? account : null;
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
             children: [
-              _profileHeader(),
+              InkWell(
+                borderRadius: BorderRadius.circular(22),
+                onTap: () => Get.toNamed(Routes.PROFILE_DETAILS),
+                child: _profileHeader(),
+              ),
               const SizedBox(height: 24),
-              if (registeredAccount != null) ...[
-                _sectionTitle('نبذة'.tr),
-                const SizedBox(height: 9),
-                _bioCard(registeredAccount),
-                const SizedBox(height: 20),
-                _sectionTitle('معلومات الحساب'.tr),
-                const SizedBox(height: 9),
-                _accountInfoCard(registeredAccount),
-                const SizedBox(height: 20),
-                _sectionTitle('الأمان والمزامنة'.tr),
-                const SizedBox(height: 9),
-                _securityCard(registeredAccount),
-                const SizedBox(height: 24),
-              ] else ...[
-                const SizedBox(height: 4),
-              ],
               _sectionTitle('التفضيلات'.tr),
               const SizedBox(height: 9),
               _settingsCard([
@@ -98,22 +84,6 @@ class ProfileView extends GetView<ProfileController> {
                   () => Get.toNamed(Routes.LOCAL_LIBRARY),
                 ),
               ]),
-              if (account != null) ...[
-                const SizedBox(height: 20),
-                _settingsCard([
-                  ListTile(
-                    leading: const Icon(Icons.logout_rounded, color: AppColors.error),
-                    title: Text(
-                      'تسجيل الخروج'.tr,
-                      style: const TextStyle(
-                        color: AppColors.error,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    onTap: _confirmSignOut,
-                  ),
-                ]),
-              ],
               const SizedBox(height: 24),
               _sectionTitle('حول التطبيق'.tr),
               const SizedBox(height: 9),
