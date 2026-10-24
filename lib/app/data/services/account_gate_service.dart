@@ -11,8 +11,12 @@ class AccountGateService {
     var activeUser = auth.currentUser;
     if (activeUser != null && !activeUser.isAnonymous) {
       try {
+        final wasVerified = activeUser.emailVerified;
         await activeUser.reload();
         activeUser = auth.currentUser;
+        if (!wasVerified && activeUser?.emailVerified == true) {
+          await activeUser!.getIdToken(true);
+        }
       } catch (_) {
         // Keep the cached state; Firebase rules remain authoritative offline.
       }

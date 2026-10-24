@@ -90,6 +90,10 @@ class AuthService {
     final user = credential.user;
     if (user == null) throw const AuthException('تعذر تسجيل الدخول.');
     await user.reload();
+    final refreshedUser = _auth.currentUser;
+    if (refreshedUser?.uid == user.uid && refreshedUser!.emailVerified) {
+      await refreshedUser.getIdToken(true);
+    }
     final profile = await loadProfile(user.uid);
     if (profile == null) throw const AuthException('بيانات الحساب غير مكتملة.');
     return profile;
@@ -177,6 +181,10 @@ class AuthService {
     final user = _auth.currentUser;
     if (user == null) throw const AuthException('لا يوجد مستخدم مسجل.');
     await user.reload();
+    final refreshedUser = _auth.currentUser;
+    if (refreshedUser?.uid == user.uid && refreshedUser!.emailVerified) {
+      await refreshedUser.getIdToken(true);
+    }
     final profile = await loadProfile(user.uid);
     if (profile == null) throw const AuthException('بيانات الحساب غير مكتملة.');
     return profile.copyWith(emailVerified: _auth.currentUser?.emailVerified == true);
@@ -193,10 +201,7 @@ class AuthService {
   }
 
   Future<UserProfile> updatePhotoData(String photoData) async {
-    final user = currentUser;
-    if (user == null || user.isAnonymous) {
-      throw const AuthException('يجب تسجيل الدخول بحساب دائم لتعديل الصورة.');
-    }
+    final user = await _refreshVerifiedUser();
     if (photoData.length > 850000) {
       throw const AuthException('الصورة أكبر من الحد المسموح. اختر صورة أصغر.');
     }
@@ -208,30 +213,27 @@ class AuthService {
   }
 
   Future<UserProfile> updateDisplayName(String displayName) async {
-    final user = currentUser;
     final value = displayName.trim();
-    if (user == null || user.isAnonymous || value.isEmpty || value.length > 40) {
+    if (value.isEmpty || value.length > 40) {
       throw const AuthException('الاسم الظاهر مطلوب ويجب ألا يتجاوز 40 حرفًا.');
     }
+    final user = await _refreshVerifiedUser();
     await _profiles.doc(user.uid).update({'displayName': value});
     return (await loadProfile(user.uid))!;
   }
 
   Future<UserProfile> updateBio(String bio) async {
-    final user = currentUser;
     final value = bio.trim();
-    if (user == null || user.isAnonymous || value.length > 300) {
+    if (value.length > 300) {
       throw const AuthException('تعذر حفظ النبذة، الحد الأقصى 300 حرف.');
     }
+    final user = await _refreshVerifiedUser();
     await _profiles.doc(user.uid).update({'bio': value});
     return (await loadProfile(user.uid))!;
   }
 
   Future<UserProfile> setFavoritesSync(bool enabled) async {
-    final user = currentUser;
-    if (user == null || user.isAnonymous) {
-      throw const AuthException('يجب تسجيل الدخول بحساب دائم للمزامنة.');
-    }
+    final user = await _refreshVerifiedUser();
     await _profiles.doc(user.uid).update({'syncFavorites': enabled});
     return (await loadProfile(user.uid))!;
   }
@@ -247,9 +249,24 @@ class AuthService {
   Future<void> saveSettings({required String language, required String themeMode}) async {
     final user = currentUser;
     if (user == null || user.isAnonymous) return;
-    await _profiles.doc(user.uid).update({
+    final verifiedUser = await _refreshVerifiedUser();
+    await _profiles.doc(verifiedUser.uid).update({
       'settings': {'language': language, 'themeMode': themeMode},
     });
+  }
+
+  Future<User> _refreshVerifiedUser() async {
+    final previous = currentUser;
+    if (previous == null || previous.isAnonymous) {
+      throw const AuthException('يجب تسجيل الدخول بحساب دائم وموثق لتنفيذ هذا الإجراء.');
+    }
+    await previous.reload();
+    final user = currentUser;
+    if (user == null || user.uid != previous.uid || !user.emailVerified) {
+      throw const AuthException('يجب تأكيد البريد الإلكتروني قبل تنفيذ هذا الإجراء.');
+    }
+    await user.getIdToken(true);
+    return user;
   }
 
   Future<void> changePassword({required String currentPassword, required String newPassword}) async {
