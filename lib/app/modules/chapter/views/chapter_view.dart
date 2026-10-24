@@ -1278,7 +1278,7 @@ class ChapterView extends GetView<ChapterController> {
                     Center(
                   child: MangaPlusLoader(
                     size: 58,
-                    progress: downloadProgress.progress,
+                    progress: controller.isNovel ? null : downloadProgress.progress,
                   ),
                 ),
                 placeholder: (context, url) => const Center(
@@ -1363,7 +1363,7 @@ class ChapterView extends GetView<ChapterController> {
                   child: Center(
                     child: MangaPlusLoader(
                       size: 58,
-                      progress: downloadProgress.progress,
+                      progress: controller.isNovel ? null : downloadProgress.progress,
                     ),
                   ),
                 ),
