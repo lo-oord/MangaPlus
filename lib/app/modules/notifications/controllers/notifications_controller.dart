@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 import 'package:mangaplus/app/data/models/app_notification.dart';
 import 'package:mangaplus/app/data/services/app_notification_service.dart';
 import 'package:mangaplus/app/data/services/chapter_update_service.dart';
+import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 
 class NotificationsController extends GetxController {
@@ -35,6 +36,10 @@ class NotificationsController extends GetxController {
   Future<void> setBackgroundEnabled(bool value) async {
     backgroundEnabled.value = value;
     await chapterService.setBackgroundEnabled(value);
+    if (value && await chapterService.isBatteryOptimizationIgnored() == false) {
+      await chapterService.requestBatteryOptimizationExemption();
+    }
+    await _loadBatteryState();
   }
 
   Future<void> setWifiOnly(bool value) async {
@@ -77,6 +82,14 @@ class NotificationsController extends GetxController {
       await service.markRead(item.id);
     }
     notifications.assignAll(notifications.map((item) => item.copyWith(isRead: true)));
+  }
+
+  Future<void> openNotification(AppNotification notification) async {
+    await markRead(notification);
+    final comicId = '${notification.data['comicId'] ?? ''}'.trim();
+    if (comicId.isNotEmpty) {
+      await Get.toNamed(Routes.COMIC_DETAIL, arguments: comicId);
+    }
   }
 
   Future<void> checkFavorites() async {

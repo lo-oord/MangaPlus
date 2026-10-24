@@ -5,15 +5,18 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:workmanager/workmanager.dart';
 
 import 'package:mangaplus/app/data/models/bookmark.dart';
 import 'package:mangaplus/app/data/models/chapter.dart';
+import 'package:mangaplus/app/data/services/account_sync_service.dart';
 import 'package:mangaplus/app/data/services/app_notification_service.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
 import 'package:mangaplus/app/data/sources/manga_source_registry.dart';
+import 'package:mangaplus/firebase_options.dart';
 
 class ChapterUpdate {
   const ChapterUpdate({
@@ -61,7 +64,7 @@ class ChapterUpdateService {
   String _languageCode = 'ar_SA';
 
   bool get backgroundEnabled => _storage.read(_backgroundEnabledKey) == true;
-  int get frequencyHours => (_storage.read(_frequencyKey) as int?) ?? 12;
+  int get frequencyHours => (_storage.read(_frequencyKey) as int?) ?? 2;
   bool get wifiOnly => _storage.read(_wifiOnlyKey) == true;
 
   Future<void> initializeBackground() async {
@@ -110,12 +113,20 @@ class ChapterUpdateService {
 
   Future<bool> isBatteryOptimizationIgnored() async {
     if (kIsWeb) return true;
-    return await _systemChannel.invokeMethod<bool>('isBatteryOptimizationIgnored') ?? true;
+    try {
+      return await _systemChannel.invokeMethod<bool>('isBatteryOptimizationIgnored') ?? true;
+    } on MissingPluginException {
+      return true;
+    }
   }
 
   Future<void> requestBatteryOptimizationExemption() async {
     if (kIsWeb) return;
-    await _systemChannel.invokeMethod<void>('requestBatteryOptimizationExemption');
+    try {
+      await _systemChannel.invokeMethod<void>('requestBatteryOptimizationExemption');
+    } on MissingPluginException {
+      // Battery optimization is an Android-only setting.
+    }
   }
 
   void attachNotificationPlugin(
@@ -129,6 +140,11 @@ class ChapterUpdateService {
   Future<ChapterCheckResult> checkFavorites({
     Future<void> Function(ChapterUpdate update)? onUpdate,
   }) async {
+    try {
+      await AccountSyncService().syncLocalData();
+    } catch (error) {
+      debugPrint('Unable to sync favorites before chapter check: $error');
+    }
     final raw = _storage.read('bookmarks');
     final entries = raw is Map ? raw.entries : const <MapEntry<dynamic, dynamic>>[];
     final bookmarks = entries
@@ -282,6 +298,7 @@ class ChapterUpdateService {
           largeIcon: cover,
         ),
       ),
+      payload: update.bookmark.comicId,
     );
   }
 
@@ -313,6 +330,7 @@ void chapterUpdateCallbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     WidgetsFlutterBinding.ensureInitialized();
     DartPluginRegistrant.ensureInitialized();
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
     await GetStorage.init();
     final plugin = FlutterLocalNotificationsPlugin();
     await plugin.initialize(

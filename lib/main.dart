@@ -54,6 +54,15 @@ void _handleForegroundMessage(RemoteMessage message) {
   showFlutterNotification(message);
 }
 
+void _handleLocalNotificationResponse(NotificationResponse response) {
+  final comicId = response.payload?.trim() ?? '';
+  if (comicId.isNotEmpty) {
+    Get.toNamed(Routes.COMIC_DETAIL, arguments: comicId);
+  } else {
+    Get.toNamed(Routes.NOTIFICATIONS);
+  }
+}
+
 Future<void> setupFlutterNotifications({required String languageCode}) async {
   if (isFlutterLocalNotificationsInitialized) {
     return;
@@ -65,7 +74,7 @@ Future<void> setupFlutterNotifications({required String languageCode}) async {
     const InitializationSettings(
       android: AndroidInitializationSettings('ic_stat_mangaplus'),
     ),
-    onDidReceiveNotificationResponse: (_) => Get.toNamed(Routes.NOTIFICATIONS),
+    onDidReceiveNotificationResponse: _handleLocalNotificationResponse,
   );
 
   /// Create an Android Notification Channel.
@@ -200,7 +209,7 @@ void main() async {
   );
   if (!kIsWeb) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      setupFlutterNotifications(languageCode: savedLanguage).then((_) {
+      setupFlutterNotifications(languageCode: savedLanguage).then((_) async {
         chapterUpdateService.attachNotificationPlugin(
           flutterLocalNotificationsPlugin,
           languageCode: savedLanguage,
@@ -211,6 +220,10 @@ void main() async {
           showFlutterNotification(message);
         }
         _pendingForegroundNotifications.clear();
+        final launchDetails = await flutterLocalNotificationsPlugin.getNotificationAppLaunchDetails();
+        if (launchDetails?.didNotificationLaunchApp == true && launchDetails?.notificationResponse != null) {
+          _handleLocalNotificationResponse(launchDetails!.notificationResponse!);
+        }
       }).catchError((Object error) {
         debugPrint('Unable to initialize local notifications: $error');
       });

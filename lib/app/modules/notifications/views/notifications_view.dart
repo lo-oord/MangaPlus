@@ -89,7 +89,7 @@ class NotificationsView extends GetView<NotificationsController> {
                 trailing: DropdownButton<int>(
                   value: controller.frequencyHours.value,
                   underline: const SizedBox.shrink(),
-                  items: [6, 12, 24].map((hours) => DropdownMenuItem<int>(value: hours, child: Text('$hours ${'ساعة'.tr}'))).toList(),
+                  items: [2, 6, 12, 24].map((hours) => DropdownMenuItem<int>(value: hours, child: Text('$hours ${'ساعة'.tr}'))).toList(),
                   onChanged: (value) {
                     if (value != null) controller.setFrequency(value);
                   },
@@ -171,7 +171,7 @@ class NotificationsView extends GetView<NotificationsController> {
   Widget _notificationCard(AppNotification item) {
     return InkWell(
       borderRadius: BorderRadius.circular(20),
-      onTap: () => controller.markRead(item),
+      onTap: () => controller.openNotification(item),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         padding: const EdgeInsets.all(15),
