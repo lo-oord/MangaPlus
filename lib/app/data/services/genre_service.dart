@@ -15,7 +15,13 @@ class GenreService extends GetxService {
   Future<GenreData> fetchGenres() async {
     final entriesRequest = _source.genres();
     final taggedSources = MangaSourceRegistry.searchableSources.where(
-      (source) => const {'azora', 'manga_swat', 'mangatime', 'manga_cloud'}.contains(source.id),
+      (source) => const {
+        'azora',
+        'manga_swat',
+        'mangatime',
+        'manga_cloud',
+        'kawaii_manga',
+      }.contains(source.id),
     );
     final batchesRequest = Future.wait(taggedSources.map((source) async {
       try {
@@ -63,7 +69,7 @@ class GenreService extends GetxService {
   Future<ComicData> fetchGenreDetail(String genre, {int page = 1, String genreName = ''}) async {
     final normalizedGenre = _normalizeGenre(genreName.isEmpty ? genre : genreName);
     final sources = MangaSourceRegistry.searchableSources.where(
-      (source) => source.id != _source.id,
+      (source) => source.id != _source.id && source.id != 'kawaii_novels',
     );
     final teamXRequest = _source
         .catalogPage(genre: genre, page: page)

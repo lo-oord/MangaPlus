@@ -344,9 +344,14 @@ class DownloadManagerService extends GetxService {
         if (response.statusCode < 200 || response.statusCode >= 300) {
           throw HttpException('HTTP ${response.statusCode}');
         }
-        final extension = response.headers['content-type']?.contains('png') == true
+        final contentType = response.headers['content-type']?.toLowerCase() ?? '';
+        final extension = contentType.contains('png')
             ? 'png'
-            : 'jpg';
+            : contentType.contains('webp')
+                ? 'webp'
+                : contentType.contains('gif')
+                    ? 'gif'
+                    : 'jpg';
         final file = File('${temp.path}/page_${index + 1}.$extension');
         await file.writeAsBytes(response.bodyBytes, flush: false);
         paths[index] = file.path;

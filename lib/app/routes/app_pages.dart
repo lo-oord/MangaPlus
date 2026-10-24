@@ -22,6 +22,8 @@ import '../modules/local_library/bindings/local_library_binding.dart';
 import '../modules/local_library/views/local_library_view.dart';
 import '../modules/main/bindings/main_binding.dart';
 import '../modules/main/views/main_view.dart';
+import '../modules/notifications/bindings/notifications_binding.dart';
+import '../modules/notifications/views/notifications_view.dart';
 import '../modules/profile/bindings/profile_binding.dart';
 import '../modules/profile/views/profile_view.dart';
 import '../modules/profile/views/profile_details_view.dart';
@@ -110,6 +112,11 @@ class AppPages {
       name: _Paths.BOOKMARK,
       page: () => const BookmarkView(),
       binding: BookmarkBinding(),
+    ),
+    GetPage(
+      name: _Paths.NOTIFICATIONS,
+      page: () => const NotificationsView(),
+      binding: NotificationsBinding(),
     ),
   ];
 }

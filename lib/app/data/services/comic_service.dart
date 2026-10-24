@@ -21,6 +21,8 @@ class ComicService {
   final TeamXSource _teamX;
   final _azora = MangaSourceRegistry.azora;
   final _mknov = MangaSourceRegistry.mknov;
+  final _kawaiiManga = MangaSourceRegistry.kawaiiManga;
+  final _kawaiiNovels = MangaSourceRegistry.kawaiiNovels;
   static const String sourceName = 'Team X';
 
   static ComicsList mapComicItem(Map<String, dynamic> item) {
@@ -133,6 +135,14 @@ class ComicService {
           .searchSuggestions(limit: limit)
           .timeout(const Duration(seconds: 15))
           .catchError((_) => <Map<String, dynamic>>[]),
+      _kawaiiManga
+          .searchSuggestions(limit: limit)
+          .timeout(const Duration(seconds: 20))
+          .catchError((_) => <Map<String, dynamic>>[]),
+      _kawaiiNovels
+          .searchSuggestions(limit: limit)
+          .timeout(const Duration(seconds: 40))
+          .catchError((_) => <Map<String, dynamic>>[]),
     ]);
     final bySource = <List<Map<String, dynamic>>>[
       results[0]
@@ -154,6 +164,20 @@ class ComicService {
                 ...item,
                 'source_id': item['source_id'] ?? 'mknov',
                 'source': item['source'] ?? 'MKNOV',
+              })
+          .toList(growable: false),
+      results[3]
+          .map((item) => {
+                ...item,
+                'source_id': item['source_id'] ?? _kawaiiManga.id,
+                'source': item['source'] ?? _kawaiiManga.name,
+              })
+          .toList(growable: false),
+      results[4]
+          .map((item) => {
+                ...item,
+                'source_id': item['source_id'] ?? _kawaiiNovels.id,
+                'source': item['source'] ?? _kawaiiNovels.name,
               })
           .toList(growable: false),
     ];
@@ -258,7 +282,9 @@ class ComicService {
     final sourceName = source.id == 'azora' &&
             detail.type.trim().toLowerCase() == 'novel'
         ? 'Azora Novels'
-        : source.name;
+        : source.id == 'kawaii_novels'
+            ? 'Kawaii Novels'
+            : source.name;
     return ComicDetailData(comicDetail: detail, source: sourceName);
   }
 
@@ -336,7 +362,11 @@ class ComicService {
   Future<ChapterData> _fetchNovelChapterUncached(String chapterId) async {
     final source = MangaSourceRegistry.forUrl(chapterId);
     if (source == null) throw StateError('لم يتم العثور على مصدر لهذا الفصل.');
-    final sourceName = source.id == 'azora' ? 'Azora Novels' : source.name;
+    final sourceName = source.id == 'azora'
+        ? 'Azora Novels'
+        : source.id == 'kawaii_novels'
+            ? 'Kawaii Novels'
+            : source.name;
     final raw = await source.chapterContent(chapterId);
     if (raw == null) throw StateError('$sourceName لم يرجع محتوى الفصل النصي.');
     final content = '${raw['content'] ?? ''}'.trim();

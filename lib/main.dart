@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
@@ -13,6 +14,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/core/theme/theme.dart';
 import 'package:mangaplus/app/core/theme/theme_mode_preference.dart';
 import 'package:mangaplus/app/data/services/notification_presentation.dart';
+import 'package:mangaplus/app/data/services/app_notification_service.dart';
 import 'package:mangaplus/app/data/services/download_manager_service.dart';
 import 'package:mangaplus/app/core/translations/app_translations.dart';
 
@@ -23,6 +25,7 @@ import 'app/routes/app_pages.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await AppNotificationService().recordRemoteMessage(message);
   showFlutterNotification(message);
   // If you're going to use other Firebase services in the background, such as Firestore,
   // make sure you call `initializeApp` before using other Firebase services.
@@ -36,6 +39,9 @@ bool isFlutterLocalNotificationsInitialized = false;
 final List<RemoteMessage> _pendingForegroundNotifications = [];
 
 void _handleForegroundMessage(RemoteMessage message) {
+  if (Get.isRegistered<AppNotificationService>()) {
+    unawaited(Get.find<AppNotificationService>().recordRemoteMessage(message));
+  }
   if (kIsWeb) return;
   if (!isFlutterLocalNotificationsInitialized) {
     if (_pendingForegroundNotifications.length < 10) {
@@ -57,6 +63,7 @@ Future<void> setupFlutterNotifications({required String languageCode}) async {
     const InitializationSettings(
       android: AndroidInitializationSettings('ic_stat_mangaplus'),
     ),
+    onDidReceiveNotificationResponse: (_) => Get.toNamed(Routes.NOTIFICATIONS),
   );
 
   /// Create an Android Notification Channel.
@@ -140,6 +147,19 @@ void main() async {
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   if (!kIsWeb) FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+  final notificationService = Get.put(AppNotificationService(), permanent: true);
+  if (!kIsWeb) {
+    unawaited(notificationService.initialize().catchError((_) {}));
+  }
+  if (!kIsWeb) {
+    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      unawaited(notificationService.recordRemoteMessage(message));
+      Get.toNamed(Routes.NOTIFICATIONS);
+    });
+  }
+  final initialNotification = !kIsWeb
+      ? await FirebaseMessaging.instance.getInitialMessage()
+      : null;
   runApp(
     GetMaterialApp(
       debugShowCheckedModeBanner: false,
@@ -176,6 +196,9 @@ void main() async {
       }).catchError((Object error) {
         debugPrint('Unable to initialize local notifications: $error');
       });
+      if (initialNotification != null) {
+        Get.toNamed(Routes.NOTIFICATIONS);
+      }
     });
   }
 }

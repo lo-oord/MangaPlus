@@ -67,6 +67,12 @@ class ProfileView extends GetView<ProfileController> {
               const SizedBox(height: 9),
               _settingsCard([
                 _navigationRow(
+                  Icons.notifications_none_rounded,
+                  'الإشعارات'.tr,
+                  () => Get.toNamed(Routes.NOTIFICATIONS),
+                ),
+                Divider(height: 1, color: AppColors.divider),
+                _navigationRow(
                   Icons.history_rounded,
                   'سجل القراءة'.tr,
                   () => Get.toNamed(Routes.HISTORY),

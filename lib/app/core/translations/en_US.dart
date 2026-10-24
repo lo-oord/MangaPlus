@@ -451,4 +451,12 @@ const Map<String, String> enUS = {
   'موثق': 'Verified',
   'اقتراحات قريبة متاحة': 'Similar available suggestions',
   'اختَر اسماً قريباً من اختيارك': 'Choose a name close to your original choice',
+  'الإشعارات': 'Notifications',
+  'تحديد الكل كمقروء': 'Mark all as read',
+  'جارٍ تحميل الإشعارات': 'Loading notifications',
+  'تعذر تحميل الإشعارات': 'Unable to load notifications',
+  'مستجدات MangaPlus': 'MangaPlus updates',
+  'ستظهر هنا أخبار التطبيق وإعلاناته المهمة': 'Important app news and announcements will appear here',
+  'لا توجد إشعارات بعد': 'No notifications yet',
+  'ستصل إليك هنا أخبار التطبيق وإعلاناته المهمة.': 'Important app news and announcements will appear here.',
 };
