@@ -17,6 +17,7 @@ class ChapterView extends GetView<ChapterController> {
   ChapterView({super.key});
   final List<GlobalKey> _pageKeys = <GlobalKey>[];
   int _lastFollowedSpeechParagraph = -1;
+  bool _speechWasPlaying = false;
   final Set<String> _preloadedImages = <String>{};
 
   @override
@@ -184,8 +185,8 @@ class ChapterView extends GetView<ChapterController> {
       final family = controller.novelFontFamily.value;
       final speechParagraph = controller.novelSpeechCurrentParagraph.value;
       final speechWord = controller.novelSpeechCurrentWord.value;
-      final speechActive = controller.novelSpeechPlaying.value ||
-          controller.novelSpeechPaused.value;
+      final speechPlaying = controller.novelSpeechPlaying.value;
+      final speechActive = speechPlaying || controller.novelSpeechPaused.value;
       return FutureBuilder<List<String>>(
         future: controller.paragraphsFor(chapter.content),
         builder: (context, snapshot) {
@@ -206,8 +207,16 @@ class ChapterView extends GetView<ChapterController> {
           }
 
           final paragraphs = snapshot.data!;
-          if (speechParagraph != _lastFollowedSpeechParagraph &&
-              speechParagraph >= 0 && speechParagraph < paragraphs.length) {
+          if (!speechActive) {
+            _lastFollowedSpeechParagraph = -1;
+            _speechWasPlaying = false;
+          }
+          final shouldFollowSpeech = speechActive &&
+              speechParagraph >= 0 &&
+              (speechParagraph != _lastFollowedSpeechParagraph ||
+                  (speechPlaying && !_speechWasPlaying));
+          _speechWasPlaying = speechPlaying;
+          if (shouldFollowSpeech && speechParagraph < paragraphs.length) {
             _lastFollowedSpeechParagraph = speechParagraph;
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!context.mounted || !controller.scrollController.hasClients) return;
