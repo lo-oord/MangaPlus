@@ -473,4 +473,8 @@ const Map<String, String> enUS = {
   'قد يؤخر النظام الفحص': 'The system may delay checks',
   'السماح بالعمل في الخلفية مفعّل': 'Background activity is allowed',
   'السماح': 'Allow',
+  'إشعارات المفضلات': 'Favorite notifications',
+  'تنبيه عند توفر فصل جديد في أعمالك المحفوظة': 'Alert when a new chapter is available in your saved titles',
+  'إشعارات المانجا': 'Manga notifications',
+  'إشعارات الروايات': 'Novel notifications',
 };

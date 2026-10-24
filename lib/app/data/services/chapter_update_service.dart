@@ -49,6 +49,8 @@ class ChapterUpdateService {
 
   static const String _trackingKey = 'chapter_update_tracking';
   static const String _backgroundEnabledKey = 'chapter_updates_background_enabled';
+  static const String _mangaEnabledKey = 'chapter_updates_manga_enabled';
+  static const String _novelEnabledKey = 'chapter_updates_novel_enabled';
   static const String _frequencyKey = 'chapter_updates_frequency_hours';
   static const String _wifiOnlyKey = 'chapter_updates_wifi_only';
   static const String _lastOpenCheckKey = 'chapter_updates_last_open_check';
@@ -64,6 +66,8 @@ class ChapterUpdateService {
   String _languageCode = 'ar_SA';
 
   bool get backgroundEnabled => _storage.read(_backgroundEnabledKey) == true;
+  bool get mangaNotificationsEnabled => _storage.read(_mangaEnabledKey) != false;
+  bool get novelNotificationsEnabled => _storage.read(_novelEnabledKey) != false;
   int get frequencyHours => (_storage.read(_frequencyKey) as int?) ?? 2;
   bool get wifiOnly => _storage.read(_wifiOnlyKey) == true;
 
@@ -79,6 +83,12 @@ class ChapterUpdateService {
       await Workmanager().cancelByUniqueName(backgroundTaskName);
     }
   }
+
+  Future<void> setMangaNotificationsEnabled(bool enabled) =>
+      _storage.write(_mangaEnabledKey, enabled);
+
+  Future<void> setNovelNotificationsEnabled(bool enabled) =>
+      _storage.write(_novelEnabledKey, enabled);
 
   Future<void> setFrequencyHours(int hours) async {
     await _storage.write(_frequencyKey, hours);
@@ -152,7 +162,7 @@ class ChapterUpdateService {
               '${entry.key}',
               Map<String, dynamic>.from(entry.value as Map),
             ))
-        .where((item) => !_isNovel(item) && item.comicId.trim().isNotEmpty)
+        .where((item) => _isAllowed(item) && item.comicId.trim().isNotEmpty)
         .toList(growable: false);
 
     var checked = 0;
@@ -323,6 +333,9 @@ class ChapterUpdateService {
     final type = item.type.trim().toLowerCase();
     return type == 'novel' || type == 'رواية';
   }
+
+  bool _isAllowed(BookmarkItem item) =>
+      _isNovel(item) ? novelNotificationsEnabled : mangaNotificationsEnabled;
 }
 
 @pragma('vm:entry-point')
