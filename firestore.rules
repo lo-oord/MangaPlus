@@ -5,6 +5,12 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == uid;
     }
 
+    function verifiedOrAnonymous(uid) {
+      return signedInAs(uid) &&
+        (request.auth.token.firebase.sign_in_provider == 'anonymous' ||
+         request.auth.token.email_verified == true);
+    }
+
     match /userProfiles/{uid} {
       // بيانات الحساب لا يقرأها إلا صاحب الحساب.
       allow get: if signedInAs(uid);
@@ -53,22 +59,22 @@ service cloud.firestore {
       allow delete: if false;
 
       match /private/library {
-        allow read, write: if signedInAs(uid);
+        allow read, write: if verifiedOrAnonymous(uid);
       }
       match /private/favorites/{mangaKey} {
-        allow read, write: if signedInAs(uid);
+        allow read, write: if verifiedOrAnonymous(uid);
       }
       match /private/readingProgress/{mangaKey} {
-        allow read, write: if signedInAs(uid);
+        allow read, write: if verifiedOrAnonymous(uid);
       }
       match /private/readingHistory/{entryId} {
-        allow read, write: if signedInAs(uid);
+        allow read, write: if verifiedOrAnonymous(uid);
       }
       match /private/customLists/{listId} {
-        allow read, write: if signedInAs(uid);
+        allow read, write: if verifiedOrAnonymous(uid);
       }
       match /private/notifications/{notificationId} {
-        allow read, create, update, delete: if signedInAs(uid);
+        allow read, create, update, delete: if verifiedOrAnonymous(uid);
       }
     }
 

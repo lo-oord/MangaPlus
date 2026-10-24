@@ -83,6 +83,7 @@ class AppDataService {
     entries.remove(comicId);
     await _storage.write('bookmarks', entries);
     BookmarkStateService.instance.changed();
-    await _sync.removeBookmark(comicId);
+    // Keep the UI responsive; the persisted tombstone is synced in the background.
+    unawaited(_sync.removeBookmark(comicId));
   }
 }
