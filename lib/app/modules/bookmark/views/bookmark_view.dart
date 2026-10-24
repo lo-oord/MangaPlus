@@ -141,14 +141,18 @@ class BookmarkView extends GetView<BookmarkController> {
 
   Widget _buildBookmarkGrid(BuildContext context, List<BookmarkItem> bookmarks) {
     final width = MediaQuery.sizeOf(context).width;
-    final columns = width >= 600 ? 4 : (width >= 390 ? 3 : 2);
+    final columns = width >= 800 ? 6 : (width >= 600 ? 4 : (width >= 390 ? 3 : 2));
+    const crossAxisSpacing = 16.0;
+    final cellWidth = (width - 28 - (columns - 1) * crossAxisSpacing) / columns;
+    final cardWidth = cellWidth.clamp(116.0, 160.0).toDouble();
+    final cardHeight = cardWidth * 1.25;
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 18),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: columns,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 14,
-        mainAxisExtent: 222,
+        crossAxisSpacing: crossAxisSpacing,
+        mainAxisSpacing: 20,
+        mainAxisExtent: cardHeight + 92,
       ),
       itemCount: bookmarks.length,
       itemBuilder: (context, index) {
@@ -158,46 +162,46 @@ class BookmarkView extends GetView<BookmarkController> {
         final status = bookmark.status.trim().isEmpty ? 'غير معروف'.tr : bookmark.status;
         return Align(
           alignment: Alignment.topCenter,
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.topCenter,
-            child: SizedBox(
-              width: 120,
-              child: Stack(
-                children: [
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => Get.toNamed(
-                      Routes.COMIC_DETAIL,
-                      arguments: bookmark.comicId,
-                    ),
-                    child: CustomCardNormal(
-                      comicId: bookmark.comicId,
-                      title: bookmark.title,
-                      chapter: '',
-                      imageUrl: bookmark.coverImage,
-                      type: bookmark.type,
-                      rating: rating,
-                      status: status,
-                    ),
+          child: SizedBox(
+            width: cardWidth,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => Get.toNamed(
+                    Routes.COMIC_DETAIL,
+                    arguments: bookmark.comicId,
                   ),
-                  Positioned(
-                    top: 2,
-                    left: 2,
-                    child: Material(
-                      color: Colors.black.withValues(alpha: 0.62),
-                      shape: const CircleBorder(),
-                      child: IconButton(
-                        tooltip: 'إزالة من المفضلة'.tr,
-                        onPressed: () => controller.deleteBookmark(bookmark.comicId),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints.tightFor(width: 30, height: 30),
-                        icon: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
-                      ),
-                    ),
+                  child: CustomCardNormal(
+                    comicId: bookmark.comicId,
+                    title: bookmark.title,
+                    chapter: '',
+                    imageUrl: bookmark.coverImage,
+                    type: bookmark.type,
+                    rating: rating,
+                    status: status,
+                    width: cardWidth,
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 4),
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: IconButton(
+                    tooltip: 'إزالة من المفضلة'.tr,
+                    onPressed: () => controller.deleteBookmark(bookmark.comicId),
+                    visualDensity: VisualDensity.compact,
+                    style: IconButton.styleFrom(
+                      foregroundColor: AppColors.textSecondary,
+                      backgroundColor: AppColors.card,
+                      minimumSize: const Size(32, 32),
+                      padding: EdgeInsets.zero,
+                      side: BorderSide(color: AppColors.divider),
+                    ),
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                  ),
+                ),
+              ],
             ),
           ),
         );

@@ -27,6 +27,20 @@ class ChapterController extends GetxController {
   final List<ChapterElement> _fallbackChapterNavigation = [];
   final Set<String> _prefetchingChapters = <String>{};
   final chapterNavigationRevision = 0.obs;
+  List<ChapterElement>? _availableChaptersCache;
+  List<ChapterElement>? _cachedLoadedChapterList;
+  int _availableCacheRevision = -1;
+  int _availableArgumentCount = -1;
+  int _availableFallbackCount = -1;
+  bool _availableCacheOffline = false;
+  List<ChapterElement>? _adjacentCacheSource;
+  int _adjacentCacheRevision = -1;
+  String _adjacentCacheChapterId = '';
+  String _adjacentCacheTitle = '';
+  ChapterElement? _cachedNextAdjacentChapter;
+  ChapterElement? _cachedPreviousAdjacentChapter;
+  int _readChapterCacheRevision = -1;
+  final Set<String> _readChapterIdentities = <String>{};
 
   PageController? _pageController;
   PageController get pageController => _pageController ??= PageController(
@@ -142,9 +156,17 @@ class ChapterController extends GetxController {
   bool _readerPointerMoved = false;
 
   List<ChapterElement> get availableChapters {
-    chapterNavigationRevision.value;
+    final revision = chapterNavigationRevision.value;
     final loadedChapters = chapterData.value.chapter.chapters;
     if (isOffline.value && loadedChapters.isNotEmpty) return loadedChapters;
+    if (_availableChaptersCache != null &&
+        identical(_cachedLoadedChapterList, loadedChapters) &&
+        _availableCacheRevision == revision &&
+        _availableArgumentCount == _argumentChapterNavigation.length &&
+        _availableFallbackCount == _fallbackChapterNavigation.length &&
+        _availableCacheOffline == isOffline.value) {
+      return _availableChaptersCache!;
+    }
 
     final candidates = <List<ChapterElement>>[
       loadedChapters,
@@ -154,39 +176,56 @@ class ChapterController extends GetxController {
     if (candidates.isEmpty) return const [];
     candidates.sort((left, right) => right.length.compareTo(left.length));
     final merged = <ChapterElement>[];
+    final seen = <String>{};
     for (final candidate in candidates) {
       for (final chapter in candidate) {
-        final reference = chapter.chapterId.isNotEmpty
-            ? chapter.chapterId
-            : chapter.url;
-        if (reference.isEmpty ||
-            merged.any((existing) =>
-                _sameChapterReference(existing.chapterId, reference) ||
-                _sameChapterReference(existing.url, reference))) {
+        final identities = <String>{
+          if (chapter.chapterId.isNotEmpty)
+            _chapterIdentity(chapter.chapterId),
+          if (chapter.url.isNotEmpty) _chapterIdentity(chapter.url),
+        };
+        if (identities.isEmpty || identities.any(seen.contains)) {
           continue;
         }
+        seen.addAll(identities);
         merged.add(chapter);
       }
     }
-    return merged;
+    _cachedLoadedChapterList = loadedChapters;
+    _availableCacheRevision = revision;
+    _availableArgumentCount = _argumentChapterNavigation.length;
+    _availableFallbackCount = _fallbackChapterNavigation.length;
+    _availableCacheOffline = isOffline.value;
+    _availableChaptersCache = List<ChapterElement>.unmodifiable(merged);
+    return _availableChaptersCache!;
   }
 
   bool get canUseChapterList => availableChapters.isNotEmpty;
 
   bool isChapterRead(String id) {
-    chapterNavigationRevision.value;
-    final readChapters = _storage.read('readChapters');
-    if (readChapters is Map && readChapters.containsKey(id)) return true;
-    if (readChapters is Map &&
-        readChapters.keys.any((key) => _sameChapterReference('$key', id))) {
-      return true;
+    final revision = chapterNavigationRevision.value;
+    if (_readChapterCacheRevision != revision) {
+      _readChapterIdentities.clear();
+      final readChapters = _storage.read('readChapters');
+      if (readChapters is Map) {
+        for (final key in readChapters.keys) {
+          _readChapterIdentities.add(_chapterIdentity('$key'));
+        }
+      }
+      final history = _storage.read('reading_history');
+      if (history is Map) {
+        for (final entry in history.values) {
+          if (entry is Map) {
+            final reference = entry['chapterId']?.toString() ?? '';
+            if (reference.isNotEmpty) {
+              _readChapterIdentities.add(_chapterIdentity(reference));
+            }
+          }
+        }
+      }
+      _readChapterCacheRevision = revision;
     }
-    final history = _storage.read('reading_history');
-    if (history is! Map) return false;
-    return history.values.any(
-      (entry) => entry is Map &&
-          _sameChapterReference(entry['chapterId']?.toString() ?? '', id),
-    );
+    return _readChapterIdentities.contains(_chapterIdentity(id));
   }
 
   List<ChapterElement> get _navigationChapters {
@@ -204,6 +243,14 @@ class ChapterController extends GetxController {
         leftUri.host == rightUri.host &&
         leftUri.path == rightUri.path &&
         leftUri.query == rightUri.query;
+  }
+
+  String _chapterIdentity(String reference) {
+    final value = reference.trim();
+    final uri = Uri.tryParse(value);
+    if (uri == null) return value.replaceFirst(RegExp(r'/+$'), '');
+    final path = uri.path.replaceFirst(RegExp(r'/+$'), '');
+    return '${uri.scheme.toLowerCase()}|${uri.host.toLowerCase()}|$path|${uri.query}';
   }
 
   bool _containsCurrentChapter(List<ChapterElement> chapters) => chapters.any(
@@ -387,27 +434,50 @@ class ChapterController extends GetxController {
 
   ChapterElement? _adjacentChapter({required bool forward}) {
     final chapters = _navigationChapters;
-    final index = chapters.indexWhere(isCurrentChapter);
-    final currentNumber = (index >= 0 ? _chapterNumber(chapters[index].title) : null) ??
-        _chapterNumber(currentChapterTitle);
-    if (currentNumber != null) {
-      final candidates = chapters
-          .map((item) => (chapter: item, number: _chapterNumber(item.title)))
-          .where((item) => item.number != null &&
-              (forward ? item.number! > currentNumber : item.number! < currentNumber))
-          .toList();
-      candidates.sort((left, right) => forward
-          ? left.number!.compareTo(right.number!)
-          : right.number!.compareTo(left.number!));
-      if (candidates.isNotEmpty) return candidates.first.chapter;
-    }
+    final revision = chapterNavigationRevision.value;
+    if (!identical(_adjacentCacheSource, chapters) ||
+        _adjacentCacheRevision != revision ||
+        _adjacentCacheChapterId != chapterId ||
+        _adjacentCacheTitle != currentChapterTitle) {
+      _adjacentCacheSource = chapters;
+      _adjacentCacheRevision = revision;
+      _adjacentCacheChapterId = chapterId;
+      _adjacentCacheTitle = currentChapterTitle;
+      _cachedNextAdjacentChapter = null;
+      _cachedPreviousAdjacentChapter = null;
 
-    if (index < 0) return null;
-    // Source chapter lists are commonly ordered newest to oldest.
-    final adjacentIndex = forward ? index - 1 : index + 1;
-    return adjacentIndex >= 0 && adjacentIndex < chapters.length
-        ? chapters[adjacentIndex]
-        : null;
+      final index = chapters.indexWhere(isCurrentChapter);
+      final currentNumber =
+          (index >= 0 ? _chapterNumber(chapters[index].title) : null) ??
+              _chapterNumber(currentChapterTitle);
+      if (currentNumber != null) {
+        double? nextNumber;
+        double? previousNumber;
+        for (final item in chapters) {
+          final number = _chapterNumber(item.title);
+          if (number == null) continue;
+          if (number > currentNumber &&
+              (nextNumber == null || number < nextNumber)) {
+            nextNumber = number;
+            _cachedNextAdjacentChapter = item;
+          } else if (number < currentNumber &&
+              (previousNumber == null || number > previousNumber)) {
+            previousNumber = number;
+            _cachedPreviousAdjacentChapter = item;
+          }
+        }
+      }
+
+      if (index >= 0) {
+        _cachedNextAdjacentChapter ??=
+            index > 0 ? chapters[index - 1] : null;
+        _cachedPreviousAdjacentChapter ??=
+            index + 1 < chapters.length ? chapters[index + 1] : null;
+      }
+    }
+    return forward
+        ? _cachedNextAdjacentChapter
+        : _cachedPreviousAdjacentChapter;
   }
 
   double? _chapterNumber(String title) {
@@ -538,14 +608,6 @@ class ChapterController extends GetxController {
       isNavigating.value = false;
     }
   }
-
-  List<Map<String, String>> _navigationPayload() => availableChapters
-      .map((item) => {
-            'chapterId': item.chapterId,
-            'title': item.title,
-            'url': item.url,
-          })
-      .toList(growable: false);
 
   void _readChapterNavigationArguments() {
     final raw = arguments['chapterNavigation'];

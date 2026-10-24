@@ -36,6 +36,7 @@ const Map<String, String> enUS = {
   'جارٍ تحميل التصنيفات': 'Loading genres',
   'جارٍ تحميل التصنيف': 'Loading genre',
   'جارٍ تحميل الفصل': 'Loading chapter',
+  'تم نسخ عنوان العمل': 'Title copied',
   'جارٍ البحث': 'Searching',
   'جارٍ تحميل المفضلة': 'Loading favorites',
   'جارٍ تحميل سجل القراءة': 'Loading reading history',

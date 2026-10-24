@@ -98,16 +98,6 @@ class ProfileView extends GetView<ProfileController> {
                   () => Get.toNamed(Routes.LOCAL_LIBRARY),
                 ),
               ]),
-              const SizedBox(height: 24),
-              _sectionTitle('حول التطبيق'.tr),
-              const SizedBox(height: 9),
-              _settingsCard([
-                _navigationRow(
-                  Icons.info_outline_rounded,
-                  'حول التطبيق'.tr,
-                  _showAboutDialog,
-                ),
-              ]),
               if (account != null) ...[
                 const SizedBox(height: 20),
                 _settingsCard([
@@ -124,6 +114,16 @@ class ProfileView extends GetView<ProfileController> {
                   ),
                 ]),
               ],
+              const SizedBox(height: 24),
+              _sectionTitle('حول التطبيق'.tr),
+              const SizedBox(height: 9),
+              _settingsCard([
+                _navigationRow(
+                  Icons.info_outline_rounded,
+                  'حول التطبيق'.tr,
+                  _showAboutDialog,
+                ),
+              ]),
             ],
           );
         }),

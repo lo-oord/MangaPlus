@@ -1221,8 +1221,15 @@ class ChapterView extends GetView<ChapterController> {
                       const SizedBox(height: 8),
                       Text(issue.titleKey.tr,
                           style: TextStyle(color: AppColors.textPrimary)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Text(
+                          issue.descriptionKey.tr,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      ),
                       TextButton.icon(
-                        tooltip: issue.descriptionKey.tr,
                         onPressed: () => controller.fetchChapter(controller.chapterId),
                         icon: const Icon(Icons.refresh_rounded),
                         label: Text('إعادة المحاولة'.tr),

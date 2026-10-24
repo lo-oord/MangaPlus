@@ -16,6 +16,7 @@ class CustomCardNormal extends StatelessWidget {
   final String rating;
   final String status;
   final String? comicId;
+  final double width;
 
   const CustomCardNormal({
     super.key,
@@ -27,6 +28,7 @@ class CustomCardNormal extends StatelessWidget {
     this.rating = '',
     this.status = '',
     this.comicId,
+    this.width = 120,
   });
 
   String _relativeDate() {
@@ -60,6 +62,7 @@ class CustomCardNormal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final relativeDate = _relativeDate();
+    final coverHeight = width * 1.25;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -75,21 +78,21 @@ class CustomCardNormal extends StatelessWidget {
                   'User-Agent':
                       'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
                 },
-                width: 120,
-                height: 150,
-                memCacheWidth: 360,
+                width: width,
+                height: coverHeight,
+                memCacheWidth: (width * 3).round(),
                 maxWidthDiskCache: 720,
                 fit: BoxFit.cover,
                 placeholder: (context, url) => Container(
-                  width: 120,
-                  height: 150,
+                  width: width,
+                  height: coverHeight,
                   color: AppColors.searchBar,
                   alignment: Alignment.center,
                   child: const MangaPlusLogo(size: 52),
                 ),
                 errorWidget: (context, url, error) => Container(
-                  width: 120,
-                  height: 150,
+                  width: width,
+                  height: coverHeight,
                   color: AppColors.searchBar,
                   alignment: Alignment.center,
                   child: const MangaPlusLogo(size: 52),
@@ -142,7 +145,7 @@ class CustomCardNormal extends StatelessWidget {
         ),
         const SizedBox(height: 7),
         SizedBox(
-          width: 120,
+          width: width,
           child: Text(
             title,
             maxLines: 1,
@@ -158,7 +161,7 @@ class CustomCardNormal extends StatelessWidget {
         if (rating.trim().isNotEmpty || status.trim().isNotEmpty) ...[
           const SizedBox(height: 5),
           SizedBox(
-            width: 120,
+            width: width,
             child: Row(
               children: [
                 if (rating.trim().isNotEmpty) ...[
@@ -183,7 +186,7 @@ class CustomCardNormal extends StatelessWidget {
         if (relativeDate.isNotEmpty) ...[
           const SizedBox(height: 3),
           SizedBox(
-            width: 120,
+            width: width,
             child: Text(
               relativeDate,
               maxLines: 1,

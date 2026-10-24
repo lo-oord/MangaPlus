@@ -206,8 +206,15 @@ class ComicDetailView extends GetView<ComicDetailController> {
                           children: [
                             GestureDetector(
                               behavior: HitTestBehavior.opaque,
-                              onLongPress: () {
-                                Clipboard.setData(ClipboardData(text: comic.title));
+                              onLongPress: () async {
+                                await Clipboard.setData(
+                                  ClipboardData(text: comic.title),
+                                );
+                                AppFeedback.show(
+                                  title: 'تم نسخ عنوان العمل'.tr,
+                                  message: comic.title,
+                                  type: AppNoticeType.success,
+                                );
                               },
                               child: Text(comic.title, maxLines: 2, overflow: TextOverflow.ellipsis,
                                   style: TextStyle(color: AppColors.textPrimary, fontSize: 23, height: 1.12, fontWeight: FontWeight.w900)),
@@ -391,16 +398,11 @@ class ComicDetailView extends GetView<ComicDetailController> {
       backgroundColor: Colors.transparent,
     );
   }
-  Future<void> _openChapter(
+  void _openChapter(
     BuildContext context,
     ComicDetail comic,
     Chapter chapter,
-  ) async {
-    try {
-      await controller.addToHistory(comic, chapter.chapterId, chapter.title);
-    } catch (error) {
-      debugPrint('Unable to save reading history: $error');
-    }
+  ) {
     if (!context.mounted) return;
     Get.toNamed(Routes.CHAPTER, arguments: {
       'chapterId': chapter.chapterId,
@@ -409,13 +411,6 @@ class ComicDetailView extends GetView<ComicDetailController> {
       'coverImage': comic.coverImage,
       'comicType': comic.type,
       'chapterTitle': chapter.title,
-      'chapterNavigation': comic.chapters
-          .map((item) => {
-                'chapterId': item.chapterId,
-                'title': item.title,
-                'url': item.link,
-              })
-          .toList(growable: false),
     });
   }
 
@@ -1308,12 +1303,7 @@ class _ChapterListState extends State<_ChapterList> {
     );
   }
 
-  Future<void> _openChapter(BuildContext context, Chapter chapter) async {
-    await widget.controller.addToHistory(
-      widget.comic,
-      chapter.chapterId,
-      chapter.title,
-    );
+  void _openChapter(BuildContext context, Chapter chapter) {
     if (!mounted) return;
     Get.toNamed(Routes.CHAPTER, arguments: {
       'chapterId': chapter.chapterId,
@@ -1322,13 +1312,6 @@ class _ChapterListState extends State<_ChapterList> {
       'coverImage': widget.comic.coverImage,
       'comicType': widget.comic.type,
       'chapterTitle': chapter.title,
-      'chapterNavigation': widget.comic.chapters
-          .map((item) => {
-                'chapterId': item.chapterId,
-                'title': item.title,
-                'url': item.link,
-              })
-          .toList(growable: false),
     });
   }
 }
