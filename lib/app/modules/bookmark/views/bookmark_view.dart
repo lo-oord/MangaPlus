@@ -264,26 +264,6 @@ class BookmarkView extends GetView<BookmarkController> {
                               ),
                             ),
                           ),
-                        Positioned(
-                          top: 5,
-                          left: 5,
-                          child: Material(
-                            color: Colors.black.withValues(alpha: 0.58),
-                            shape: const CircleBorder(),
-                            child: InkWell(
-                              customBorder: const CircleBorder(),
-                              onTap: () => controller.toggleSelection(bookmark.comicId),
-                              child: Padding(
-                                padding: const EdgeInsets.all(4),
-                                child: Icon(
-                                  selected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-                                  color: selected ? AppColors.primary : Colors.white,
-                                  size: 23,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
                       ],
                     ),
                   );
