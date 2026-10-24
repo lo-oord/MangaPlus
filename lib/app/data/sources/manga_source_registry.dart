@@ -36,7 +36,7 @@ class MangaSourceRegistry {
         mangaOnline,
         lavaScans,
         mangaTek,
-        mangacloud,
+        mangaCloud,
         mknov,
         kawaiiManga,
         kawaiiNovels,
