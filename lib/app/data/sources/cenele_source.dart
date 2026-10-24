@@ -55,37 +55,33 @@ abstract class CeneleSource extends ContentSource {
     final normalized = query.trim();
     if (normalized.isEmpty) return catalog(page: 1);
 
-    final document = await _document(_catalogUri(page: 1).toString());
-    final nonce = _nonce(document);
-    final response = await _post({
-      'action': 'nhv_manga_suggest',
-      'term': normalized,
-      'nonce': nonce,
+    final searchUri = Uri.parse('$_site/').replace(queryParameters: {
+      's': normalized,
+      'post_type': 'wp-manga',
     });
-    final decoded = jsonDecode(utf8.decode(response.bodyBytes, allowMalformed: true));
-    final rawItems = decoded is Map && decoded['success'] == true &&
-            decoded['data'] is Map && decoded['data']['items'] is List
-        ? decoded['data']['items'] as List
-        : const <dynamic>[];
-    final matches = rawItems.whereType<Map>().map((raw) {
-      final item = Map<String, dynamic>.from(raw);
-      return _item(
-        title: '${item['title'] ?? ''}',
-        url: '${item['url'] ?? ''}',
-        image: '${item['thumb'] ?? ''}',
-      );
-    }).where((item) => '${item['title']}'.trim().isNotEmpty &&
-        '${item['url']}'.trim().isNotEmpty).toList(growable: false);
-    if (matches.isNotEmpty) return matches;
+    final searchDocument = await _document(searchUri.toString());
+    final searchResults = _searchResults(searchDocument);
+    if (!isMangaSection) return searchResults;
 
-    // The site's AJAX search is suggestion-based. This fallback keeps Latin
-    // title searches working by filtering the source catalog.
+    // Cenele's manga section is a category inside the shared WordPress search
+    // index. Keep this adapter restricted to works in that category.
     final works = await _loadCatalog();
+    final sourceUrls = works
+        .map((item) => _targetUrl('${item['url'] ?? ''}'))
+        .where((url) => url.isNotEmpty)
+        .toSet();
+    final sectionMatches = searchResults.where((item) {
+      return sourceUrls.contains(_targetUrl('${item['url'] ?? ''}'));
+    }).toList(growable: false);
+    if (sectionMatches.isNotEmpty) return sectionMatches;
+
     final needle = normalized.toLowerCase();
     return works.where((item) {
-      final haystack = [item['title'], item['description'], ...((item['genres'] as List?) ?? const [])]
-          .join(' ')
-          .toLowerCase();
+      final haystack = [
+        item['title'],
+        item['description'],
+        ...((item['genres'] as List?) ?? const []),
+      ].join(' ').toLowerCase();
       return haystack.contains(needle);
     }).toList(growable: false);
   }
@@ -124,8 +120,17 @@ abstract class CeneleSource extends ContentSource {
     final rating = SourceValues.rating(
       mangaHtmlText(document.querySelector('.nhv-simple-rating__avg, [itemprop=ratingValue]')),
     );
-    return _item(title: title, url: target, image: image, genres: genres, rating: rating)
-      ..addAll({
+    final result = _item(
+      title: title,
+      url: target,
+      image: image,
+      genres: genres,
+      rating: rating,
+    );
+    // Cenele's manga category contains text chapters; keep its reader mode
+    // textual even though search results are classified under the manga filter.
+    result['type'] = 'novel';
+    return result..addAll({
         'description': description,
         'synopsis': description,
         'genres': genres,
@@ -216,6 +221,33 @@ abstract class CeneleSource extends ContentSource {
       }
     }
     return results;
+  }
+
+  List<Map<String, dynamic>> _searchResults(Document document) {
+    final seen = <String>{};
+    return document.querySelectorAll('.c-tabs-item__content').map((card) {
+      final anchor = card.querySelector('.post-title a, .tab-thumb a');
+      final title = mangaHtmlText(card.querySelector('.post-title a'));
+      final url = anchor?.attributes['href'] ?? '';
+      final image = mangaImageUrl(card.querySelector('.tab-thumb img'), _site);
+      final genres = card
+          .querySelectorAll('.mg_genres .summary-content a')
+          .map(mangaHtmlText)
+          .where((value) => value.isNotEmpty)
+          .toList(growable: false);
+      return _item(
+        title: title,
+        url: url,
+        image: image,
+        genres: genres,
+        description: mangaHtmlText(card.querySelector('.post-content')),
+      );
+    }).where((item) {
+      final url = '${item['url'] ?? ''}';
+      return '${item['title'] ?? ''}'.trim().isNotEmpty &&
+          url.trim().isNotEmpty &&
+          seen.add(url);
+    }).toList(growable: false);
   }
 
   Future<List<Map<String, dynamic>>> _chapters(
@@ -314,7 +346,7 @@ abstract class CeneleSource extends ContentSource {
         title: title.trim(),
         url: _internalSeries(url),
         image: image,
-        type: 'novel',
+        type: isMangaSection ? 'manga' : 'novel',
         genres: genres,
         description: description,
         rating: rating,
@@ -349,12 +381,6 @@ abstract class CeneleSource extends ContentSource {
     } catch (_) {
       return null;
     }
-  }
-
-  String _nonce(Document document) {
-    final script = document.querySelector('#nhv-library-js-extra')?.text ?? '';
-    final match = RegExp(r'"nonce":"([^"]+)"').firstMatch(script);
-    return match?.group(1) ?? '';
   }
 
   String _internalSeries(String raw) => '$_scheme://series?url=${Uri.encodeQueryComponent(_absoluteUrl(raw))}';

@@ -165,10 +165,11 @@ class MangaCloudSource extends ContentSource {
     var token = '';
     final result = <Map<String, dynamic>>[];
     do {
-      final query = <String, String>{
+      final query = <String, dynamic>{
         'pageSize': '1000',
         'key': _apiKey,
         'orderBy': 'index',
+        'mask.fieldPaths': ['title', 'chapterNumber', 'index'],
         if (token.isNotEmpty) 'pageToken': token,
       };
       final response = await _get('$_firestore/${Uri.encodeComponent(id)}/chapters', query: query);
@@ -180,9 +181,20 @@ class MangaCloudSource extends ContentSource {
         final pathParts = path.split('/');
         final mangaId = pathParts.isNotEmpty ? pathParts.first : id;
         final chapterId = pathParts.length >= 3 ? pathParts.last : '';
-        final chapterNumber = num.tryParse(chapterId) ?? mangaChapterNumber(path) ?? 0;
+        final fields = _documentFields(doc);
+        final rawTitle = '${fields['title'] ?? ''}'.trim();
+        final chapterNumber = mangaChapterNumber(rawTitle) ??
+            (fields['chapterNumber'] is num ? fields['chapterNumber'] as num : null) ??
+            num.tryParse(chapterId) ??
+            mangaChapterNumber(path) ??
+            0;
+        final title = rawTitle.isEmpty
+            ? 'الفصل $chapterNumber'
+            : mangaChapterNumber(rawTitle) == null
+                ? rawTitle
+                : 'الفصل $chapterNumber';
         result.add({
-          'title': 'الفصل $chapterNumber',
+          'title': title,
           'number': chapterNumber,
           'chapter_number': chapterNumber,
           'url': 'mangacloud://chapter?id=${Uri.encodeQueryComponent(mangaId)}&chapter=${Uri.encodeQueryComponent(chapterId.isEmpty ? '$chapterNumber' : chapterId)}&number=$chapterNumber',
@@ -221,7 +233,7 @@ class MangaCloudSource extends ContentSource {
       });
   }
 
-  Future<http.Response> _get(String url, {Map<String, String>? query}) async {
+  Future<http.Response> _get(String url, {Map<String, dynamic>? query}) async {
     final uri = Uri.parse(url).replace(queryParameters: {
       ...?query,
       if (!(query?.containsKey('key') ?? false)) 'key': _apiKey,
