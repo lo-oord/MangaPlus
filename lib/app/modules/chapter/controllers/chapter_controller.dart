@@ -566,9 +566,24 @@ class ChapterController extends GetxController {
       }
       chapterId = reference;
       currentChapterTitle = nextTitle;
+      // Do not keep the old chapter's page widgets alive while the next chapter
+      // is loading. Their scroll/page callbacks can otherwise race the chapter
+      // transition and keep issuing image work against stale reader content.
+      chapterData.value = ChapterData(
+        chapter: DataChapter(
+          chapterId: reference,
+          title: nextTitle,
+          images: const [],
+          content: '',
+          previousChapter: '',
+          nextChapter: null,
+          chapters: const [],
+        ),
+        source: '',
+      );
       await fetchChapter(
         reference,
-        keepCurrentContent: true,
+        keepCurrentContent: false,
         startAtEnd: reverse,
       );
       if (hasError.value || !hasReadableContent) {
