@@ -304,15 +304,14 @@ class BookmarkController extends GetxController {
 
     _metadataBackfillInProgress = true;
     var nextIndex = 0;
+    final refreshedItems = <BookmarkItem>[];
     Future<void> worker() async {
       while (!isClosed) {
         final index = nextIndex++;
         if (index >= pending.length) return;
         final saved = pending[index];
         try {
-          final detail = await ComicService()
-              .fetchComicDetail(saved.comicId)
-              .timeout(const Duration(seconds: 15));
+          final detail = await ComicService().fetchComicDetail(saved.comicId);
           final comic = detail.comicDetail;
           if (comic.title.trim().isEmpty || isClosed) continue;
           final currentIndex = bookmarks.indexWhere(
@@ -331,7 +330,7 @@ class BookmarkController extends GetxController {
             rating: comic.rating.trim().isNotEmpty ? comic.rating : current.rating,
             createdAt: current.createdAt,
           );
-          await _appDataService.addBookmark(refreshed);
+          refreshedItems.add(refreshed);
           if (!isClosed) bookmarks[currentIndex] = refreshed;
         } catch (error) {
           debugPrint('Unable to refresh bookmark metadata: $error');
@@ -342,6 +341,9 @@ class BookmarkController extends GetxController {
     try {
       final workerCount = pending.length < 3 ? pending.length : 3;
       await Future.wait(List.generate(workerCount, (_) => worker()));
+      // Persist the recovered metadata together so a large library schedules
+      // one cloud sync instead of one full-library sync per manga.
+      await _appDataService.addBookmarks(refreshedItems);
     } finally {
       _metadataBackfillInProgress = false;
     }

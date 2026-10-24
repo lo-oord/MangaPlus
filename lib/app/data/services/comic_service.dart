@@ -8,7 +8,13 @@ import 'package:mangaplus/app/data/sources/source_values.dart';
 import 'package:mangaplus/app/data/sources/team_x_source.dart';
 
 class ComicService {
-  ComicService({TeamXSource? source}) : _teamX = source ?? MangaSourceRegistry.teamX;
+  ComicService({
+    TeamXSource? source,
+    ContentSource? Function(String url)? sourceResolver,
+    Duration detailRequestTimeout = const Duration(seconds: 20),
+  })  : _teamX = source ?? MangaSourceRegistry.teamX,
+        _sourceResolver = sourceResolver ?? MangaSourceRegistry.forUrl,
+        _detailRequestTimeout = detailRequestTimeout;
   static const Duration _detailCacheTtl = Duration(minutes: 3);
   static const Duration _chapterCacheTtl = Duration(minutes: 3);
   static final Map<String, ComicDetailData> _detailCache = {};
@@ -19,6 +25,8 @@ class ComicService {
   static final Map<String, Future<ChapterData>> _chapterRequests = {};
 
   final TeamXSource _teamX;
+  final ContentSource? Function(String url) _sourceResolver;
+  final Duration _detailRequestTimeout;
   final _azora = MangaSourceRegistry.azora;
   final _mknov = MangaSourceRegistry.mknov;
   final _kawaiiManga = MangaSourceRegistry.kawaiiManga;
@@ -209,7 +217,9 @@ class ComicService {
     }
     final active = _detailRequests[key];
     if (active != null) return active;
-    final request = _fetchComicDetailUncached(key);
+    // Keep the timeout inside the shared in-flight request so every caller
+    // settles and the request entry is removed even when a source hangs.
+    final request = _fetchComicDetailUncached(key).timeout(_detailRequestTimeout);
     _detailRequests[key] = request;
     try {
       final detail = await request;
@@ -233,7 +243,7 @@ class ComicService {
   }
 
   Future<ComicDetailData> _fetchComicDetailUncached(String comicId) async {
-    final source = MangaSourceRegistry.forUrl(comicId);
+    final source = _sourceResolver(comicId);
     if (source == null) throw StateError('لم يتم العثور على مصدر لهذا الرابط.');
     final raw = await source.details(comicId);
     final rawChapters = raw['chapters'] is List
