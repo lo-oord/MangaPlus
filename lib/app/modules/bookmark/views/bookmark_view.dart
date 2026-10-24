@@ -23,6 +23,11 @@ class BookmarkView extends GetView<BookmarkController> {
           foregroundColor: AppColors.textPrimary,
           elevation: 0,
           actions: [
+            IconButton(
+              tooltip: 'استيراد المفضلة'.tr,
+              onPressed: _openImport,
+              icon: const Icon(Icons.add_rounded),
+            ),
             Obx(() {
               final selectedOrder = controller.sortOrder.value;
               return PopupMenuButton<BookmarkSortOrder>(
@@ -139,6 +144,16 @@ class BookmarkView extends GetView<BookmarkController> {
 
   Widget _buildEmptyBookmark() => BrandState(title: 'لا توجد إشارات مرجعية بعد'.tr);
 
+  Future<void> _openImport() async {
+    final records = await controller.pickDropsauceBackup();
+    if (records == null) return;
+    Get.dialog(
+      _DropsauceImportDialog(controller: controller),
+      barrierDismissible: false,
+    );
+    await controller.importDropsauceFavorites(records);
+  }
+
   Widget _buildBookmarkGrid(BuildContext context, List<BookmarkItem> bookmarks) {
     final width = MediaQuery.sizeOf(context).width;
     final columns = width >= 800 ? 6 : (width >= 600 ? 4 : (width >= 390 ? 3 : 2));
@@ -208,4 +223,216 @@ class BookmarkView extends GetView<BookmarkController> {
       },
     );
   }
+}
+
+class _DropsauceImportDialog extends StatelessWidget {
+  const _DropsauceImportDialog({required this.controller});
+
+  final BookmarkController controller;
+
+  @override
+  Widget build(BuildContext context) => Obx(() {
+        final total = controller.importTotal.value;
+        final current = controller.importCurrentIndex.value;
+        final completed = controller.importCompleted.value;
+        final progress = total == 0 ? 0.0 : (current / total).clamp(0.0, 1.0).toDouble();
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 28),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 520, maxHeight: 650),
+              decoration: BoxDecoration(
+                color: AppColors.card,
+                borderRadius: BorderRadius.circular(26),
+                border: Border.all(color: AppColors.divider),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.28),
+                    blurRadius: 24,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.14),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(Icons.file_download_done_rounded, color: AppColors.primary),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'استيراد المفضلة',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      completed ? 'اكتمل استيراد النسخة الاحتياطية' : 'جارٍ إضافة الأعمال إلى المفضلة',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    ),
+                    const SizedBox(height: 10),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: LinearProgressIndicator(
+                        value: completed ? 1 : progress,
+                        minHeight: 8,
+                        backgroundColor: AppColors.searchBar,
+                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '$current من $total',
+                      textAlign: TextAlign.left,
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700),
+                    ),
+                    if (!completed && controller.importCurrentTitle.value.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                        decoration: BoxDecoration(
+                          color: AppColors.searchBar,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppColors.divider),
+                        ),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                controller.importCurrentTitle.value,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (controller.importedTitles.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Text('تمت إضافة الأعمال الأخيرة', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                      const SizedBox(height: 5),
+                      ...controller.importedTitles.reversed.take(5).map(
+                            (title) => Padding(
+                              padding: const EdgeInsets.only(bottom: 3),
+                              child: Text(
+                                '✓ $title',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: AppColors.textPrimary, fontSize: 11),
+                              ),
+                            ),
+                          ),
+                    ],
+                    if (completed) ...[
+                      const SizedBox(height: 16),
+                      _ImportSummaryRow(
+                        icon: Icons.check_circle_rounded,
+                        color: const Color(0xff43b581),
+                        label: 'تم استيراد ${controller.importedTitles.length} عمل',
+                      ),
+                      const SizedBox(height: 7),
+                      _ImportSummaryRow(
+                        icon: Icons.menu_book_rounded,
+                        color: AppColors.primary,
+                        label: 'مانجا: ${controller.importedMangaCount.value}',
+                      ),
+                      const SizedBox(height: 7),
+                      _ImportSummaryRow(
+                        icon: Icons.auto_stories_rounded,
+                        color: AppColors.primary,
+                        label: 'روايات: ${controller.importedNovelCount.value}',
+                      ),
+                      const SizedBox(height: 7),
+                      _ImportSummaryRow(
+                        icon: Icons.error_outline_rounded,
+                        color: controller.importFailures.isEmpty ? AppColors.textSecondary : const Color(0xffe5a947),
+                        label: 'فشل الاستيراد: ${controller.importFailures.length}',
+                      ),
+                      if (controller.importFailures.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Flexible(
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: controller.importFailures.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 5),
+                            itemBuilder: (_, index) {
+                              final failure = controller.importFailures[index];
+                              return Text(
+                                '${failure.title}: ${failure.failureReason}',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ],
+                    if (completed) ...[
+                      const SizedBox(height: 18),
+                      SizedBox(
+                        height: 46,
+                        child: ElevatedButton(
+                          onPressed: () => Get.back(),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          child: const Text('إغلاق', style: TextStyle(fontWeight: FontWeight.w800)),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      });
+}
+
+class _ImportSummaryRow extends StatelessWidget {
+  const _ImportSummaryRow({required this.icon, required this.color, required this.label});
+
+  final IconData icon;
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
+          Text(label, style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w700)),
+        ],
+      );
 }

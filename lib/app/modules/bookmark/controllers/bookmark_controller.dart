@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/data/models/bookmark.dart';
@@ -8,6 +10,7 @@ import 'package:mangaplus/app/data/services/app_data_service.dart';
 import 'package:mangaplus/app/data/services/account_gate_service.dart';
 import 'package:mangaplus/app/data/services/account_sync_service.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
+import 'package:mangaplus/app/data/services/dropsauce_import_service.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 
 enum BookmarkSortOrder {
@@ -30,6 +33,15 @@ class BookmarkController extends GetxController {
   final sortOrder = BookmarkSortOrder.newest.obs;
   final typeFilter = BookmarkTypeFilter.all.obs;
   final searchQuery = ''.obs;
+  final isImporting = false.obs;
+  final importCompleted = false.obs;
+  final importCurrentIndex = 0.obs;
+  final importTotal = 0.obs;
+  final importCurrentTitle = ''.obs;
+  final importedMangaCount = 0.obs;
+  final importedNovelCount = 0.obs;
+  final RxList<String> importedTitles = <String>[].obs;
+  final RxList<DropsauceFavoriteRecord> importFailures = <DropsauceFavoriteRecord>[].obs;
   bool _metadataBackfillInProgress = false;
 
   List<BookmarkItem> get visibleBookmarks {
@@ -81,6 +93,114 @@ class BookmarkController extends GetxController {
   void setSortOrder(BookmarkSortOrder value) => sortOrder.value = value;
   void setTypeFilter(BookmarkTypeFilter value) => typeFilter.value = value;
   void setSearchQuery(String value) => searchQuery.value = value;
+
+  Future<List<DropsauceFavoriteRecord>?> pickDropsauceBackup() async {
+    if (!await _accountGate.requireAccount()) return null;
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['zip', 'bk'],
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return null;
+      final file = result.files.single;
+      final bytes = file.bytes ??
+          (file.path == null ? null : await File(file.path!).readAsBytes());
+      if (bytes == null || bytes.isEmpty) {
+        throw const FormatException('تعذر قراءة ملف النسخة الاحتياطية.');
+      }
+      final records = DropsauceImportService.parse(bytes);
+      if (records.isEmpty) {
+        throw const FormatException('لم يتم العثور على أعمال مفضلة داخل الملف.');
+      }
+      return records;
+    } catch (error) {
+      AppFeedback.show(
+        title: 'تعذر استيراد المفضلة'.tr,
+        message: '$error'.replaceFirst('FormatException: ', ''),
+        type: AppNoticeType.error,
+      );
+      return null;
+    }
+  }
+
+  Future<void> importDropsauceFavorites(
+    List<DropsauceFavoriteRecord> records,
+  ) async {
+    if (isImporting.value) return;
+    isImporting.value = true;
+    importCompleted.value = false;
+    importCurrentIndex.value = 0;
+    importTotal.value = records.length;
+    importCurrentTitle.value = '';
+    importedMangaCount.value = 0;
+    importedNovelCount.value = 0;
+    importedTitles.clear();
+    importFailures.clear();
+
+    try {
+      for (var index = 0; index < records.length; index++) {
+        final record = records[index];
+        importCurrentIndex.value = index + 1;
+        importCurrentTitle.value = record.title;
+        if (record.failureReason != null) {
+          importFailures.add(record);
+        } else {
+          try {
+            await _appDataService.addBookmark(BookmarkItem(
+              comicId: record.comicId,
+              title: record.title,
+              coverImage: record.coverImage,
+              type: record.type,
+              status: record.status,
+              rating: record.rating,
+              createdAt: DateTime.now().toUtc().toIso8601String(),
+            ));
+            final existingIndex = bookmarks.indexWhere(
+              (item) => item.comicId == record.comicId,
+            );
+            final imported = BookmarkItem(
+              comicId: record.comicId,
+              title: record.title,
+              coverImage: record.coverImage,
+              type: record.type,
+              status: record.status,
+              rating: record.rating,
+              createdAt: DateTime.now().toUtc().toIso8601String(),
+            );
+            if (existingIndex < 0) {
+              bookmarks.add(imported);
+            } else {
+              bookmarks[existingIndex] = imported;
+            }
+            importedTitles.add(record.title);
+            if (record.type.trim().toLowerCase() == 'novel') {
+              importedNovelCount.value++;
+            } else {
+              importedMangaCount.value++;
+            }
+          } catch (error) {
+            importFailures.add(DropsauceFavoriteRecord(
+              title: record.title,
+              url: record.url,
+              coverImage: record.coverImage,
+              type: record.type,
+              status: record.status,
+              rating: record.rating,
+              sourceTitle: record.sourceTitle,
+              source: record.source,
+              failureReason: '$error'.replaceFirst('Exception: ', ''),
+            ));
+          }
+        }
+        await Future<void>.delayed(Duration.zero);
+      }
+    } finally {
+      isImporting.value = false;
+      importCompleted.value = true;
+      importCurrentTitle.value = '';
+    }
+  }
 
   Future<void> getBookmark({bool syncCloud = true}) async {
     try {
