@@ -15,6 +15,7 @@ import 'package:mangaplus/app/core/theme/theme.dart';
 import 'package:mangaplus/app/core/theme/theme_mode_preference.dart';
 import 'package:mangaplus/app/data/services/notification_presentation.dart';
 import 'package:mangaplus/app/data/services/app_notification_service.dart';
+import 'package:mangaplus/app/data/services/chapter_update_service.dart';
 import 'package:mangaplus/app/data/services/download_manager_service.dart';
 import 'package:mangaplus/app/core/translations/app_translations.dart';
 
@@ -148,6 +149,10 @@ void main() async {
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   if (!kIsWeb) FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
   final notificationService = Get.put(AppNotificationService(), permanent: true);
+  final chapterUpdateService = Get.put(
+    ChapterUpdateService(appNotificationService: notificationService),
+    permanent: true,
+  );
   if (!kIsWeb) {
     unawaited(notificationService.initialize().catchError((_) {}));
   }
@@ -189,6 +194,10 @@ void main() async {
   if (!kIsWeb) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setupFlutterNotifications(languageCode: savedLanguage).then((_) {
+        chapterUpdateService.attachNotificationPlugin(
+          flutterLocalNotificationsPlugin,
+          languageCode: savedLanguage,
+        );
         for (final message in _pendingForegroundNotifications) {
           showFlutterNotification(message);
         }

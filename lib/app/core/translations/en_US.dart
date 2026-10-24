@@ -459,4 +459,10 @@ const Map<String, String> enUS = {
   'ستظهر هنا أخبار التطبيق وإعلاناته المهمة': 'Important app news and announcements will appear here',
   'لا توجد إشعارات بعد': 'No notifications yet',
   'ستصل إليك هنا أخبار التطبيق وإعلاناته المهمة.': 'Important app news and announcements will appear here.',
+  'فحص المفضلة الآن': 'Check favorites now',
+  'جارٍ فحص المفضلة': 'Checking favorites',
+  'اكتمل الفحص': 'Check completed',
+  'تعذر الفحص': 'Check failed',
+  'لم يتم العثور على فصول جديدة.': 'No new chapters found.',
+  'أعمال لديها تحديثات': 'titles have updates',
 };

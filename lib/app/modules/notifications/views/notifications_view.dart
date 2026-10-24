@@ -89,6 +89,20 @@ class NotificationsView extends GetView<NotificationsController> {
                   Text('مستجدات MangaPlus'.tr, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 4),
                   Text('ستظهر هنا أخبار التطبيق وإعلاناته المهمة'.tr, style: TextStyle(color: Colors.white.withValues(alpha: .86), height: 1.35, fontSize: 12)),
+                  const SizedBox(height: 12),
+                  Obx(() => OutlinedButton.icon(
+                        onPressed: controller.isCheckingFavorites.value ? null : controller.checkFavorites,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: BorderSide(color: Colors.white.withValues(alpha: .65)),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          minimumSize: Size.zero,
+                        ),
+                        icon: controller.isCheckingFavorites.value
+                            ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.sync_rounded, size: 17),
+                        label: Text(controller.isCheckingFavorites.value ? 'جارٍ فحص المفضلة'.tr : 'فحص المفضلة الآن'.tr),
+                      )),
                 ],
               ),
             ),
