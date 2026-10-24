@@ -42,7 +42,41 @@ class BookmarkController extends GetxController {
   final importedNovelCount = 0.obs;
   final RxList<String> importedTitles = <String>[].obs;
   final RxList<DropsauceFavoriteRecord> importFailures = <DropsauceFavoriteRecord>[].obs;
+  final RxSet<String> selectedBookmarkIds = <String>{}.obs;
+  final importResolvedCount = 0.obs;
   bool _metadataBackfillInProgress = false;
+
+  bool isSelected(String comicId) => selectedBookmarkIds.contains(comicId);
+
+  void toggleSelection(String comicId) {
+    if (selectedBookmarkIds.contains(comicId)) {
+      selectedBookmarkIds.remove(comicId);
+    } else {
+      selectedBookmarkIds.add(comicId);
+    }
+  }
+
+  void selectAllVisible() {
+    selectedBookmarkIds
+      ..clear()
+      ..addAll(visibleBookmarks.map((item) => item.comicId));
+  }
+
+  void clearSelection() => selectedBookmarkIds.clear();
+
+  Future<void> deleteSelected() async {
+    final ids = selectedBookmarkIds.toList(growable: false);
+    if (ids.isEmpty || !await _accountGate.requireAccount()) return;
+    for (final id in ids) {
+      try {
+        await _appDataService.deleteBookmark(id);
+        bookmarks.removeWhere((item) => item.comicId == id);
+      } catch (error) {
+        debugPrint('Unable to remove selected bookmark: $error');
+      }
+    }
+    clearSelection();
+  }
 
   List<BookmarkItem> get visibleBookmarks {
     final query = searchQuery.value.trim().toLowerCase();
@@ -135,14 +169,23 @@ class BookmarkController extends GetxController {
     importCurrentTitle.value = '';
     importedMangaCount.value = 0;
     importedNovelCount.value = 0;
+    importResolvedCount.value = 0;
     importedTitles.clear();
     importFailures.clear();
 
     try {
       for (var index = 0; index < records.length; index++) {
-        final record = records[index];
+        var record = records[index];
         importCurrentIndex.value = index + 1;
         importCurrentTitle.value = record.title;
+        if (!record.isImportable && '${record.failureReason}'.contains('مصدر')) {
+          importCurrentTitle.value = 'التحقق من مصدر: ${record.title}';
+          final resolved = await DropsauceImportService.resolveMissingSource(record);
+          if (resolved != null) {
+            record = resolved;
+            importResolvedCount.value++;
+          }
+        }
         if (record.failureReason != null) {
           importFailures.add(record);
         } else {
@@ -199,6 +242,7 @@ class BookmarkController extends GetxController {
       isImporting.value = false;
       importCompleted.value = true;
       importCurrentTitle.value = '';
+      unawaited(_refreshMissingMetadata());
     }
   }
 
@@ -206,6 +250,7 @@ class BookmarkController extends GetxController {
     try {
       final values = await _appDataService.getBookmarks();
       bookmarks.assignAll(values ?? const <BookmarkItem>[]);
+      clearSelection();
       unawaited(_refreshMissingMetadata());
       if (syncCloud) unawaited(_syncThenRefresh());
     } catch (error) {
@@ -226,6 +271,7 @@ class BookmarkController extends GetxController {
       if (isClosed) return;
       final values = await _appDataService.getBookmarks();
       bookmarks.assignAll(values ?? const <BookmarkItem>[]);
+      clearSelection();
       unawaited(_refreshMissingMetadata());
     } catch (_) {
       // Locally saved bookmarks remain available while cloud sync is unavailable.
@@ -235,7 +281,9 @@ class BookmarkController extends GetxController {
   Future<void> _refreshMissingMetadata() async {
     if (_metadataBackfillInProgress || isClosed) return;
     final pending = bookmarks
-        .where((item) => item.status.trim().isEmpty && item.rating.trim().isEmpty)
+        .where((item) => item.status.trim().isEmpty ||
+            item.rating.trim().isEmpty ||
+            item.coverImage.trim().isEmpty)
         .toList(growable: false);
     if (pending.isEmpty) return;
 
@@ -264,8 +312,8 @@ class BookmarkController extends GetxController {
                 ? current.coverImage
                 : comic.coverImage,
             type: current.type.isNotEmpty ? current.type : comic.type,
-            status: comic.status,
-            rating: comic.rating,
+            status: comic.status.trim().isNotEmpty ? comic.status : current.status,
+            rating: comic.rating.trim().isNotEmpty ? comic.rating : current.rating,
             createdAt: current.createdAt,
           );
           await _appDataService.addBookmark(refreshed);

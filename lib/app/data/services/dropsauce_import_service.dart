@@ -32,10 +32,14 @@ class DropsauceFavoriteRecord {
 
   String get comicId {
     if (source?.id == 'team_x_manga') {
+      final parsed = Uri.tryParse(url);
+      final publicUrl = parsed?.scheme == 'teamx'
+          ? (parsed?.queryParameters['url'] ?? url)
+          : url;
       return Uri(
         scheme: 'teamx',
         host: 'series',
-        queryParameters: {'url': url},
+        queryParameters: {'url': publicUrl},
       ).toString();
     }
     return url;
@@ -44,6 +48,16 @@ class DropsauceFavoriteRecord {
 
 class DropsauceImportService {
   DropsauceImportService._();
+
+  static const Map<String, int> _sourceStability = {
+    'team_x_manga': 5,
+    'azora': 5,
+    'manga_swat': 4,
+    'mangatime': 4,
+    'mknov': 4,
+    'kawaii_manga': 3,
+    'kawaii_novels': 3,
+  };
 
   static List<DropsauceFavoriteRecord> parse(Uint8List bytes) {
     final archive = ZipDecoder().decodeBytes(bytes);
@@ -102,6 +116,92 @@ class DropsauceImportService {
     );
   }
 
+  /// Tries to recover records whose original source is not installed or whose
+  /// backup only contains a public URL that the app cannot identify.
+  static Future<DropsauceFavoriteRecord?> resolveMissingSource(
+    DropsauceFavoriteRecord record,
+  ) async {
+    if (record.title.trim().isEmpty) return null;
+    final candidates = <_ImportCandidate>[];
+    await Future.wait(MangaSourceRegistry.searchableSources.map((source) async {
+      try {
+        final results = await source.search(record.title).timeout(const Duration(seconds: 12));
+        var accepted = 0;
+        for (final item in results.take(8)) {
+          final url = _string(item['url']);
+          final title = _string(item['title']);
+          final score = _titleScore(record.title, title);
+          if (url.isEmpty || score < 0.35) continue;
+          candidates.add(_ImportCandidate(source: source, item: item, score: score));
+          if (++accepted >= 2) break;
+        }
+      } catch (_) {
+        // One unavailable source must not prevent checking the others.
+      }
+    }));
+    if (candidates.isEmpty) return null;
+
+    await Future.wait(candidates.map((candidate) async {
+      try {
+        final details = await candidate.source.details(_string(candidate.item['url']))
+            .timeout(const Duration(seconds: 15));
+        candidate.chapterCount = details['chapters'] is List
+            ? (details['chapters'] as List).length
+            : int.tryParse(_string(details['total_chapters'])) ?? 0;
+        candidate.details = details;
+      } catch (_) {
+        candidate.chapterCount = 0;
+      }
+    }));
+
+    candidates.sort((left, right) {
+      final scoreDifference = right.score.compareTo(left.score);
+      if (scoreDifference.abs() > 0.15) return scoreDifference;
+      final chapters = right.chapterCount.compareTo(left.chapterCount);
+      if (chapters != 0) return chapters;
+      return (_sourceStability[right.source.id] ?? 1)
+          .compareTo(_sourceStability[left.source.id] ?? 1);
+    });
+    final selected = candidates.first;
+    final details = selected.details ?? const <String, dynamic>{};
+    final itemUrl = _string(selected.item['url']);
+    final resolvedUrl = _string(details['url']).isNotEmpty ? _string(details['url']) : itemUrl;
+    return DropsauceFavoriteRecord(
+      title: _string(details['title']).isNotEmpty ? _string(details['title']) : record.title,
+      url: resolvedUrl,
+      coverImage: _string(details['image_url']).isNotEmpty
+          ? _string(details['image_url'])
+          : (_string(selected.item['image_url']).isNotEmpty || _string(selected.item['image']).isNotEmpty
+              ? (_string(selected.item['image_url']).isNotEmpty ? _string(selected.item['image_url']) : _string(selected.item['image']))
+              : record.coverImage),
+      type: _string(details['type']).isNotEmpty ? _string(details['type']) : selected.source.kind,
+      status: _string(details['status']).isNotEmpty ? _string(details['status']) : record.status,
+      rating: _string(details['rating']).isNotEmpty ? _string(details['rating']) : record.rating,
+      sourceTitle: selected.source.name,
+      source: selected.source,
+    );
+  }
+
+  static double _titleScore(String expected, String actual) {
+    final left = _titleTokens(expected);
+    final right = _titleTokens(actual);
+    if (left.isEmpty || right.isEmpty) return 0;
+    final leftText = left.join(' ');
+    final rightText = right.join(' ');
+    if (leftText == rightText) return 1;
+    if (leftText.contains(rightText) || rightText.contains(leftText)) return 0.92;
+    final shared = left.where(right.contains).length;
+    return shared / (left.length > right.length ? left.length : right.length);
+  }
+
+  static List<String> _titleTokens(String value) => value
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^\p{L}\p{N}]+', unicode: true), ' ')
+      .split(RegExp(r'\s+'))
+      .where((token) => token.length > 1)
+      .toSet()
+      .toList(growable: false);
+
   static String _rating(dynamic value) {
     if (value is num && value < 0) return '';
     final text = _string(value);
@@ -109,4 +209,14 @@ class DropsauceImportService {
   }
 
   static String _string(dynamic value) => value?.toString().trim() ?? '';
+}
+
+class _ImportCandidate {
+  _ImportCandidate({required this.source, required this.item, required this.score});
+
+  final ContentSource source;
+  final Map<String, dynamic> item;
+  final double score;
+  int chapterCount = 0;
+  Map<String, dynamic>? details;
 }
