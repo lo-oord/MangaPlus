@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -171,8 +173,13 @@ class AuthService {
   }
 
   Future<void> signOut() async {
-    await _googleSignIn.signOut().catchError((_) {});
+    // End the Firebase session first so a slow Google SDK cannot leave the
+    // user signed in to the app. Google provider cleanup is best-effort.
     await _auth.signOut();
+    unawaited(_googleSignIn.signOut().timeout(
+      const Duration(seconds: 2),
+      onTimeout: () {},
+    ).catchError((_) {}));
   }
 
   Future<UserProfile> updatePhotoData(String photoData) async {

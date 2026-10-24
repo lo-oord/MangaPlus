@@ -8,7 +8,20 @@ class AccountGateService {
     final auth = Get.isRegistered<AuthService>()
         ? Get.find<AuthService>()
         : Get.put<AuthService>(AuthService(), permanent: true);
-    if (auth.currentUser != null && !auth.currentUser!.isAnonymous) return true;
+    if (auth.currentUser != null &&
+        !auth.currentUser!.isAnonymous &&
+        auth.currentUser!.emailVerified) return true;
+
+    if (auth.currentUser != null &&
+        !auth.currentUser!.isAnonymous &&
+        !auth.currentUser!.emailVerified) {
+      Get.snackbar(
+        'تحقق من بريدك الإلكتروني'.tr,
+        'يجب تأكيد البريد قبل استخدام هذه الميزة.'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return false;
+    }
 
     final shouldOpen = await Get.dialog<bool>(
       AlertDialog(

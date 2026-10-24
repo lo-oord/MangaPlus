@@ -194,7 +194,7 @@ class ProfileController extends GetxController {
   Future<void> signOut() async {
     try {
       final hadAccount = _auth?.currentUser != null;
-      if (hadAccount) await AccountSyncService().syncLocalData();
+      // Never make logout depend on Firestore/network availability.
       await _auth?.signOut();
       if (hadAccount) {
         await _storage.write('bookmarks', <String, dynamic>{});

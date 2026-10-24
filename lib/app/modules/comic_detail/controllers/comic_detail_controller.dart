@@ -305,6 +305,7 @@ class ComicDetailController extends GetxController {
   Future<void> toggleBookmark(ComicDetail comic) async {
     if (!await _accountGate.requireAccount()) return;
     if (isBookmarked(comic.comicId)) {
+      // Update local state immediately; cloud deletion is queued asynchronously.
       await _appDataService.deleteBookmark(comic.comicId);
       bookmarkRevision.value++;
       AppFeedback.show(
