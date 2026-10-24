@@ -11,7 +11,7 @@ import 'package:http/http.dart' as http;
 import 'package:workmanager/workmanager.dart';
 
 import 'package:mangaplus/app/data/models/bookmark.dart';
-import 'package:mangaplus/app/data/models/chapter.dart';
+import 'package:mangaplus/app/data/models/comic_detail.dart';
 import 'package:mangaplus/app/data/services/account_sync_service.dart';
 import 'package:mangaplus/app/data/services/app_notification_service.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
@@ -101,6 +101,7 @@ class ChapterUpdateService {
   }
 
   Future<void> scheduleBackgroundChecks() async {
+    await Workmanager().cancelByUniqueName(backgroundTaskName);
     await Workmanager().registerPeriodicTask(
       backgroundTaskName,
       backgroundTaskName,
@@ -108,7 +109,6 @@ class ChapterUpdateService {
       constraints: Constraints(
         networkType: wifiOnly ? NetworkType.unmetered : NetworkType.connected,
       ),
-      existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
       backoffPolicy: BackoffPolicy.linear,
       backoffPolicyDelay: const Duration(minutes: 15),
     );
@@ -272,13 +272,13 @@ class ChapterUpdateService {
     );
     final plugin = _notifications;
     if (plugin == null) return;
-    AndroidBitmap? cover;
+    AndroidBitmap<Object>? cover;
     final coverUrl = update.bookmark.coverImage.trim();
     if (coverUrl.isNotEmpty) {
       try {
         final response = await http.get(Uri.parse(coverUrl)).timeout(const Duration(seconds: 8));
         if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
-          cover = ByteArrayAndroidBitmap(response.bodyBytes);
+          cover = ByteArrayAndroidBitmap(response.bodyBytes) as AndroidBitmap<Object>;
         }
       } catch (_) {
         // The notification remains useful when a cover cannot be downloaded.
