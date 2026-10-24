@@ -649,6 +649,9 @@ class _SourceLogo extends StatelessWidget {
       return 'https://olympustaff.com/images/TeamX.png';
     }
     if (value.contains('mknov')) return 'https://mknov.com/logo.png';
+    if (value.contains('cenele')) {
+      return 'https://cenele.com/wp-content/uploads/2026/08/cropped-%D9%81%D8%B6%D8%A7%D8%A1-%D8%B1%D9%88%D8%A7%D9%8A%D8%A7%D8%AA.png';
+    }
     return null;
   }
 
