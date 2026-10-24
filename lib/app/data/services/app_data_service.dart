@@ -42,7 +42,7 @@ class AppDataService {
     return items;
   }
 
-  Future<void> addBookmark(BookmarkItem bookmark) async {
+  Future<void> addBookmark(BookmarkItem bookmark, {bool sync = true}) async {
     final entries = Map<String, dynamic>.from(
       _storage.read('bookmarks') ?? <String, dynamic>{},
     );
@@ -61,7 +61,37 @@ class AppDataService {
     };
     await _storage.write('bookmarks', entries);
     BookmarkStateService.instance.changed();
-    _scheduleSync();
+    if (sync) _scheduleSync();
+  }
+
+  Future<void> syncNow() async {
+    _syncDebounce?.cancel();
+    _syncDebounce = null;
+    await _sync.syncLocalData();
+  }
+
+  Future<void> addBookmarks(List<BookmarkItem> bookmarks, {bool sync = true}) async {
+    if (bookmarks.isEmpty) return;
+    final entries = Map<String, dynamic>.from(
+      _storage.read('bookmarks') ?? <String, dynamic>{},
+    );
+    final now = DateTime.now().toUtc().toIso8601String();
+    for (final bookmark in bookmarks) {
+      final existing = entries[bookmark.comicId];
+      final existingData = existing is Map
+          ? Map<String, dynamic>.from(existing)
+          : <String, dynamic>{};
+      entries[bookmark.comicId] = {
+        ...bookmark.toJson(),
+        'createdAt': bookmark.createdAt.trim().isNotEmpty
+            ? bookmark.createdAt
+            : '${existingData['createdAt'] ?? existingData['updatedAt'] ?? now}',
+        'updatedAt': now,
+      };
+    }
+    await _storage.write('bookmarks', entries);
+    BookmarkStateService.instance.changed();
+    if (sync) _scheduleSync();
   }
 
   Future<List<BookmarkItem>?> getBookmarks() async {
