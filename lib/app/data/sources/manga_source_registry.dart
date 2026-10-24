@@ -57,7 +57,9 @@ class MangaSourceRegistry {
     await Future.wait(searchableSources.map((source) async {
       try {
         final result = await source.search(query).timeout(
-              source.id == 'mknov' || source.id == 'kawaii_novels'
+              source.id == 'kawaii_novels'
+                  ? const Duration(seconds: 90)
+                  : source.id == 'mknov'
                   ? const Duration(seconds: 45)
                   : source.id == 'azora'
                   ? const Duration(seconds: 35)

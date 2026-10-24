@@ -10,6 +10,7 @@ class KawaiiApiClient {
   KawaiiApiClient._();
 
   static const String _appKey = 'km_2026_live';
+  static const String _userAgent = 'MangaPlus/1.0';
   static const String _baseUrl =
       'https://manga-api.kawaii-anime.com/api/manga';
   static final http.Client _client = http.Client();
@@ -51,9 +52,10 @@ class KawaiiApiClient {
     final headers = <String, String>{
       'Accept': 'application/json',
       'x-app-key': _appKey,
+      'User-Agent': _userAgent,
     };
     if (token != null && token.isNotEmpty) headers['x-app-token'] = token;
-    return _client.get(uri, headers: headers).timeout(const Duration(seconds: 35));
+    return _client.get(uri, headers: headers).timeout(const Duration(seconds: 90));
   }
 
   static Future<String?> _getToken({bool refresh = false}) async {
@@ -80,7 +82,10 @@ class KawaiiApiClient {
     try {
       final response = await _client.get(
         Uri.parse('$_baseUrl/token'),
-        headers: const {'x-app-key': _appKey},
+        headers: const {
+          'x-app-key': _appKey,
+          'User-Agent': _userAgent,
+        },
       ).timeout(const Duration(seconds: 20));
       if (response.statusCode < 200 || response.statusCode >= 300) return null;
       final decoded = jsonDecode(utf8.decode(response.bodyBytes, allowMalformed: true));
