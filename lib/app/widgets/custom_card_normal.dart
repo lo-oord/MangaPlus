@@ -73,11 +73,7 @@ class CustomCardNormal extends StatelessWidget {
               child: CachedNetworkImage(
                 imageUrl: imageUrl,
                 cacheManager: MangaCoverCacheManager.instance,
-                httpHeaders: const {
-                  'Referer': 'https://olympustaff.com/',
-                  'User-Agent':
-                      'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
-                },
+                httpHeaders: _imageHeaders(imageUrl),
                 width: width,
                 height: coverHeight,
                 memCacheWidth: (width * 3).round(),
@@ -208,5 +204,14 @@ class CustomCardNormal extends StatelessWidget {
     if (statusText == 'مستمر'.tr.toLowerCase() || statusText == 'ongoing') return const Color(0xff43b581);
     if (statusText == 'متوقف مؤقتًا'.tr.toLowerCase() || statusText == 'paused' || statusText == 'hiatus') return const Color(0xffe5a947);
     return AppColors.textSecondary;
+  }
+
+  Map<String, String> _imageHeaders(String url) {
+    final isKawaii = Uri.tryParse(url)?.host.toLowerCase() == 'manga-cdn.kawaii-anime.com';
+    return {
+      'Referer': isKawaii ? 'https://kawaiimanga.org/' : 'https://olympustaff.com/',
+      'User-Agent':
+          'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+    };
   }
 }

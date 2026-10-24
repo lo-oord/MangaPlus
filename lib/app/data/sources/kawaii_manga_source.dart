@@ -40,8 +40,32 @@ class KawaiiMangaSource extends ContentSource {
     if (trimmed.isEmpty) return const [];
     final response = await KawaiiApiClient.getJson('search', {'q': trimmed});
     final records = response['results'];
-    if (records is! List) return const [];
-    return records.whereType<Map>().map((record) => _workItem(
+    final directResults = records is List
+        ? records.whereType<Map>().map((record) => _workItem(
+      Map<String, dynamic>.from(record),
+    )).toList(growable: false)
+        : const <Map<String, dynamic>>[];
+    if (directResults.isNotEmpty) return directResults;
+
+    final browseResponse = await KawaiiApiClient.getJson('browse', {
+      'page': '1',
+      'limit': '100',
+      'sort': 'latest',
+    });
+    final browseRecords = browseResponse['results'];
+    if (browseRecords is! List) return const [];
+    final normalized = _normalize(trimmed);
+    return browseRecords.whereType<Map>().where((record) {
+      final values = [
+        record['title'],
+        record['titleEn'],
+        record['titleAr'],
+        record['slug'],
+        record['author'],
+        if (record['genres'] is List) ...(record['genres'] as List),
+      ];
+      return values.any((value) => _normalize('$value').contains(normalized));
+    }).map((record) => _workItem(
       Map<String, dynamic>.from(record),
     )).toList(growable: false);
   }
@@ -285,4 +309,13 @@ class KawaiiMangaSource extends ContentSource {
   List<String> _strings(dynamic values) => values is List
       ? values.map(_string).where((value) => value.isNotEmpty).toSet().toList(growable: false)
       : const [];
+
+  String _normalize(String value) => value.toLowerCase()
+      .replaceAll(RegExp(r'[\u064B-\u0652\u0670\u0640]'), '')
+      .replaceAll(RegExp(r'[أإآٱ]'), 'ا')
+      .replaceAll('ة', 'ه')
+      .replaceAll('ى', 'ي')
+      .replaceAll(RegExp(r'[-_]+'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
 }

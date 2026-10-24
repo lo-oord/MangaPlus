@@ -307,11 +307,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
       return CachedNetworkImage(
         imageUrl: imagePath,
         cacheManager: MangaCoverCacheManager.instance,
-        httpHeaders: const {
-          'Referer': 'https://olympustaff.com/',
-          'User-Agent':
-              'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
-        },
+        httpHeaders: _imageHeaders(imagePath),
         fit: fit,
         alignment: alignment,
         placeholder: (_, __) => Container(color: AppColors.card),
@@ -325,6 +321,15 @@ class ComicDetailView extends GetView<ComicDetailController> {
       alignment: Alignment.center,
       child: MangaPlusLogo(size: logoSize),
     );
+  }
+
+  Map<String, String> _imageHeaders(String url) {
+    final isKawaii = Uri.tryParse(url)?.host.toLowerCase() == 'manga-cdn.kawaii-anime.com';
+    return {
+      'Referer': isKawaii ? 'https://kawaiimanga.org/' : 'https://olympustaff.com/',
+      'User-Agent':
+          'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+    };
   }
 
   Widget _buildBody(BuildContext context, ComicDetail comic) {
@@ -621,6 +626,9 @@ class _SourceLogo extends StatelessWidget {
 
   String? get logoUrl {
     final value = _normalizedSource;
+    if (value.contains('kawaii')) {
+      return 'https://kawaiimanga.org/logo.png';
+    }
     if (value.contains('swat')) {
       return 'https://meshmanga.com/_next/static/media/swatManga.795f6613.png';
     }
