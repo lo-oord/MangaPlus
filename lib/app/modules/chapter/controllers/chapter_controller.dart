@@ -151,6 +151,8 @@ class ChapterController extends GetxController {
   bool _speechSessionActive = false;
   bool endNoticeShown = false;
   bool _isLoadingChapterNavigation = false;
+  int _chapterLoadGeneration = 0;
+  bool _suppressEndBoundaryOnce = false;
   Offset? _readerPointerDownPosition;
   Duration? _readerPointerDownTime;
   bool _readerPointerMoved = false;
@@ -267,6 +269,7 @@ class ChapterController extends GetxController {
     bool keepCurrentContent = false,
     bool startAtEnd = false,
   }) async {
+    final generation = ++_chapterLoadGeneration;
     try {
       isLoading(true);
       hasError(false);
@@ -350,10 +353,11 @@ class ChapterController extends GetxController {
           );
         }
       } else {
-        isOffline.value = false;
         final loaded = isNovel
             ? await _comicService.fetchNovelChapter(id)
             : await _comicService.fetchChapter(id);
+        if (generation != _chapterLoadGeneration) return;
+        isOffline.value = false;
         final fallbackTitle = currentChapterTitle.trim();
         final title = loaded.chapter.title.trim().isEmpty ||
                 loaded.chapter.title.trim() == 'الفصل' ||
@@ -376,6 +380,7 @@ class ChapterController extends GetxController {
 
       if (keepCurrentContent) _restoreReaderPosition(id);
       final pageCount = chapterData.value.chapter.images.length;
+      if (startAtEnd) _suppressEndBoundaryOnce = true;
       if (pageCount > 0) {
         currentPage.value = startAtEnd
             ? pageCount - 1
@@ -403,11 +408,12 @@ class ChapterController extends GetxController {
         currentPage.value = 0;
       }
     } catch (error) {
+      if (generation != _chapterLoadGeneration) return;
       hasError(true);
       loadIssue.value = ReaderLoadIssue.from(error);
       debugPrint('Chapter request failed: $error');
     } finally {
-      isLoading(false);
+      if (generation == _chapterLoadGeneration) isLoading(false);
     }
   }
 
@@ -423,12 +429,12 @@ class ChapterController extends GetxController {
   }
 
   String? get previousChapterId {
+    final direct = _chapterReference(chapterData.value.chapter.previousChapter);
+    if (direct != null && !_sameChapterReference(direct, chapterId)) return direct;
     final adjacent = _adjacentChapter(forward: false)?.chapterId;
     if (adjacent != null && !_sameChapterReference(adjacent, chapterId)) {
       return adjacent;
     }
-    final direct = _chapterReference(chapterData.value.chapter.previousChapter);
-    if (direct != null && !_sameChapterReference(direct, chapterId)) return direct;
     return null;
   }
 
@@ -450,7 +456,10 @@ class ChapterController extends GetxController {
       final currentNumber =
           (index >= 0 ? _chapterNumber(chapters[index].title) : null) ??
               _chapterNumber(currentChapterTitle);
-      if (currentNumber != null) {
+      final chapterNumbers = chapters.map((item) => _chapterNumber(item.title)).toList();
+      final hasUnnumberedOrDuplicate = chapterNumbers.any((number) => number == null) ||
+          chapterNumbers.toSet().length != chapterNumbers.length;
+      if (currentNumber != null && !hasUnnumberedOrDuplicate) {
         double? nextNumber;
         double? previousNumber;
         for (final item in chapters) {
@@ -481,8 +490,16 @@ class ChapterController extends GetxController {
   }
 
   double? _chapterNumber(String title) {
-    final match = RegExp(r'\d+(?:\.\d+)?').firstMatch(title);
-    return match == null ? null : double.tryParse(match.group(0)!);
+    final explicit = RegExp(
+      r'(?:chapter|chap\.?|ch\.?|الفصل|فصل)\s*[-#:]?\s*(\d+(?:\.\d+)?)',
+      caseSensitive: false,
+    ).firstMatch(title);
+    if (explicit != null) return double.tryParse(explicit.group(1)!);
+    final numbers = RegExp(r'\d+(?:\.\d+)?').allMatches(title).toList();
+    // Multiple numbers can denote a volume, season, or release date; let the
+    // source chapter-list ordering decide rather than jumping to a false neighbor.
+    if (numbers.length != 1) return null;
+    return double.tryParse(numbers.single.group(0)!);
   }
 
   String? _chapterReference(dynamic value) {
@@ -528,10 +545,7 @@ class ChapterController extends GetxController {
         isNavigating.value) {
       return;
     }
-    if (novelSpeechPlaying.value || novelSpeechPaused.value) {
-      await stopNovelSpeech();
-    }
-
+    isNavigating.value = true;
     final previousId = chapterId;
     final previousTitle = currentChapterTitle;
     final previousData = chapterData.value;
@@ -542,9 +556,11 @@ class ChapterController extends GetxController {
         ? _scrollController!.offset
         : _restoredScrollOffset;
     final nextTitle = _chapterTitleFor(reference);
-    isNavigating.value = true;
     endNoticeShown = false;
     try {
+      if (novelSpeechPlaying.value || novelSpeechPaused.value) {
+        await stopNovelSpeech();
+      }
       chapterId = reference;
       currentChapterTitle = nextTitle;
       await fetchChapter(
@@ -631,6 +647,7 @@ class ChapterController extends GetxController {
   Future<void> _loadChapterNavigationIfMissing({
     bool checkEndAfterLoad = true,
   }) async {
+    if (_isLoadingChapterNavigation) return;
     if (availableChapters.length > 1 &&
         _containsCurrentChapter(availableChapters)) {
       return;
@@ -1118,6 +1135,11 @@ class ChapterController extends GetxController {
   void onPageChanged(int page) {
     if (chapterData.value.chapter.images.isEmpty) return;
     setCurrentPage(page);
+    if (_suppressEndBoundaryOnce &&
+        page >= chapterData.value.chapter.images.length - 1) {
+      _suppressEndBoundaryOnce = false;
+      return;
+    }
     if (readerMode.value == 'paged' &&
         continuousNavigation.value &&
         page >= chapterData.value.chapter.images.length - 2) {
@@ -1141,14 +1163,15 @@ class ChapterController extends GetxController {
     ScrollMetrics metrics, {
     double? scrollDelta,
   }) async {
-    if (readerMode.value != 'scroll' ||
-        !continuousNavigation.value ||
-        isNavigating.value) {
-      return;
-    }
+    if (readerMode.value != 'scroll' || !continuousNavigation.value) return;
     final threshold = metrics.viewportDimension * 0.04 > 28
         ? metrics.viewportDimension * 0.04
         : 28.0;
+    if (_suppressEndBoundaryOnce && metrics.extentAfter <= threshold) {
+      _suppressEndBoundaryOnce = false;
+      return;
+    }
+    if (isNavigating.value) return;
     if (metrics.extentAfter <= metrics.viewportDimension * 2) {
       unawaited(prefetchChapter(nextChapterId));
     }

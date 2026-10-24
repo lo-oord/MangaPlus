@@ -430,6 +430,43 @@ class ComicDetailController extends GetxController {
     isSelectionMode.value = false;
   }
 
+  Future<void> markSelectedChaptersRead() async {
+    final ids = selectedChapterIds.toSet();
+    if (ids.isEmpty) return;
+    final readChapters = Map<String, dynamic>.from(
+      _storage.read('readChapters') ?? <String, dynamic>{},
+    );
+    final timestamp = DateTime.now().toIso8601String();
+    for (final id in ids) {
+      readChapters[id] = timestamp;
+      _readChapterIds.add(id);
+    }
+    await _storage.write('readChapters', readChapters);
+    historyRevision.value++;
+    clearChapterSelection();
+  }
+
+  Future<void> markSelectedChaptersUnread() async {
+    final ids = selectedChapterIds.toSet();
+    if (ids.isEmpty) return;
+    final readChapters = Map<String, dynamic>.from(
+      _storage.read('readChapters') ?? <String, dynamic>{},
+    )..removeWhere((id, _) => ids.contains(id));
+    await _storage.write('readChapters', readChapters);
+
+    // Reading history represents the most recently opened chapter per comic.
+    // Remove that entry only when it points to a chapter explicitly marked unread.
+    final histories = Map<String, dynamic>.from(
+      _storage.read('reading_history') ?? <String, dynamic>{},
+    );
+    histories.removeWhere((_, value) =>
+        value is Map && ids.contains('${value['chapterId'] ?? ''}'));
+    await _storage.write('reading_history', histories);
+    _refreshReadChapterIndex();
+    historyRevision.value++;
+    clearChapterSelection();
+  }
+
   Future<void> downloadSelectedChapters(ComicDetail comic) async {
     final selection = selectedChapterIds.toSet();
     if (selection.isEmpty || isBulkDownloading.value) return;

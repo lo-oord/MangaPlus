@@ -44,6 +44,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
       }
       return Scaffold(
         backgroundColor: AppColors.background,
+        bottomNavigationBar: _SelectionBottomBar(comic: comic, controller: controller),
         body: CustomScrollView(
           slivers: [
             _buildHero(context, comic),
@@ -829,8 +830,6 @@ class _ChapterListState extends State<_ChapterList> {
         }
       }).toList(growable: false);
       final sorted = widget.controller.sortedChapters(visible);
-      final selecting = widget.controller.isSelectionMode.value;
-      final selectedCount = widget.controller.selectedChapterIds.length;
       final ascending = widget.controller.sortAscending.value;
       final selectableIds = sorted
           .where((chapter) => !widget.controller.isChapterDownloaded(chapter.chapterId))
@@ -890,77 +889,11 @@ class _ChapterListState extends State<_ChapterList> {
                         itemBuilder: (_) => [
                           PopupMenuItem(value: 'search', child: Text(_searchVisible ? 'إخفاء البحث'.tr : 'بحث'.tr)),
                           PopupMenuItem(value: 'filters', child: Text(_filtersVisible ? 'إخفاء التصفية'.tr : 'تصفية الفصول'.tr)),
-                          PopupMenuItem(value: 'selection', child: Text(selecting ? 'إلغاء التحديد'.tr : 'تحديد الفصول'.tr)),
+                          PopupMenuItem(value: 'selection', child: Text(widget.controller.isSelectionMode.value ? 'إلغاء التحديد'.tr : 'تحديد الفصول'.tr)),
                         ],
                       ),
                     ],
                   ),
-                  if (selecting || selectedCount > 0) ...[
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsetsDirectional.fromSTEB(12, 8, 12, 8),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.32)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.checklist_rounded, color: AppColors.primary, size: 19),
-                              const SizedBox(width: 7),
-                              Expanded(
-                                child: Text(
-                                  'تم تحديد @value فصل'.trParams({'value': '$selectedCount'}),
-                                  style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800),
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: 'إلغاء التحديد'.tr,
-                                visualDensity: VisualDensity.compact,
-                                onPressed: widget.controller.clearChapterSelection,
-                                icon: Icon(Icons.close_rounded, color: AppColors.icon, size: 20),
-                              ),
-                            ],
-                          ),
-                          Wrap(
-                            alignment: WrapAlignment.spaceBetween,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            spacing: 8,
-                            runSpacing: 4,
-                            children: [
-                              TextButton.icon(
-                                onPressed: selectableIds.isEmpty
-                                    ? null
-                                    : () => widget.controller.selectAllChapters(sorted),
-                                icon: Icon(
-                                  allVisibleSelectableSelected
-                                      ? Icons.check_box_outline_blank_rounded
-                                      : Icons.select_all_rounded,
-                                  size: 18,
-                                ),
-                                label: Text(allVisibleSelectableSelected
-                                    ? 'إلغاء تحديد المعروض'.tr
-                                    : 'تحديد الكل'.tr),
-                              ),
-                              FilledButton.tonalIcon(
-                                onPressed: selectedCount == 0 || widget.controller.isBulkDownloading.value
-                                    ? null
-                                    : () => widget.controller.downloadSelectedChapters(widget.comic),
-                                icon: widget.controller.isBulkDownloading.value
-                                    ? const SizedBox(width: 16, height: 16,
-                                        child: CircularProgressIndicator(strokeWidth: 2))
-                                    : const Icon(Icons.download_rounded, size: 18),
-                                label: Text('تنزيل المحدد'.tr),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
                   if (_searchVisible) TextField(
                     controller: _searchController,
                     onChanged: (value) {
@@ -1036,7 +969,7 @@ class _ChapterListState extends State<_ChapterList> {
             )
           else
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+              padding: EdgeInsets.fromLTRB(16, 0, 16, widget.controller.isSelectionMode.value ? 110 : 28),
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) => Padding(
@@ -1314,4 +1247,82 @@ class _ChapterListState extends State<_ChapterList> {
       'chapterTitle': chapter.title,
     });
   }
+}
+
+
+class _SelectionBottomBar extends StatelessWidget {
+  const _SelectionBottomBar({required this.comic, required this.controller});
+  final ComicDetail comic;
+  final ComicDetailController controller;
+
+  @override
+  Widget build(BuildContext context) => Obx(() {
+        if (!controller.isSelectionMode.value && controller.selectedChapterIds.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        final selected = controller.selectedChapterIds.length;
+        final allSelectable = comic.chapters.where(
+          (chapter) => !controller.isChapterDownloaded(chapter.chapterId),
+        ).toList(growable: false);
+        final allSelected = allSelectable.isNotEmpty &&
+            allSelectable.every((chapter) => controller.selectedChapterIds.contains(chapter.chapterId));
+        return SafeArea(
+          top: false,
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.primary.withValues(alpha: .28)),
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .18), blurRadius: 18, offset: const Offset(0, -4))],
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  tooltip: 'إلغاء التحديد'.tr,
+                  visualDensity: VisualDensity.compact,
+                  onPressed: controller.clearChapterSelection,
+                  icon: Icon(Icons.close_rounded, color: AppColors.icon),
+                ),
+                Flexible(
+                  child: Text('$selected', maxLines: 1, overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800)),
+                ),
+                IconButton(
+                  tooltip: allSelected ? 'إلغاء تحديد الكل'.tr : 'تحديد الكل'.tr,
+                  visualDensity: VisualDensity.compact,
+                  onPressed: allSelectable.isEmpty ? null : () => controller.selectAllChapters(comic.chapters),
+                  icon: Icon(allSelected ? Icons.check_box_outline_blank_rounded : Icons.select_all_rounded,
+                      color: AppColors.primary),
+                ),
+                IconButton(
+                  tooltip: 'تصنيف كمقروء'.tr,
+                  visualDensity: VisualDensity.compact,
+                  onPressed: selected == 0 ? null : controller.markSelectedChaptersRead,
+                  icon: Icon(Icons.check_circle_outline_rounded, color: AppColors.success),
+                ),
+                IconButton(
+                  tooltip: 'تصنيف كغير مقروء'.tr,
+                  visualDensity: VisualDensity.compact,
+                  onPressed: selected == 0 ? null : controller.markSelectedChaptersUnread,
+                  icon: Icon(Icons.radio_button_unchecked_rounded, color: AppColors.warning),
+                ),
+                IconButton(
+                  tooltip: 'تنزيل المحدد'.tr,
+                  visualDensity: VisualDensity.compact,
+                  onPressed: selected == 0 || controller.isBulkDownloading.value
+                      ? null
+                      : () => controller.downloadSelectedChapters(comic),
+                  icon: controller.isBulkDownloading.value
+                      ? SizedBox(width: 19, height: 19, child: CircularProgressIndicator(
+                          strokeWidth: 2, color: AppColors.primary))
+                      : Icon(Icons.download_rounded, color: AppColors.primary),
+                ),
+              ],
+            ),
+          ),
+        );
+      });
 }
