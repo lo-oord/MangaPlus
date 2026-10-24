@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
@@ -167,17 +169,41 @@ class ProfileDetailsView extends GetView<ProfileController> {
         padding: const EdgeInsets.all(20),
         decoration: _decoration(),
         child: Row(children: [
-          CircleAvatar(radius: 36, backgroundColor: AppColors.searchBar,
-              child: Icon(Icons.person_rounded, size: 38, color: AppColors.icon)),
+          CircleAvatar(
+            radius: 36,
+            backgroundColor: AppColors.searchBar,
+            backgroundImage: _avatarProvider(account),
+            child: _avatarProvider(account) == null
+                ? Icon(Icons.person_rounded, size: 38, color: AppColors.icon)
+                : null,
+          ),
           const SizedBox(width: 16),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(account.displayName, maxLines: 2, overflow: TextOverflow.ellipsis,
                 style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.w800)),
             const SizedBox(height: 4),
-            Text('@${account.username}', style: TextStyle(color: AppColors.textSecondary)),
+            Row(children: [
+              Flexible(child: _GoldShimmerText('@${account.username}', verified: account.isVerified)),
+              if (account.isVerified) ...[
+                const SizedBox(width: 6),
+                const Icon(Icons.verified_rounded, color: Color(0xffD4A72C), size: 17),
+              ],
+            ]),
           ])),
         ]),
       );
+
+
+  ImageProvider? _avatarProvider(UserProfile account) {
+    if (account.photoData.isNotEmpty) {
+      try {
+        return MemoryImage(base64Decode(account.photoData));
+      } catch (_) {
+        // Fall through to the network photo if stored image data is invalid.
+      }
+    }
+    return account.photoUrl.isEmpty ? null : CachedNetworkImageProvider(account.photoUrl);
+  }
 
   Widget _section(String title, List<Widget> children) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -266,5 +292,56 @@ class ProfileDetailsView extends GetView<ProfileController> {
     if (save == true) await controller.changePassword(oldPassword.text, newPassword.text);
     oldPassword.dispose();
     newPassword.dispose();
+  }
+}
+
+
+class _GoldShimmerText extends StatefulWidget {
+  const _GoldShimmerText(this.text, {required this.verified});
+  final String text;
+  final bool verified;
+
+  @override
+  State<_GoldShimmerText> createState() => _GoldShimmerTextState();
+}
+
+class _GoldShimmerTextState extends State<_GoldShimmerText>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animation = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1800),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _animation.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Text(widget.text, maxLines: 1, overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13));
+    if (!widget.verified) {
+      return Text(widget.text, maxLines: 1, overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 13));
+    }
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) => ShaderMask(
+        blendMode: BlendMode.srcIn,
+        shaderCallback: (bounds) {
+          final shift = _animation.value * 2 - 1;
+          return LinearGradient(
+            begin: Alignment(shift - 1, 0),
+            end: Alignment(shift + 1, 0),
+            colors: const [Color(0xff8C6915), Color(0xffD4A72C), Color(0xffffef9a), Color(0xffD4A72C)],
+            stops: const [0.0, 0.38, 0.52, 1.0],
+          ).createShader(bounds);
+        },
+        child: child,
+      ),
+      child: text,
+    );
   }
 }
