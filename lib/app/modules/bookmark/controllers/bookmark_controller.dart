@@ -43,10 +43,14 @@ class BookmarkController extends GetxController {
   final RxList<String> importedTitles = <String>[].obs;
   final RxList<DropsauceFavoriteRecord> importFailures = <DropsauceFavoriteRecord>[].obs;
   final RxSet<String> selectedBookmarkIds = <String>{}.obs;
+  final selectionRevision = 0.obs;
   final importResolvedCount = 0.obs;
   bool _metadataBackfillInProgress = false;
 
-  bool isSelected(String comicId) => selectedBookmarkIds.contains(comicId);
+  bool isSelected(String comicId) {
+    selectionRevision.value;
+    return selectedBookmarkIds.contains(comicId);
+  }
 
   void toggleSelection(String comicId) {
     if (selectedBookmarkIds.contains(comicId)) {
@@ -54,15 +58,20 @@ class BookmarkController extends GetxController {
     } else {
       selectedBookmarkIds.add(comicId);
     }
+    selectionRevision.value++;
   }
 
   void selectAllVisible() {
     selectedBookmarkIds
       ..clear()
       ..addAll(visibleBookmarks.map((item) => item.comicId));
+    selectionRevision.value++;
   }
 
-  void clearSelection() => selectedBookmarkIds.clear();
+  void clearSelection() {
+    selectedBookmarkIds.clear();
+    selectionRevision.value++;
+  }
 
   Future<void> deleteSelected() async {
     final ids = selectedBookmarkIds.toList(growable: false);
@@ -85,8 +94,12 @@ class BookmarkController extends GetxController {
       if (query.isNotEmpty && !bookmark.title.toLowerCase().contains(query)) {
         return false;
       }
-      final type = bookmark.type.trim().toLowerCase();
-      final isNovel = type == 'novel' || type == 'رواية';
+      final type = bookmark.type.trim().toLowerCase().replaceAll('_', ' ');
+      final isNovel = type == 'novel' ||
+          type == 'novels' ||
+          type == 'رواية' ||
+          type == 'روايات' ||
+          type.contains('light novel');
       if (filter == BookmarkTypeFilter.novel && !isNovel) return false;
       if (filter == BookmarkTypeFilter.manga && isNovel) return false;
       return true;
@@ -172,6 +185,7 @@ class BookmarkController extends GetxController {
     importResolvedCount.value = 0;
     importedTitles.clear();
     importFailures.clear();
+    final pendingBookmarks = <BookmarkItem>[];
 
     try {
       for (var index = 0; index < records.length; index++) {
@@ -190,18 +204,6 @@ class BookmarkController extends GetxController {
           importFailures.add(record);
         } else {
           try {
-            await _appDataService.addBookmark(BookmarkItem(
-              comicId: record.comicId,
-              title: record.title,
-              coverImage: record.coverImage,
-              type: record.type,
-              status: record.status,
-              rating: record.rating,
-              createdAt: DateTime.now().toUtc().toIso8601String(),
-            ));
-            final existingIndex = bookmarks.indexWhere(
-              (item) => item.comicId == record.comicId,
-            );
             final imported = BookmarkItem(
               comicId: record.comicId,
               title: record.title,
@@ -211,13 +213,22 @@ class BookmarkController extends GetxController {
               rating: record.rating,
               createdAt: DateTime.now().toUtc().toIso8601String(),
             );
+            pendingBookmarks.add(imported);
+            final existingIndex = bookmarks.indexWhere(
+              (item) => item.comicId == record.comicId,
+            );
             if (existingIndex < 0) {
               bookmarks.add(imported);
             } else {
               bookmarks[existingIndex] = imported;
             }
             importedTitles.add(record.title);
-            if (record.type.trim().toLowerCase() == 'novel') {
+            final normalizedType = record.type.trim().toLowerCase().replaceAll('_', ' ');
+            if (normalizedType == 'novel' ||
+                normalizedType == 'novels' ||
+                normalizedType == 'رواية' ||
+                normalizedType == 'روايات' ||
+                normalizedType.contains('light novel')) {
               importedNovelCount.value++;
             } else {
               importedMangaCount.value++;
@@ -238,10 +249,14 @@ class BookmarkController extends GetxController {
         }
         await Future<void>.delayed(Duration.zero);
       }
+      // One local storage transaction prevents per-item disk rewrites and cloud work.
+      await _appDataService.addBookmarks(pendingBookmarks, sync: false);
     } finally {
       isImporting.value = false;
       importCompleted.value = true;
       importCurrentTitle.value = '';
+      // Persist locally during import; sync once after the complete local pass.
+      unawaited(_appDataService.syncNow());
       unawaited(_refreshMissingMetadata());
     }
   }

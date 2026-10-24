@@ -214,7 +214,6 @@ class BookmarkView extends GetView<BookmarkController> {
         final rawRating = bookmark.rating.trim();
         final rating = rawRating.isEmpty || rawRating == '0.0' ? '—' : rawRating;
         final status = bookmark.status.trim().isEmpty ? 'غير معروف'.tr : bookmark.status;
-        final selected = controller.isSelected(bookmark.comicId);
         return Align(
           alignment: Alignment.topCenter,
           child: SizedBox(
@@ -222,48 +221,73 @@ class BookmarkView extends GetView<BookmarkController> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onLongPress: () => controller.toggleSelection(bookmark.comicId),
-                  onTap: () {
-                    if (controller.selectedBookmarkIds.isNotEmpty) {
-                      controller.toggleSelection(bookmark.comicId);
-                    } else {
-                      Get.toNamed(Routes.COMIC_DETAIL, arguments: bookmark.comicId);
-                    }
-                  },
-                  child: Stack(
-                    children: [
-                      CustomCardNormal(
-                        comicId: bookmark.comicId,
-                        title: bookmark.title,
-                        chapter: '',
-                        imageUrl: bookmark.coverImage,
-                        type: bookmark.type,
-                        rating: rating,
-                        status: status,
-                        width: cardWidth,
-                      ),
-                      if (selected)
-                        Positioned.fill(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.primary, width: 3),
-                              color: AppColors.primary.withValues(alpha: 0.12),
+                Obx(() {
+                  final selected = controller.isSelected(bookmark.comicId);
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onLongPress: () => controller.toggleSelection(bookmark.comicId),
+                    onTap: () {
+                      if (controller.selectedBookmarkIds.isNotEmpty) {
+                        controller.toggleSelection(bookmark.comicId);
+                      } else {
+                        Get.toNamed(Routes.COMIC_DETAIL, arguments: bookmark.comicId);
+                      }
+                    },
+                    child: Stack(
+                      children: [
+                        CustomCardNormal(
+                          comicId: bookmark.comicId,
+                          title: bookmark.title,
+                          chapter: '',
+                          imageUrl: bookmark.coverImage,
+                          type: bookmark.type,
+                          rating: rating,
+                          status: status,
+                          width: cardWidth,
+                        ),
+                        if (selected)
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: AppColors.primary, width: 3),
+                                  color: AppColors.primary.withValues(alpha: 0.12),
+                                ),
+                                child: const Align(
+                                  alignment: Alignment.topRight,
+                                  child: Padding(
+                                    padding: EdgeInsets.all(7),
+                                    child: Icon(Icons.check_circle_rounded, color: Colors.white, size: 23),
+                                  ),
+                                ),
+                              ),
                             ),
-                            child: const Align(
-                              alignment: Alignment.topRight,
+                          ),
+                        Positioned(
+                          top: 5,
+                          left: 5,
+                          child: Material(
+                            color: Colors.black.withValues(alpha: 0.58),
+                            shape: const CircleBorder(),
+                            child: InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: () => controller.toggleSelection(bookmark.comicId),
                               child: Padding(
-                                padding: EdgeInsets.all(7),
-                                child: Icon(Icons.check_circle_rounded, color: Colors.white, size: 23),
+                                padding: const EdgeInsets.all(4),
+                                child: Icon(
+                                  selected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                                  color: selected ? AppColors.primary : Colors.white,
+                                  size: 23,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                    ],
-                  ),
-                ),
+                      ],
+                    ),
+                  );
+                }),
               ],
             ),
           ),
