@@ -10,9 +10,13 @@ import 'package:mangaplus/app/data/sources/team_x_source.dart';
 class ComicService {
   ComicService({TeamXSource? source}) : _teamX = source ?? MangaSourceRegistry.teamX;
   static const Duration _detailCacheTtl = Duration(minutes: 3);
+  static const Duration _chapterCacheTtl = Duration(minutes: 3);
   static final Map<String, ComicDetailData> _detailCache = {};
   static final Map<String, DateTime> _detailCacheTimes = {};
   static final Map<String, Future<ComicDetailData>> _detailRequests = {};
+  static final Map<String, ChapterData> _chapterCache = {};
+  static final Map<String, DateTime> _chapterCacheTimes = {};
+  static final Map<String, Future<ChapterData>> _chapterRequests = {};
 
   final TeamXSource _teamX;
   final _azora = MangaSourceRegistry.azora;
@@ -258,7 +262,12 @@ class ComicService {
     return ComicDetailData(comicDetail: detail, source: sourceName);
   }
 
-  Future<ChapterData> fetchChapter(String chapterId) async {
+  Future<ChapterData> fetchChapter(String chapterId) => _withChapterCache(
+        'manga|${chapterId.trim()}',
+        () => _fetchChapterUncached(chapterId),
+      );
+
+  Future<ChapterData> _fetchChapterUncached(String chapterId) async {
     final source = MangaSourceRegistry.forUrl(chapterId);
     if (source == null) throw StateError('لم يتم العثور على مصدر لهذا الفصل.');
     final raw = await source.chapterImages(chapterId);
@@ -319,7 +328,12 @@ class ComicService {
     );
   }
 
-  Future<ChapterData> fetchNovelChapter(String chapterId) async {
+  Future<ChapterData> fetchNovelChapter(String chapterId) => _withChapterCache(
+        'novel|${chapterId.trim()}',
+        () => _fetchNovelChapterUncached(chapterId),
+      );
+
+  Future<ChapterData> _fetchNovelChapterUncached(String chapterId) async {
     final source = MangaSourceRegistry.forUrl(chapterId);
     if (source == null) throw StateError('لم يتم العثور على مصدر لهذا الفصل.');
     final sourceName = source.id == 'azora' ? 'Azora Novels' : source.name;
@@ -365,6 +379,45 @@ class ComicService {
       ),
       source: sourceName,
     );
+  }
+
+  Future<ChapterData> prefetchChapter(
+    String chapterId, {
+    required bool isNovel,
+  }) => isNovel ? fetchNovelChapter(chapterId) : fetchChapter(chapterId);
+
+  Future<ChapterData> _withChapterCache(
+    String key,
+    Future<ChapterData> Function() load,
+  ) async {
+    final cached = _chapterCache[key];
+    final cachedAt = _chapterCacheTimes[key];
+    if (cached != null && cachedAt != null &&
+        DateTime.now().difference(cachedAt) < _chapterCacheTtl) {
+      return cached;
+    }
+    final active = _chapterRequests[key];
+    if (active != null) return active;
+    final request = load();
+    _chapterRequests[key] = request;
+    try {
+      final chapter = await request;
+      _chapterCache[key] = chapter;
+      _chapterCacheTimes[key] = DateTime.now();
+      if (_chapterCache.length > 8) {
+        final oldest = _chapterCacheTimes.entries.toList()
+          ..sort((left, right) => left.value.compareTo(right.value));
+        for (final entry in oldest.take(_chapterCache.length - 8)) {
+          _chapterCache.remove(entry.key);
+          _chapterCacheTimes.remove(entry.key);
+        }
+      }
+      return chapter;
+    } finally {
+      if (identical(_chapterRequests[key], request)) {
+        _chapterRequests.remove(key);
+      }
+    }
   }
 
   String? _firstChapterReference(

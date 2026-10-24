@@ -1,54 +1,49 @@
 import 'package:flutter/material.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 
-class MangaPlusLoader extends StatefulWidget {
-  const MangaPlusLoader({super.key, this.size = 68});
+class MangaPlusLoader extends StatelessWidget {
+  const MangaPlusLoader({super.key, this.size = 68, this.progress});
 
   final double size;
+  final double? progress;
 
   @override
-  State<MangaPlusLoader> createState() => _MangaPlusLoaderState();
-}
-
-class _MangaPlusLoaderState extends State<MangaPlusLoader>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _rotation = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _rotation.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-        width: widget.size,
-        height: widget.size,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Image.asset(
-              'assets/images/mangaplus_loader_base.png',
-              width: widget.size,
-              height: widget.size,
-              fit: BoxFit.contain,
+  Widget build(BuildContext context) {
+    final value = progress?.clamp(0.0, 1.0).toDouble();
+    return SizedBox.square(
+      dimension: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox.square(
+            dimension: size,
+            child: CircularProgressIndicator(
+              value: value,
+              strokeWidth: size < 48 ? 3 : 3.5,
+              strokeCap: StrokeCap.round,
+              color: AppColors.primary,
+              backgroundColor: AppColors.divider.withValues(alpha: 0.65),
             ),
-            Positioned(
-              right: widget.size * 0.025,
-              bottom: widget.size * 0.08,
-              width: widget.size * 0.46,
-              height: widget.size * 0.46,
-              child: RotationTransition(
-                turns: _rotation,
-                child: Image.asset('assets/images/mangaplus_plus.png'),
+          ),
+          if (value == null)
+            Icon(
+              Icons.menu_book_rounded,
+              size: size * 0.34,
+              color: AppColors.primary.withValues(alpha: 0.9),
+            )
+          else
+            Text(
+              '${(value * 100).round()}%',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: size * 0.21,
+                fontWeight: FontWeight.w800,
               ),
             ),
-          ],
-        ),
-      );
+        ],
+      ),
+    );
+  }
 }
 
 class MangaPlusLogo extends StatelessWidget {
@@ -78,6 +73,8 @@ class BrandState extends StatelessWidget {
     required this.title,
     this.description,
     this.loading = false,
+    this.icon,
+    this.progress,
     this.actionLabel,
     this.onAction,
   });
@@ -85,6 +82,8 @@ class BrandState extends StatelessWidget {
   final String title;
   final String? description;
   final bool loading;
+  final IconData? icon;
+  final double? progress;
   final String? actionLabel;
   final VoidCallback? onAction;
 
@@ -101,8 +100,10 @@ class BrandState extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 loading
-                    ? const MangaPlusLoader(size: 68)
-                    : MangaPlusLogo(size: 68),
+                    ? MangaPlusLoader(size: 68, progress: progress)
+                    : icon == null
+                        ? const MangaPlusLogo(size: 68)
+                        : Icon(icon, size: 58, color: AppColors.primary),
                 const SizedBox(height: 18),
                 Text(
                   title,

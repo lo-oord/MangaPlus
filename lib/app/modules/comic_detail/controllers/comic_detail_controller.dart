@@ -14,6 +14,7 @@ import 'package:mangaplus/app/data/services/account_gate_service.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
 import 'package:mangaplus/app/data/services/download_manager_service.dart';
 import 'package:mangaplus/app/data/sources/team_x_source.dart';
+import 'package:mangaplus/app/core/utils/reader_load_issue.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -44,6 +45,7 @@ class ComicDetailController extends GetxController {
   ).obs;
 
   final isLoading = false.obs;
+  final loadIssue = Rxn<ReaderLoadIssue>();
   final downloadingChapters = <String, double>{}.obs;
   final filteredChapters = <Chapter>[].obs;
   final selectedChapterIds = <String>[].obs;
@@ -59,6 +61,7 @@ class ComicDetailController extends GetxController {
   List<Chapter>? _sortedChapterSource;
   List<Chapter> _sortedChapterCache = const [];
   bool? _sortedChapterAscending;
+  String _requestedComicId = '';
 
   @override
   void onInit() {
@@ -82,6 +85,7 @@ class ComicDetailController extends GetxController {
     final comicId = arguments is Map
         ? '${arguments['comicId'] ?? ''}'
         : arguments?.toString();
+    _requestedComicId = comicId?.trim() ?? '';
     if (arguments is Map && arguments['localOnly'] == true) {
       _loadLocalComic(arguments);
       return;
@@ -173,8 +177,13 @@ class ComicDetailController extends GetxController {
   Future<void> fetchComicDetail(String comicId) async {
     try {
       isLoading(true);
+      loadIssue.value = null;
       comicDetailData.value = await _comicService.fetchComicDetail(comicId);
     } catch (error) {
+      loadIssue.value = ReaderLoadIssue.from(
+        error,
+        fallbackTitle: 'تعذر تحميل بيانات المانجا',
+      );
       debugPrint('Manga details request failed: $error');
       AppFeedback.show(
         title: 'خطأ'.tr,
@@ -184,6 +193,10 @@ class ComicDetailController extends GetxController {
     } finally {
       isLoading(false);
     }
+  }
+
+  void retryComicDetail() {
+    if (_requestedComicId.isNotEmpty) fetchComicDetail(_requestedComicId);
   }
 
   void filterChapters(String query) {

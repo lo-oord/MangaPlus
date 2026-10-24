@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/core/utils/reader_load_issue.dart';
 import 'package:mangaplus/app/data/models/chapter.dart';
 import 'package:mangaplus/app/modules/chapter/controllers/chapter_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
@@ -38,12 +40,19 @@ class ChapterView extends GetView<ChapterController> {
 
   Widget _buildContent(BuildContext context) {
     return Obx(() {
-      if (controller.isLoading.value) {
-        return BrandState(title: 'جارٍ تحميل الفصل'.tr, loading: true);
+      if (controller.isLoading.value && !controller.hasReadableContent) {
+        return BrandState(
+          title: 'جارٍ تحميل الفصل'.tr,
+          description: 'يتم تجهيز صفحات الفصل'.tr,
+          loading: true,
+        );
       }
       if (controller.hasError.value) {
+        final issue = controller.loadIssue.value;
         return BrandState(
-          title: 'تعذر تحميل الفصل'.tr,
+          title: (issue?.titleKey ?? 'تعذر تحميل الفصل').tr,
+          description: (issue?.descriptionKey ?? 'تعذر تحميل المحتوى. حاول مجددًا.').tr,
+          icon: issue?.icon ?? Icons.error_outline_rounded,
           actionLabel: 'إعادة المحاولة'.tr,
           onAction: () => controller.fetchChapter(controller.chapterId),
         );
@@ -84,6 +93,12 @@ class ChapterView extends GetView<ChapterController> {
                 controller.onPageChanged(index);
                 if (!controller.isOffline.value) {
                   _preloadImages(context, chapter.images, start: index + 1);
+                  if (index >= chapter.images.length - 2) {
+                    _preloadAdjacentChapterImages(context);
+                  }
+                  if (index <= 1) {
+                    _preloadAdjacentChapterImages(context, previous: true);
+                  }
                 }
               },
               itemBuilder: (context, index) =>
@@ -108,7 +123,28 @@ class ChapterView extends GetView<ChapterController> {
           onNotification: (notification) {
             if (notification is ScrollUpdateNotification ||
                 notification is ScrollEndNotification) {
-              controller.handleScroll(notification.metrics);
+              controller.handleScroll(
+                notification.metrics,
+                scrollDelta: notification is ScrollUpdateNotification
+                    ? notification.scrollDelta
+                    : null,
+              );
+              if (notification.metrics.extentAfter <=
+                      notification.metrics.viewportDimension * 2 &&
+                  !controller.isOffline.value) {
+                _preloadAdjacentChapterImages(context);
+              }
+              if (notification.metrics.pixels <=
+                      notification.metrics.viewportDimension * 2 &&
+                  !controller.isOffline.value) {
+                _preloadAdjacentChapterImages(context, previous: true);
+              }
+            }
+            if (notification is OverscrollNotification) {
+              controller.handleScroll(
+                notification.metrics,
+                scrollDelta: notification.overscroll < 0 ? -1.0 : 1.0,
+              );
             }
             if (notification is ScrollEndNotification) {
               final notificationContext = notification.context;
@@ -152,7 +188,7 @@ class ChapterView extends GetView<ChapterController> {
             return ColoredBox(
               color: background,
               child: Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
+                child: const MangaPlusLoader(size: 54),
               ),
             );
           }
@@ -189,7 +225,18 @@ class ChapterView extends GetView<ChapterController> {
                       notification.metrics.pixels,
                       notification.metrics.maxScrollExtent,
                     );
-                    controller.handleScroll(notification.metrics);
+                    controller.handleScroll(
+                      notification.metrics,
+                      scrollDelta: notification is ScrollUpdateNotification
+                          ? notification.scrollDelta
+                          : null,
+                    );
+                  }
+                  if (notification is OverscrollNotification) {
+                    controller.handleScroll(
+                      notification.metrics,
+                      scrollDelta: notification.overscroll < 0 ? -1.0 : 1.0,
+                    );
                   }
                   if (notification is ScrollEndNotification) {
                     controller.persistScrollOffset(notification.metrics.pixels);
@@ -299,7 +346,7 @@ class ChapterView extends GetView<ChapterController> {
     } else if (isNextPage) {
       controller.navigateToChapter(controller.nextChapterId);
     } else {
-      controller.navigateToChapter(controller.previousChapterId);
+      controller.navigateToChapter(controller.previousChapterId, reverse: true);
     }
   }
 
@@ -396,6 +443,25 @@ class ChapterView extends GetView<ChapterController> {
                                 : 'القراءة الصوتية'.tr,
                         onPressed: () => controller.toggleNovelSpeech(),
                       ),
+                    if (!controller.isNovel)
+                      _readerIconButton(
+                        icon: controller.readerMode.value == 'paged'
+                            ? Icons.view_stream_rounded
+                            : Icons.menu_book_rounded,
+                        tooltip: 'تبديل وضع القراءة'.tr,
+                        onPressed: () => controller.setReaderMode(
+                          controller.readerMode.value == 'paged' ? 'scroll' : 'paged',
+                        ),
+                      ),
+                    if (!controller.isNovel &&
+                        controller.readerMode.value == 'paged')
+                      _readerIconButton(
+                        icon: Icons.swap_horiz_rounded,
+                        tooltip: 'تبديل اتجاه القراءة'.tr,
+                        onPressed: () => controller.setReadingDirection(
+                          controller.readingDirection.value == 'rtl' ? 'ltr' : 'rtl',
+                        ),
+                      ),
                     Expanded(
                       child: GestureDetector(
                         onTap: _openChapterList,
@@ -418,7 +484,7 @@ class ChapterView extends GetView<ChapterController> {
                             Text(
                               controller.isNovel
                                   ? '${(progress * 100).round()}%'
-                                  : '${controller.currentPage.value + 1} / ${chapter.images.length}',
+                                  : '${(progress * 100).round()}%  •  ${controller.currentPage.value + 1}/${chapter.images.length}',
                               style: TextStyle(
                                 color: AppColors.textSecondary,
                                 fontSize: 11,
@@ -442,7 +508,10 @@ class ChapterView extends GetView<ChapterController> {
                       icon: Icons.chevron_left_rounded,
                       tooltip: 'الفصل السابق'.tr,
                       onPressed: controller.previousChapterId != null
-                          ? () => controller.navigateToChapter(controller.previousChapterId)
+                          ? () => controller.navigateToChapter(
+                                controller.previousChapterId,
+                                reverse: true,
+                              )
                           : null,
                     ),
                     _readerIconButton(
@@ -1122,24 +1191,45 @@ class ChapterView extends GetView<ChapterController> {
               imageUrl: imageUrl,
               httpHeaders: _imageHeaders(imageUrl),
               memCacheWidth: decodeWidth,
-              imageBuilder: (context, imageProvider) => Image(
-                image: imageProvider,
-                width: double.infinity,
-                height: double.infinity,
-                fit: fit,
-                filterQuality: FilterQuality.medium,
-                gaplessPlayback: true,
-              ),
-              placeholder: (context, url) => const Center(
-                child: MangaPlusLoader(size: 54),
-              ),
-              errorWidget: (context, url, error) => Center(
-                child: IconButton(
-                  tooltip: 'إعادة المحاولة'.tr,
-                  onPressed: () => controller.fetchChapter(controller.chapterId),
-                  icon: const Icon(Icons.refresh_rounded, color: Colors.white70),
+                imageBuilder: (context, imageProvider) => Image(
+                  image: imageProvider,
+                  width: double.infinity,
+                  height: double.infinity,
+                  fit: fit,
+                  filterQuality: FilterQuality.medium,
+                  gaplessPlayback: true,
                 ),
-              ),
+                progressIndicatorBuilder: (context, url, downloadProgress) =>
+                    Center(
+                  child: MangaPlusLoader(
+                    size: 58,
+                    progress: downloadProgress.progress,
+                  ),
+                ),
+                placeholder: (context, url) => const Center(
+                  child: MangaPlusLoader(size: 54),
+                ),
+                errorWidget: (context, url, error) {
+                  final issue = ReaderLoadIssue.from(
+                    error,
+                    fallbackTitle: 'تعذر تحميل الصورة',
+                  );
+                  return Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(issue.icon, color: AppColors.primary, size: 42),
+                      const SizedBox(height: 8),
+                      Text(issue.titleKey.tr,
+                          style: TextStyle(color: AppColors.textPrimary)),
+                      TextButton.icon(
+                        tooltip: issue.descriptionKey.tr,
+                        onPressed: () => controller.fetchChapter(controller.chapterId),
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: Text('إعادة المحاولة'.tr),
+                      ),
+                    ],
+                  );
+                },
             );
       return ColoredBox(
         color: Colors.black,
@@ -1184,6 +1274,17 @@ class ChapterView extends GetView<ChapterController> {
                   filterQuality: FilterQuality.medium,
                   gaplessPlayback: true,
                 ),
+                progressIndicatorBuilder: (context, url, downloadProgress) =>
+                    SizedBox(
+                  width: double.infinity,
+                  height: MediaQuery.sizeOf(context).height * 0.68,
+                  child: Center(
+                    child: MangaPlusLoader(
+                      size: 58,
+                      progress: downloadProgress.progress,
+                    ),
+                  ),
+                ),
                 placeholder: (context, url) => SizedBox(
                   width: double.infinity,
                   height: MediaQuery.sizeOf(context).height * 0.68,
@@ -1194,30 +1295,40 @@ class ChapterView extends GetView<ChapterController> {
                     ],
                   ),
                 ),
-                errorWidget: (context, url, error) => SizedBox(
-                  width: double.infinity,
-                  height: MediaQuery.sizeOf(context).height * 0.68,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.broken_image_outlined,
-                        size: 44,
-                        color: Colors.white70,
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'تعذر تحميل الصورة'.tr,
-                        style: const TextStyle(color: Colors.white70),
-                      ),
-                      TextButton.icon(
-                        onPressed: () => controller.fetchChapter(controller.chapterId),
-                        icon: const Icon(Icons.refresh_rounded),
-                        label: Text('إعادة المحاولة'.tr),
-                      ),
-                    ],
-                  ),
-                ),
+                errorWidget: (context, url, error) {
+                  final issue = ReaderLoadIssue.from(
+                    error,
+                    fallbackTitle: 'تعذر تحميل الصورة',
+                  );
+                  return SizedBox(
+                    width: double.infinity,
+                    height: MediaQuery.sizeOf(context).height * 0.68,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(issue.icon, size: 42, color: AppColors.primary),
+                        const SizedBox(height: 10),
+                        Text(
+                          issue.titleKey.tr,
+                          style: TextStyle(color: AppColors.textPrimary),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 28),
+                          child: Text(
+                            issue.descriptionKey.tr,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => controller.fetchChapter(controller.chapterId),
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: Text('إعادة المحاولة'.tr),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               );
         },
       ),
@@ -1249,6 +1360,25 @@ class ChapterView extends GetView<ChapterController> {
         _preloadedImages.remove(url);
         debugPrint('Unable to preload Team X page: $error');
       }
+    }));
+  }
+
+  void _preloadAdjacentChapterImages(
+    BuildContext context, {
+    bool previous = false,
+  }) {
+    final adjacentChapter = previous
+        ? controller.previousChapterId
+        : controller.nextChapterId;
+    if (adjacentChapter == null) return;
+    unawaited(controller.prefetchChapter(adjacentChapter).then((data) {
+      if (!context.mounted || data == null || controller.isNovel) return;
+      final start = previous
+          ? (data.chapter.images.length - 3)
+              .clamp(0, data.chapter.images.length)
+              .toInt()
+          : 0;
+      _preloadImages(context, data.chapter.images, start: start, count: 3);
     }));
   }
 

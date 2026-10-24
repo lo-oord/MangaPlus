@@ -30,12 +30,15 @@ class ComicDetailView extends GetView<ComicDetailController> {
         );
       }
       if (comic.title.isEmpty) {
+        final issue = controller.loadIssue.value;
         return Scaffold(
           backgroundColor: AppColors.background,
           body: BrandState(
-            title: 'تفاصيل القصة غير متاحة'.tr,
+            title: (issue?.titleKey ?? 'تفاصيل القصة غير متاحة').tr,
+            description: issue == null ? null : issue.descriptionKey.tr,
+            icon: issue?.icon,
             actionLabel: 'إعادة المحاولة'.tr,
-            onAction: () => controller.fetchComicDetail('${Get.arguments ?? ''}'),
+            onAction: controller.retryComicDetail,
           ),
         );
       }

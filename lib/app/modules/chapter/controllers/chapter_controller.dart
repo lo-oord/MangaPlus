@@ -10,6 +10,7 @@ import 'package:mangaplus/app/data/models/chapter.dart';
 import 'package:mangaplus/app/data/models/history.dart';
 import 'package:mangaplus/app/data/services/app_data_service.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
+import 'package:mangaplus/app/core/utils/reader_load_issue.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 
 List<String> _splitNovelParagraphs(String content) => content
@@ -24,6 +25,7 @@ class ChapterController extends GetxController {
   final GetStorage _storage = GetStorage();
   final List<ChapterElement> _argumentChapterNavigation = [];
   final List<ChapterElement> _fallbackChapterNavigation = [];
+  final Set<String> _prefetchingChapters = <String>{};
   final chapterNavigationRevision = 0.obs;
 
   PageController? _pageController;
@@ -46,6 +48,33 @@ class ChapterController extends GetxController {
   bool get hasReadableContent => isNovel
       ? chapterData.value.chapter.content.trim().isNotEmpty
       : chapterData.value.chapter.images.isNotEmpty;
+
+  Future<ChapterData?> prefetchChapter(String? id) async {
+    final reference = _chapterReference(id);
+    if (reference == null ||
+        _sameChapterReference(reference, chapterId) ||
+        isOffline.value ||
+        !_prefetchingChapters.add(reference)) {
+      return null;
+    }
+    try {
+      return await _comicService.prefetchChapter(reference, isNovel: isNovel);
+    } catch (error) {
+      debugPrint('Unable to prefetch adjacent chapter: $error');
+      return null;
+    } finally {
+      _prefetchingChapters.remove(reference);
+    }
+  }
+
+  Future<void> _prefetchAdjacentChapters() async {
+    if (!continuousNavigation.value || isOffline.value) return;
+    final targets = <String>{
+      if (nextChapterId != null) nextChapterId!,
+      if (previousChapterId != null) previousChapterId!,
+    };
+    await Future.wait(targets.map(prefetchChapter));
+  }
   String? _paragraphSource;
   Future<List<String>>? _paragraphsFuture;
 
@@ -81,6 +110,7 @@ class ChapterController extends GetxController {
   final isLoading = false.obs;
   final isOffline = false.obs;
   final hasError = false.obs;
+  final loadIssue = Rxn<ReaderLoadIssue>();
   final localImages = <String>[].obs;
 
   final showNavigation = false.obs;
@@ -185,12 +215,19 @@ class ChapterController extends GetxController {
       _sameChapterReference(item.chapterId, chapterId) ||
       _sameChapterReference(item.url, chapterId);
 
-  Future<void> fetchChapter(String id) async {
+  Future<void> fetchChapter(
+    String id, {
+    bool keepCurrentContent = false,
+    bool startAtEnd = false,
+  }) async {
     try {
       isLoading(true);
       hasError(false);
+      loadIssue.value = null;
       endNoticeShown = false;
-      _restoreReaderPosition(id);
+      if (!keepCurrentContent || !hasReadableContent) {
+        _restoreReaderPosition(id);
+      }
 
       final downloadedChapters =
           _storage.read<List<dynamic>>('downloadedChapters') ?? [];
@@ -290,11 +327,15 @@ class ChapterController extends GetxController {
         );
       }
 
+      if (keepCurrentContent) _restoreReaderPosition(id);
       final pageCount = chapterData.value.chapter.images.length;
       if (pageCount > 0) {
-        currentPage.value = currentPage.value.clamp(0, pageCount - 1).toInt();
+        currentPage.value = startAtEnd
+            ? pageCount - 1
+            : currentPage.value.clamp(0, pageCount - 1).toInt();
+        if (startAtEnd) _restoredScrollOffset = 0;
         if (isNovel || readerMode.value == 'scroll') {
-          _pendingScrollRestore = _restoredScrollOffset;
+          _pendingScrollRestore = startAtEnd ? double.maxFinite : _restoredScrollOffset;
         }
         final loadedTitle = chapterData.value.chapter.title.trim();
         if (loadedTitle.isNotEmpty &&
@@ -310,11 +351,13 @@ class ChapterController extends GetxController {
           });
         }
       } else if (isNovel && chapterData.value.chapter.content.isNotEmpty) {
-        _pendingScrollRestore = _restoredScrollOffset;
+        if (startAtEnd) _restoredScrollOffset = 0;
+        _pendingScrollRestore = startAtEnd ? double.maxFinite : _restoredScrollOffset;
         currentPage.value = 0;
       }
     } catch (error) {
       hasError(true);
+      loadIssue.value = ReaderLoadIssue.from(error);
       debugPrint('Chapter request failed: $error');
     } finally {
       isLoading(false);
@@ -333,19 +376,19 @@ class ChapterController extends GetxController {
   }
 
   String? get previousChapterId {
+    final adjacent = _adjacentChapter(forward: false)?.chapterId;
+    if (adjacent != null && !_sameChapterReference(adjacent, chapterId)) {
+      return adjacent;
+    }
     final direct = _chapterReference(chapterData.value.chapter.previousChapter);
     if (direct != null && !_sameChapterReference(direct, chapterId)) return direct;
-    return _adjacentChapter(forward: false)?.chapterId;
+    return null;
   }
 
   ChapterElement? _adjacentChapter({required bool forward}) {
     final chapters = _navigationChapters;
-    final index = chapters.indexWhere(
-      isCurrentChapter,
-    );
-    if (index < 0) return null;
-
-    final currentNumber = _chapterNumber(chapters[index].title) ??
+    final index = chapters.indexWhere(isCurrentChapter);
+    final currentNumber = (index >= 0 ? _chapterNumber(chapters[index].title) : null) ??
         _chapterNumber(currentChapterTitle);
     if (currentNumber != null) {
       final candidates = chapters
@@ -359,6 +402,7 @@ class ChapterController extends GetxController {
       if (candidates.isNotEmpty) return candidates.first.chapter;
     }
 
+    if (index < 0) return null;
     // Source chapter lists are commonly ordered newest to oldest.
     final adjacentIndex = forward ? index - 1 : index + 1;
     return adjacentIndex >= 0 && adjacentIndex < chapters.length
@@ -407,7 +451,7 @@ class ChapterController extends GetxController {
     return chapter?.title ?? '';
   }
 
-  Future<void> navigateToChapter(String? id) async {
+  Future<void> navigateToChapter(String? id, {bool reverse = false}) async {
     final reference = _chapterReference(id);
     if (reference == null ||
         _sameChapterReference(reference, chapterId) ||
@@ -433,18 +477,13 @@ class ChapterController extends GetxController {
     try {
       chapterId = reference;
       currentChapterTitle = nextTitle;
-      currentPage.value = 0;
-      _restoredScrollOffset = 0;
-      novelProgress.value = 0;
-      if (_scrollController?.hasClients == true) {
-        _scrollController!.jumpTo(0);
-      }
-      if (_pageController?.hasClients == true) {
-        _pageController!.jumpToPage(0);
-      }
-
-      await fetchChapter(reference);
+      await fetchChapter(
+        reference,
+        keepCurrentContent: true,
+        startAtEnd: reverse,
+      );
       if (hasError.value || !hasReadableContent) {
+        final issue = loadIssue.value;
         chapterId = previousId;
         currentChapterTitle = previousTitle;
         chapterData.value = previousData;
@@ -462,13 +501,15 @@ class ChapterController extends GetxController {
           }
         });
         hasError(false);
+        loadIssue.value = null;
         AppFeedback.show(
-          title: 'تعذر فتح الفصل'.tr,
-          message: 'حاول مرة أخرى'.tr,
+          title: (issue?.titleKey ?? 'تعذر فتح الفصل').tr,
+          message: (issue?.descriptionKey ?? 'حاول مرة أخرى').tr,
         );
         return;
       }
       await _markAsRead(chapterId, currentChapterTitle);
+      unawaited(_prefetchAdjacentChapters());
     } catch (error) {
       chapterId = previousId;
       currentChapterTitle = previousTitle;
@@ -487,10 +528,11 @@ class ChapterController extends GetxController {
         }
       });
       hasError(false);
+      final issue = loadIssue.value;
       debugPrint('Unable to navigate to chapter: $error');
       AppFeedback.show(
-        title: 'تعذر فتح الفصل'.tr,
-        message: 'حاول مرة أخرى'.tr,
+        title: (issue?.titleKey ?? 'تعذر فتح الفصل').tr,
+        message: (issue?.descriptionKey ?? 'حاول مرة أخرى').tr,
       );
     } finally {
       isNavigating.value = false;
@@ -1014,6 +1056,11 @@ class ChapterController extends GetxController {
   void onPageChanged(int page) {
     if (chapterData.value.chapter.images.isEmpty) return;
     setCurrentPage(page);
+    if (readerMode.value == 'paged' &&
+        continuousNavigation.value &&
+        page >= chapterData.value.chapter.images.length - 2) {
+      unawaited(prefetchChapter(nextChapterId));
+    }
     if (readerMode.value != 'paged' ||
         !continuousNavigation.value ||
         isNavigating.value ||
@@ -1028,7 +1075,10 @@ class ChapterController extends GetxController {
     }
   }
 
-  Future<void> handleScroll(ScrollMetrics metrics) async {
+  Future<void> handleScroll(
+    ScrollMetrics metrics, {
+    double? scrollDelta,
+  }) async {
     if (readerMode.value != 'scroll' ||
         !continuousNavigation.value ||
         isNavigating.value) {
@@ -1037,6 +1087,16 @@ class ChapterController extends GetxController {
     final threshold = metrics.viewportDimension * 0.04 > 28
         ? metrics.viewportDimension * 0.04
         : 28.0;
+    if (metrics.extentAfter <= metrics.viewportDimension * 2) {
+      unawaited(prefetchChapter(nextChapterId));
+    }
+    if (metrics.pixels <= threshold && (scrollDelta ?? 0) < -1) {
+      final previous = previousChapterId;
+      if (previous != null) {
+        await navigateToChapter(previous, reverse: true);
+        return;
+      }
+    }
     if (metrics.extentAfter > threshold) return;
     final next = nextChapterId;
     if (next != null) {
@@ -1114,6 +1174,7 @@ class ChapterController extends GetxController {
         await _markAsRead(chapterId, currentChapterTitle);
       }
       await _loadChapterNavigationIfMissing();
+      unawaited(_prefetchAdjacentChapters());
     }));
   }
 
