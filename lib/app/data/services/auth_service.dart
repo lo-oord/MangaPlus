@@ -58,8 +58,9 @@ class AuthService {
     );
     final user = credential.user;
     if (user == null) throw const AuthException('تعذر إنشاء الحساب.');
+    UserProfile profile;
     try {
-      await _reserveUsernameAndCreateProfile(
+      profile = await _reserveUsernameAndCreateProfile(
         user: user,
         normalized: normalized,
         displayName: displayName.trim(),
@@ -68,13 +69,17 @@ class AuthService {
         birthDate: birthDate,
         gender: gender,
       );
-      await user.sendEmailVerification();
-      return (await loadProfile(user.uid))!;
     } catch (_) {
       await _firestore.collection('usernames').doc(normalized).delete().catchError((_) {});
       await user.delete().catchError((_) {});
       rethrow;
     }
+    try {
+      await user.sendEmailVerification();
+    } catch (error) {
+      throw VerificationEmailSendException(profile, error);
+    }
+    return profile;
   }
 
   Future<UserProfile> signInEmail(String email, String password) async {
@@ -126,7 +131,7 @@ class AuthService {
     if (user == null) throw const AuthException('انتهت جلسة التسجيل.');
     final normalized = normalizeUsername(username);
     validateUsername(normalized);
-    await _reserveUsernameAndCreateProfile(
+    return _reserveUsernameAndCreateProfile(
       user: user,
       normalized: normalized,
       displayName: user.displayName?.trim().isNotEmpty == true
@@ -137,7 +142,6 @@ class AuthService {
       birthDate: birthDate,
       gender: gender,
     );
-    return (await loadProfile(user.uid))!;
   }
 
   Future<UserProfile> continueAsGuest() async {
@@ -262,7 +266,7 @@ class AuthService {
     await user.updatePassword(newPassword);
   }
 
-  Future<void> _reserveUsernameAndCreateProfile({
+  Future<UserProfile> _reserveUsernameAndCreateProfile({
     required User user,
     required String normalized,
     required String displayName,
@@ -273,30 +277,31 @@ class AuthService {
   }) async {
     final usernameRef = _firestore.collection('usernames').doc(normalized);
     final profileRef = _profiles.doc(user.uid);
+    final profile = UserProfile(
+      uid: user.uid,
+      email: user.email ?? '',
+      displayName: displayName,
+      username: normalized,
+      countryCode: countryCode,
+      countryName: countryName,
+      createdAt: DateTime.now(),
+      birthDate: birthDate,
+      gender: gender,
+      emailVerified: user.emailVerified,
+      isGuest: user.isAnonymous,
+    );
     await _firestore.runTransaction((transaction) async {
       final reserved = await transaction.get(usernameRef);
       if (reserved.exists && '${reserved.data()?['uid']}' != user.uid) {
         throw const AuthException('اسم المستخدم مستخدم بالفعل.');
       }
-      final profile = UserProfile(
-        uid: user.uid,
-        email: user.email ?? '',
-        displayName: displayName,
-        username: normalized,
-        countryCode: countryCode,
-        countryName: countryName,
-        createdAt: DateTime.now(),
-        birthDate: birthDate,
-        gender: gender,
-        emailVerified: user.emailVerified,
-        isGuest: user.isAnonymous,
-      );
       transaction.set(usernameRef, {
         'uid': user.uid,
         'createdAt': FieldValue.serverTimestamp(),
       });
       transaction.set(profileRef, profile.toFirestore());
     });
+    return profile;
   }
 
   static String normalizeUsername(String value) => value.trim().toLowerCase();
@@ -315,4 +320,11 @@ class AuthException implements Exception {
   final String message;
   @override
   String toString() => message;
+}
+
+class VerificationEmailSendException implements Exception {
+  const VerificationEmailSendException(this.profile, this.cause);
+
+  final UserProfile profile;
+  final Object cause;
 }

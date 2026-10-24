@@ -1,9 +1,15 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    function verifiedOrAnonymous() {
+      return request.auth != null &&
+        (request.auth.token.firebase.sign_in_provider == 'anonymous' ||
+         request.auth.token.email_verified == true);
+    }
+
     match /userProfiles/{uid}/avatar {
       allow read: if request.auth != null && request.auth.uid == uid;
-      allow create, update: if request.auth != null
+      allow create, update: if verifiedOrAnonymous()
         && request.auth.uid == uid
         && request.resource.size < 5 * 1024 * 1024
         && request.resource.contentType.matches('image/(jpeg|png|webp)');

@@ -24,7 +24,7 @@ service cloud.firestore {
 
       // الهوية والبريد والدولة والجنس وحالة التوثيق ووقت الإنشاء حقول ثابتة.
       // يسمح للمستخدم بتغيير الاسم الظاهر والنبذة والصورة والمزامنة وإعدادات العرض فقط.
-      allow update: if signedInAs(uid)
+      allow update: if verifiedOrAnonymous(uid)
         && request.resource.data.get('uid', null) == resource.data.get('uid', null)
         && request.resource.data.get('email', null) == resource.data.get('email', null)
         && request.resource.data.get('username', null) == resource.data.get('username', null)

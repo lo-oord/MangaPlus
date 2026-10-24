@@ -226,13 +226,16 @@ class AuthController extends GetxController {
         }
       } else {
         profile.value = await service.signInEmail(email.text, password.text);
-        await AccountSyncService().syncLocalData();
         if (service.currentUser?.emailVerified != true && service.currentUser?.isAnonymous != true) {
           emailVerificationRequired.value = true;
         } else {
+          await AccountSyncService().syncLocalData();
           Get.back(result: profile.value);
         }
       }
+    } on VerificationEmailSendException catch (error) {
+      profile.value = error.profile;
+      emailVerificationRequired.value = true;
     } catch (error) {
       _message('تعذر تنفيذ العملية', _friendlyError(error));
     } finally {
@@ -329,6 +332,12 @@ class AuthController extends GetxController {
     try {
       await service.sendPasswordReset(normalized);
       return null;
+    } on FirebaseAuthException catch (error) {
+      if (const {'user-not-found', 'user-disabled', 'invalid-credential'}
+          .contains(error.code)) {
+        return null;
+      }
+      return _friendlyError(error);
     } catch (error) {
       return _friendlyError(error);
     }
@@ -412,15 +421,15 @@ class AuthController extends GetxController {
     if (error is AuthException) return error.message;
     if (error is FirebaseAuthException) {
       return switch (error.code) {
-        'email-already-in-use' => 'هذا البريد مستخدم بالفعل.',
+        'email-already-in-use' => 'تعذر إكمال العملية. حاول مرة أخرى.',
         'invalid-credential' || 'wrong-password' || 'user-not-found' => 'بيانات الدخول غير صحيحة.',
         'network-request-failed' => 'تحقق من اتصال الإنترنت.',
         'weak-password' => 'كلمة المرور ضعيفة.',
         'operation-not-allowed' => 'طريقة التسجيل هذه غير مفعلة في Firebase Console.',
         'too-many-requests' => 'محاولات كثيرة. انتظر قليلًا ثم حاول مجددًا.',
-        'user-disabled' => 'هذا الحساب معطل.',
+        'user-disabled' => 'تعذر إكمال العملية. تحقق من بيانات الدخول وحاول مجددًا.',
         'popup-closed-by-user' || 'sign_in_canceled' => 'تم إلغاء تسجيل الدخول.',
-        'account-exists-with-different-credential' => 'البريد مرتبط بطريقة تسجيل دخول أخرى.',
+        'account-exists-with-different-credential' => 'تعذر إكمال تسجيل الدخول بهذه الطريقة.',
         _ => 'تعذر إكمال العملية. حاول مرة أخرى.',
       };
     }

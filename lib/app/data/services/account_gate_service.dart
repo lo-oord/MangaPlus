@@ -8,13 +8,22 @@ class AccountGateService {
     final auth = Get.isRegistered<AuthService>()
         ? Get.find<AuthService>()
         : Get.put<AuthService>(AuthService(), permanent: true);
-    if (auth.currentUser != null &&
-        !auth.currentUser!.isAnonymous &&
-        auth.currentUser!.emailVerified) return true;
+    var activeUser = auth.currentUser;
+    if (activeUser != null && !activeUser.isAnonymous) {
+      try {
+        await activeUser.reload();
+        activeUser = auth.currentUser;
+      } catch (_) {
+        // Keep the cached state; Firebase rules remain authoritative offline.
+      }
+    }
+    if (activeUser != null &&
+        !activeUser.isAnonymous &&
+        activeUser.emailVerified) return true;
 
-    if (auth.currentUser != null &&
-        !auth.currentUser!.isAnonymous &&
-        !auth.currentUser!.emailVerified) {
+    if (activeUser != null &&
+        !activeUser.isAnonymous &&
+        !activeUser.emailVerified) {
       Get.snackbar(
         'تحقق من بريدك الإلكتروني'.tr,
         'يجب تأكيد البريد قبل استخدام هذه الميزة.'.tr,
