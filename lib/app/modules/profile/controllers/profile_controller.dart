@@ -10,6 +10,7 @@ import 'package:mangaplus/app/data/services/account_sync_service.dart';
 import 'package:mangaplus/app/data/services/bookmark_state_service.dart';
 import 'package:mangaplus/app/data/services/auth_service.dart';
 import 'package:mangaplus/app/data/services/notification_presentation.dart';
+import 'package:mangaplus/app/data/services/chapter_update_service.dart';
 import 'package:mangaplus/app/modules/history/controllers/history_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 
@@ -20,6 +21,9 @@ class ProfileController extends GetxController {
   final Rxn<UserProfile> accountProfile = Rxn<UserProfile>();
   final RxBool accountLoading = false.obs;
   final RxBool savingAccount = false.obs;
+  final RxBool favoritesNotificationsEnabled = false.obs;
+  final RxBool mangaNotificationsEnabled = true.obs;
+  final RxBool novelNotificationsEnabled = true.obs;
   int _themeRevision = 0;
   late final AuthService? _auth;
 
@@ -36,6 +40,10 @@ class ProfileController extends GetxController {
     final savedTheme = ThemeModePreference.fromStorage(_storage.read<String>('themeMode'));
     isDarkMode.value = savedTheme == ThemeMode.dark;
     _auth = Get.isRegistered<AuthService>() ? Get.find<AuthService>() : null;
+    final chapterService = Get.find<ChapterUpdateService>();
+    favoritesNotificationsEnabled.value = chapterService.backgroundEnabled;
+    mangaNotificationsEnabled.value = chapterService.mangaNotificationsEnabled;
+    novelNotificationsEnabled.value = chapterService.novelNotificationsEnabled;
     _loadAccount();
     super.onInit();
   }
@@ -73,6 +81,26 @@ class ProfileController extends GetxController {
   }
 
   Future<void> refreshAccount() => _loadAccount();
+
+  Future<void> setFavoritesNotifications(bool value) async {
+    favoritesNotificationsEnabled.value = value;
+    final service = Get.find<ChapterUpdateService>();
+    await service.setBackgroundEnabled(value);
+    if (value && await service.isBatteryOptimizationIgnored() == false) {
+      await service.requestBatteryOptimizationExemption();
+    }
+  }
+
+  Future<void> setMangaNotifications(bool value) async {
+    mangaNotificationsEnabled.value = value;
+    await Get.find<ChapterUpdateService>().setMangaNotificationsEnabled(value);
+  }
+
+  Future<void> setNovelNotifications(bool value) async {
+    novelNotificationsEnabled.value = value;
+    await Get.find<ChapterUpdateService>().setNovelNotificationsEnabled(value);
+  }
+
   Future<void> openAuth() async { await Get.toNamed(Routes.AUTH); await refreshAccount(); }
 
   Future<void> changeAvatar() async {

@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:workmanager/workmanager.dart';
 
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
@@ -15,6 +16,7 @@ import 'package:mangaplus/app/core/theme/theme.dart';
 import 'package:mangaplus/app/core/theme/theme_mode_preference.dart';
 import 'package:mangaplus/app/data/services/notification_presentation.dart';
 import 'package:mangaplus/app/data/services/app_notification_service.dart';
+import 'package:mangaplus/app/data/services/chapter_update_service.dart';
 import 'package:mangaplus/app/data/services/download_manager_service.dart';
 import 'package:mangaplus/app/core/translations/app_translations.dart';
 
@@ -52,6 +54,15 @@ void _handleForegroundMessage(RemoteMessage message) {
   showFlutterNotification(message);
 }
 
+void _handleLocalNotificationResponse(NotificationResponse response) {
+  final comicId = response.payload?.trim() ?? '';
+  if (comicId.isNotEmpty) {
+    Get.toNamed(Routes.COMIC_DETAIL, arguments: comicId);
+  } else {
+    Get.toNamed(Routes.NOTIFICATIONS);
+  }
+}
+
 Future<void> setupFlutterNotifications({required String languageCode}) async {
   if (isFlutterLocalNotificationsInitialized) {
     return;
@@ -63,7 +74,7 @@ Future<void> setupFlutterNotifications({required String languageCode}) async {
     const InitializationSettings(
       android: AndroidInitializationSettings('ic_stat_mangaplus'),
     ),
-    onDidReceiveNotificationResponse: (_) => Get.toNamed(Routes.NOTIFICATIONS),
+    onDidReceiveNotificationResponse: _handleLocalNotificationResponse,
   );
 
   /// Create an Android Notification Channel.
@@ -146,8 +157,18 @@ void main() async {
       : const Locale('ar', 'SA');
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  if (!kIsWeb) {
+    await Workmanager().initialize(
+      chapterUpdateCallbackDispatcher,
+      isInDebugMode: false,
+    );
+  }
   if (!kIsWeb) FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
   final notificationService = Get.put(AppNotificationService(), permanent: true);
+  final chapterUpdateService = Get.put(
+    ChapterUpdateService(appNotificationService: notificationService),
+    permanent: true,
+  );
   if (!kIsWeb) {
     unawaited(notificationService.initialize().catchError((_) {}));
   }
@@ -188,11 +209,21 @@ void main() async {
   );
   if (!kIsWeb) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      setupFlutterNotifications(languageCode: savedLanguage).then((_) {
+      setupFlutterNotifications(languageCode: savedLanguage).then((_) async {
+        chapterUpdateService.attachNotificationPlugin(
+          flutterLocalNotificationsPlugin,
+          languageCode: savedLanguage,
+        );
+        unawaited(chapterUpdateService.initializeBackground());
+        unawaited(chapterUpdateService.checkOnAppOpen());
         for (final message in _pendingForegroundNotifications) {
           showFlutterNotification(message);
         }
         _pendingForegroundNotifications.clear();
+        final launchDetails = await flutterLocalNotificationsPlugin.getNotificationAppLaunchDetails();
+        if (launchDetails?.didNotificationLaunchApp == true && launchDetails?.notificationResponse != null) {
+          _handleLocalNotificationResponse(launchDetails!.notificationResponse!);
+        }
       }).catchError((Object error) {
         debugPrint('Unable to initialize local notifications: $error');
       });

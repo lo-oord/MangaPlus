@@ -86,6 +86,29 @@ class AppNotificationService {
     await _storage.write(_localKey, entries.take(100).toList());
   }
 
+  Future<void> recordLocalNotification({
+    required String id,
+    required String title,
+    required String body,
+    String imageUrl = '',
+    Map<String, dynamic> data = const {},
+  }) async {
+    await GetStorage.init();
+    final item = AppNotification(
+      id: id,
+      title: title,
+      body: body,
+      createdAt: DateTime.now(),
+      imageUrl: imageUrl,
+      data: data,
+    );
+    final current = _storage.read<List<dynamic>>(_localKey) ?? const [];
+    final entries = current.whereType<Map>().map((raw) => Map<String, dynamic>.from(raw)).toList();
+    entries.removeWhere((raw) => '${raw['id'] ?? ''}' == id);
+    entries.insert(0, item.toLocal());
+    await _storage.write(_localKey, entries.take(100).toList());
+  }
+
   Future<void> markRead(String id) async {
     final readIds = _readIds()..add(id);
     await _storage.write(_readKey, readIds.toList());
