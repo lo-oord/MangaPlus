@@ -149,6 +149,9 @@ class ChapterController extends GetxController {
   List<String> _speechChunks = [];
   int _speechChunkIndex = 0;
   bool _speechSessionActive = false;
+  final novelSpeechCurrentParagraph = (-1).obs;
+  final novelSpeechCurrentWord = ''.obs;
+  final List<int> _speechChunkParagraphIndexes = <int>[];
   bool endNoticeShown = false;
   bool _isLoadingChapterNavigation = false;
   int _chapterLoadGeneration = 0;
@@ -912,6 +915,10 @@ class ChapterController extends GetxController {
       novelSpeechPaused.value = false;
     });
     _flutterTts.setCompletionHandler(_onSpeechChunkCompleted);
+    _flutterTts.setProgressHandler((String text, int start, int end, String word) {
+      if (!_speechSessionActive || word.trim().isEmpty) return;
+      novelSpeechCurrentWord.value = word.trim();
+    });
     _flutterTts.setCancelHandler(() {
       if (_speechSessionActive) return;
       novelSpeechPlaying.value = false;
@@ -965,6 +972,11 @@ class ChapterController extends GetxController {
       return;
     }
     try {
+      if (_speechChunkIndex < _speechChunkParagraphIndexes.length) {
+        novelSpeechCurrentParagraph.value =
+            _speechChunkParagraphIndexes[_speechChunkIndex];
+      }
+      novelSpeechCurrentWord.value = '';
       final result = await _flutterTts.speak(_speechChunks[_speechChunkIndex]);
       if ((result is num && result != 1) || result == false || result == '0') {
         _failNovelSpeech();
@@ -979,6 +991,8 @@ class ChapterController extends GetxController {
     _speechSessionActive = false;
     novelSpeechPlaying.value = false;
     novelSpeechPaused.value = false;
+    novelSpeechCurrentParagraph.value = -1;
+    novelSpeechCurrentWord.value = '';
     AppFeedback.show(
       title: 'تعذر تشغيل القراءة الصوتية'.tr,
       message: 'تحقق من تثبيت صوت اللغة المختارة على الجهاز'.tr,
@@ -986,20 +1000,27 @@ class ChapterController extends GetxController {
   }
 
   List<String> _splitSpeechText(String value) {
-    final words = value.trim().split(RegExp(r'\s+'));
     final chunks = <String>[];
-    final buffer = StringBuffer();
-    for (final word in words) {
-      if (word.isEmpty) continue;
-      final extraLength = word.length + (buffer.isEmpty ? 0 : 1);
-      if (buffer.length + extraLength > 2500 && buffer.isNotEmpty) {
-        chunks.add(buffer.toString());
-        buffer.clear();
+    _speechChunkParagraphIndexes.clear();
+    final paragraphs = _splitNovelParagraphs(value);
+    for (var paragraphIndex = 0; paragraphIndex < paragraphs.length; paragraphIndex++) {
+      final buffer = StringBuffer();
+      for (final word in paragraphs[paragraphIndex].split(RegExp(r'\s+'))) {
+        if (word.isEmpty) continue;
+        final extraLength = word.length + (buffer.isEmpty ? 0 : 1);
+        if (buffer.length + extraLength > 2500 && buffer.isNotEmpty) {
+          chunks.add(buffer.toString());
+          _speechChunkParagraphIndexes.add(paragraphIndex);
+          buffer.clear();
+        }
+        if (buffer.isNotEmpty) buffer.write(' ');
+        buffer.write(word);
       }
-      if (buffer.isNotEmpty) buffer.write(' ');
-      buffer.write(word);
+      if (buffer.isNotEmpty) {
+        chunks.add(buffer.toString());
+        _speechChunkParagraphIndexes.add(paragraphIndex);
+      }
     }
-    if (buffer.isNotEmpty) chunks.add(buffer.toString());
     return chunks;
   }
 
@@ -1013,6 +1034,8 @@ class ChapterController extends GetxController {
     _speechSessionActive = false;
     novelSpeechPlaying.value = false;
     novelSpeechPaused.value = false;
+    novelSpeechCurrentParagraph.value = -1;
+    novelSpeechCurrentWord.value = '';
   }
 
   Future<void> stopNovelSpeech() async {
@@ -1020,7 +1043,10 @@ class ChapterController extends GetxController {
     novelSpeechPlaying.value = false;
     novelSpeechPaused.value = false;
     _speechChunks = [];
+    _speechChunkParagraphIndexes.clear();
     _speechChunkIndex = 0;
+    novelSpeechCurrentParagraph.value = -1;
+    novelSpeechCurrentWord.value = '';
     try {
       await _flutterTts.stop();
     } catch (_) {}

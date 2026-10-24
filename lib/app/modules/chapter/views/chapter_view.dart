@@ -16,6 +16,8 @@ import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 class ChapterView extends GetView<ChapterController> {
   ChapterView({super.key});
   final List<GlobalKey> _pageKeys = <GlobalKey>[];
+  int _lastFollowedSpeechParagraph = -1;
+  bool _speechWasPlaying = false;
   final Set<String> _preloadedImages = <String>{};
 
   @override
@@ -181,6 +183,10 @@ class ChapterView extends GetView<ChapterController> {
       final background = _novelBackgroundColor(controller.novelBackground.value);
       final foreground = _novelTextColor(controller.novelBackground.value);
       final family = controller.novelFontFamily.value;
+      final speechParagraph = controller.novelSpeechCurrentParagraph.value;
+      final speechWord = controller.novelSpeechCurrentWord.value;
+      final speechPlaying = controller.novelSpeechPlaying.value;
+      final speechActive = speechPlaying || controller.novelSpeechPaused.value;
       return FutureBuilder<List<String>>(
         future: controller.paragraphsFor(chapter.content),
         builder: (context, snapshot) {
@@ -201,6 +207,40 @@ class ChapterView extends GetView<ChapterController> {
           }
 
           final paragraphs = snapshot.data!;
+          if (!speechActive) {
+            _lastFollowedSpeechParagraph = -1;
+            _speechWasPlaying = false;
+          }
+          final shouldFollowSpeech = speechActive &&
+              speechParagraph >= 0 &&
+              (speechParagraph != _lastFollowedSpeechParagraph ||
+                  (speechPlaying && !_speechWasPlaying));
+          _speechWasPlaying = speechPlaying;
+          if (shouldFollowSpeech && speechParagraph < paragraphs.length) {
+            _lastFollowedSpeechParagraph = speechParagraph;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!context.mounted || !controller.scrollController.hasClients) return;
+              final width = (MediaQuery.sizeOf(context).width - 48)
+                  .clamp(160.0, 1200.0)
+                  .toDouble();
+              final charsPerLine = (width / (controller.novelFontSize.value * .55))
+                  .floor().clamp(12, 160).toInt();
+              var estimatedOffset = 0.0;
+              for (var i = 0; i < speechParagraph; i++) {
+                final lines = (paragraphs[i].length / charsPerLine)
+                    .ceil()
+                    .clamp(1, 10000)
+                    .toInt();
+                estimatedOffset += lines * controller.novelFontSize.value *
+                    controller.novelLineHeight.value + controller.novelParagraphSpacing.value;
+              }
+              final position = controller.scrollController.position;
+              final target = (estimatedOffset - position.viewportDimension * .28)
+                  .clamp(0.0, position.maxScrollExtent).toDouble();
+              controller.scrollController.animateTo(target,
+                  duration: const Duration(milliseconds: 420), curve: Curves.easeOutCubic);
+            });
+          }
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (context.mounted) controller.syncScrollController();
           });
@@ -257,27 +297,62 @@ class ChapterView extends GetView<ChapterController> {
                         MediaQuery.paddingOf(context).bottom + 110,
                       ),
                       itemCount: paragraphs.length,
-                      itemBuilder: (context, index) => Padding(
-                        padding: EdgeInsets.only(
-                          bottom: index == paragraphs.length - 1
-                              ? 0
-                              : controller.novelParagraphSpacing.value,
-                        ),
-                        child: Text(
-                          paragraphs[index],
-                          textAlign:
-                              controller.readingDirection.value == 'rtl'
+                      itemBuilder: (context, index) {
+                        final isCurrent = speechActive && index == speechParagraph;
+                        final paragraph = paragraphs[index];
+                        final wordStart = isCurrent && speechWord.isNotEmpty
+                            ? paragraph.toLowerCase().indexOf(speechWord.toLowerCase())
+                            : -1;
+                        final wordEnd = wordStart < 0 ? -1 : wordStart + speechWord.length;
+                        final baseStyle = TextStyle(
+                          color: foreground,
+                          fontSize: controller.novelFontSize.value,
+                          fontFamily: family == 'default' ? null : family,
+                          height: controller.novelLineHeight.value,
+                          letterSpacing: 0.05,
+                        );
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            bottom: index == paragraphs.length - 1
+                                ? 0
+                                : controller.novelParagraphSpacing.value,
+                          ),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 220),
+                            decoration: BoxDecoration(
+                              color: isCurrent
+                                  ? AppColors.primary.withValues(alpha: .14)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(10),
+                              border: isCurrent
+                                  ? Border.all(color: AppColors.primary.withValues(alpha: .34))
+                                  : null,
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                            child: Text.rich(
+                              TextSpan(children: [
+                                if (wordStart >= 0) ...[
+                                  TextSpan(text: paragraph.substring(0, wordStart)),
+                                  TextSpan(
+                                    text: paragraph.substring(wordStart, wordEnd),
+                                    style: TextStyle(
+                                      color: AppColors.primary,
+                                      backgroundColor: AppColors.primary.withValues(alpha: .2),
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  TextSpan(text: paragraph.substring(wordEnd)),
+                                ] else
+                                  TextSpan(text: paragraph),
+                              ]),
+                              textAlign: controller.readingDirection.value == 'rtl'
                                   ? TextAlign.right
                                   : TextAlign.left,
-                          style: TextStyle(
-                            color: foreground,
-                            fontSize: controller.novelFontSize.value,
-                            fontFamily: family == 'default' ? null : family,
-                            height: controller.novelLineHeight.value,
-                            letterSpacing: 0.05,
+                              style: baseStyle,
+                            ),
                           ),
-                        ),
-                      ),
+                        );
+                      },
                     ),
                   ),
                 ),
