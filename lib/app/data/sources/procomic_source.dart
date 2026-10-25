@@ -28,7 +28,7 @@ class ProComicSource extends ContentSource {
   Future<List<Map<String, dynamic>>> search(String query) async {
     final value = query.trim();
     if (value.isEmpty) return const [];
-    final data = await _get('/content', {'search': value, 'status': 'approved', 'limit': '30', 'page': '1'});
+    final data = await _get('/series/search', {'search': value});
     return _items(_list(data));
   }
 
@@ -43,7 +43,7 @@ class ProComicSource extends ContentSource {
     final id = _contentId(url);
     if (id <= 0) throw Exception('ProComic: رابط السلسلة غير صالح.');
     final raw = await _get('/content/$id');
-    final chapters = await _chaptersFromPage(url, raw);
+    final chapters = await _chaptersFromPage(raw);
     final entry = _item(raw);
     entry.addAll({
       'native_title': _text(_metadata(raw)['originalTitle']),
@@ -76,11 +76,11 @@ class ProComicSource extends ContentSource {
     return {'title': 'الفصل ${_chapterNumber(url)}', 'chapter_number': _chapterNumber(url), 'pages': images, 'images': images.map((e) => {'url': e}).toList(), 'url': url};
   }
 
-  Future<List<Map<String, dynamic>>> _chaptersFromPage(String url, Map<String, dynamic> raw) async {
-    final slug = _text(raw['slug']);
+  Future<List<Map<String, dynamic>>> _chaptersFromPage(Map<String, dynamic> raw) async {
     final id = _int(raw['id']);
-    if (slug.isEmpty || id <= 0) return const [];
-    final response = await _client.get(Uri.parse('$_site/ar/$slug-$id'), headers: {..._headers, 'Accept': 'text/html'}).timeout(_timeout);
+    final seriesUrl = _seriesUrl(raw);
+    if (id <= 0 || seriesUrl.isEmpty) return const [];
+    final response = await _client.get(Uri.parse(seriesUrl), headers: {..._headers, 'Accept': 'text/html'}).timeout(_timeout);
     if (response.statusCode < 200 || response.statusCode >= 300) return const [];
     final html = utf8.decode(response.bodyBytes, allowMalformed: true);
     final pattern = RegExp(r'https://procomic\.pro/(?:ar|en)/chapter/[^"< ]+-([0-9]+)-([0-9]+)', caseSensitive: false);
@@ -99,8 +99,8 @@ class ProComicSource extends ContentSource {
   Map<String, dynamic> _item(Map<String, dynamic> raw) {
     final metadata = _metadata(raw); final title = _text(raw['title']);
     final image = _image(_text(raw['coverImage']).isNotEmpty ? _text(raw['coverImage']) : _text(raw['thumbnail']));
-    final result = item(title: title, url: '$_site/ar/${_text(raw['slug'])}-${_int(raw['id'])}', image: image, type: _text(raw['type']), genres: _listStrings(metadata['genres']), description: _text(raw['description']), rating: SourceValues.rating(raw['series_rating'] ?? raw['rating']));
-    result.addAll({'native_title': _text(metadata['originalTitle']), 'status': _text(raw['progress']), 'total_chapters': '${raw['chapters_count'] ?? ''}', 'latest_chapter_number': '${raw['chapters_count'] ?? ''}',});
+    final result = item(title: title, url: _seriesUrl(raw), image: image, type: _text(raw['type']), genres: _listStrings(metadata['genres']), description: _text(raw['description']), rating: SourceValues.rating(raw['series_rating'] ?? raw['rating']));
+    result.addAll({'native_title': _text(metadata['originalTitle']), 'alternate_titles': metadata['altTitles'] ?? metadata['alternate_titles'] ?? const [], 'status': _text(raw['progress']), 'total_chapters': '${raw['chapters_count'] ?? ''}', 'latest_chapter_number': '${raw['chapters_count'] ?? ''}',});
     return result;
   }
 
@@ -116,7 +116,26 @@ class ProComicSource extends ContentSource {
   Map<String, dynamic> _metadata(Map<String, dynamic> raw) => raw['metadata'] is Map ? Map<String, dynamic>.from(raw['metadata']) : {};
   List<String> _listStrings(dynamic value) => value is List ? value.map(_text).where((e) => e.isNotEmpty).toList() : const [];
   String _image(String value) => value.isEmpty ? '' : value.startsWith('http') ? value : 'https://cdn2.procomic.pro$value';
-  int _contentId(String value) => int.tryParse(RegExp(r'(?:-|/)(\d+)(?:/?$)').firstMatch(value)?.group(1) ?? '') ?? 0;
+  String _seriesUrl(Map<String, dynamic> raw) {
+    final type = _text(raw['type']);
+    final id = _int(raw['id']);
+    final slug = _text(raw['slug']);
+    if (type.isEmpty || id <= 0 || slug.isEmpty) return '';
+    return '$_site/ar/series/${Uri.encodeComponent(type)}/$id/${Uri.encodeComponent(slug)}';
+  }
+
+  int _contentId(String value) {
+    final uri = Uri.tryParse(value);
+    if (uri != null) {
+      final segments = uri.pathSegments;
+      final seriesIndex = segments.indexOf('series');
+      if (seriesIndex >= 0 && seriesIndex + 2 < segments.length) {
+        final id = int.tryParse(segments[seriesIndex + 2]);
+        if (id != null) return id;
+      }
+    }
+    return int.tryParse(RegExp(r'(?:-|/)(\d+)(?:/?$)').firstMatch(value)?.group(1) ?? '') ?? 0;
+  }
   String _chapterNumber(String value) => RegExp(r'-([0-9]+)-[0-9]+/?$').firstMatch(value)?.group(1) ?? '';
   double _chapterValue(dynamic value) => double.tryParse('$value') ?? -1;
   String _text(dynamic value) => value?.toString().trim() ?? '';
