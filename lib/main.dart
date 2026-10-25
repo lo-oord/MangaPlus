@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -159,6 +158,36 @@ void showFlutterNotification(RemoteMessage message) {
 /// Initialize the [FlutterLocalNotificationsPlugin] package.
 late FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin;
 
+Future<void> _initializeRemoteMessaging(AppNotificationService notificationService) async {
+  try {
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      unawaited(() async {
+        try {
+          await notificationService.recordRemoteMessage(message);
+        } catch (_) {
+          // Opening the inbox should still work when local persistence fails.
+        }
+        if (Get.context != null) Get.toNamed(Routes.NOTIFICATIONS);
+      }());
+    });
+    final initialNotification = await FirebaseMessaging.instance
+        .getInitialMessage()
+        .timeout(const Duration(seconds: 3));
+    if (initialNotification != null) {
+      try {
+        await notificationService.recordRemoteMessage(initialNotification);
+      } catch (error) {
+        debugPrint('Unable to persist the initial Firebase message: $error');
+      }
+      if (Get.context != null) Get.toNamed(Routes.NOTIFICATIONS);
+    }
+  } catch (error) {
+    debugPrint('Firebase messaging is unavailable after startup: $error');
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   LicenseRegistry.addLicense(() async* {
@@ -172,17 +201,6 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  try {
-    // Do not block the first frame indefinitely while Firebase restores auth state.
-    // Auth persistence is local; a network outage must not terminate startup.
-    await FirebaseAuth.instance
-        .authStateChanges()
-        .first
-        .timeout(const Duration(seconds: 3));
-  } catch (error) {
-    debugPrint('Unable to restore Firebase auth session before timeout: $error');
-  }
-
   FlutterError.onError = (errorDetails) {
     FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
   };
@@ -206,49 +224,17 @@ void main() async {
       ? const Locale('en', 'US')
       : const Locale('ar', 'SA');
 
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   if (!kIsWeb) {
     await Workmanager().initialize(
       chapterUpdateCallbackDispatcher,
       isInDebugMode: false,
     );
   }
-  if (!kIsWeb) FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
   final notificationService = Get.put(AppNotificationService(), permanent: true);
   final chapterUpdateService = Get.put(
     ChapterUpdateService(appNotificationService: notificationService),
     permanent: true,
   );
-  if (!kIsWeb) {
-    FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      unawaited(() async {
-        try {
-          await notificationService.recordRemoteMessage(message);
-        } catch (_) {
-          // Opening the inbox should still work when local persistence fails.
-        }
-        Get.toNamed(Routes.NOTIFICATIONS);
-      }());
-    });
-  }
-  RemoteMessage? initialNotification;
-  if (!kIsWeb) {
-    try {
-      // FCM may wait on network/token state; it must never prevent runApp().
-      initialNotification = await FirebaseMessaging.instance
-          .getInitialMessage()
-          .timeout(const Duration(seconds: 3));
-    } catch (error) {
-      debugPrint('Unable to read the initial Firebase message: $error');
-    }
-  }
-  if (initialNotification != null) {
-    try {
-      await notificationService.recordRemoteMessage(initialNotification);
-    } catch (error) {
-      debugPrint('Unable to persist the initial Firebase message: $error');
-    }
-  }
   runApp(
     GetMaterialApp(
       debugShowCheckedModeBanner: false,
@@ -297,9 +283,7 @@ void main() async {
       }).catchError((Object error) {
         debugPrint('Unable to initialize local notifications: $error');
       });
-      if (initialNotification != null) {
-        Get.toNamed(Routes.NOTIFICATIONS);
-      }
+      unawaited(_initializeRemoteMessaging(notificationService));
     });
   }
 }
