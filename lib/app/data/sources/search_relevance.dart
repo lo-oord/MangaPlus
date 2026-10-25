@@ -15,7 +15,12 @@ class SearchRelevance {
       '${item['native_title'] ?? item['nativeTitle'] ?? item['original_title'] ?? ''}',
     );
     final aliases = [
-      ..._flatten(item['alternate_titles'] ?? item['alternateTitles']),
+      ..._flatten(
+        item['alternate_titles'] ??
+            item['alternateTitles'] ??
+            item['alternative_titles'] ??
+            item['alternativeTitles'],
+      ),
       ..._flatten(item['aliases'] ?? item['altTitles']),
       ..._flatten(item['titleEn']),
       ..._flatten(item['titleAr']),

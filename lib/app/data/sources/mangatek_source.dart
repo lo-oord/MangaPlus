@@ -37,6 +37,25 @@ class MangaTekSource extends ContentSource {
       _list(page: page, query: query);
 
   Future<List<Map<String, dynamic>>> _list({required int page, String query = ''}) async {
+    try {
+      final response = await _apiGet('/api/manga', query: {
+        if (query.trim().isNotEmpty) 'search': query.trim(),
+        'page': '${page < 1 ? 1 : page}',
+        'limit': '24',
+      });
+      final data = _asMap(response['data']);
+      final mangas = data['mangas'];
+      if (mangas is List) {
+        final results = mangas
+            .whereType<Map>()
+            .map((entry) => _apiItem(Map<String, dynamic>.from(entry)))
+            .where((item) => item['title'].toString().isNotEmpty)
+            .toList(growable: false);
+        if (results.isNotEmpty) return results;
+      }
+    } catch (_) {
+      // Fall back to the public HTML catalogue when the API is unavailable.
+    }
     final uri = Uri.parse('$_site/manga-list').replace(queryParameters: {
       if (query.trim().isNotEmpty) 'search': query.trim(),
       'page': '${page < 1 ? 1 : page}',
@@ -50,6 +69,26 @@ class MangaTekSource extends ContentSource {
       final image = mangaImageUrl(anchor.querySelector('img'), _site);
       return _item(title, url, image);
     }).where((item) => item['title'].toString().isNotEmpty && item['url'].toString().isNotEmpty).toList(growable: false);
+  }
+
+  Map<String, dynamic> _apiItem(Map<String, dynamic> manga) {
+    final slug = '${manga['slug'] ?? ''}'.trim();
+    final title = '${manga['title_ar'] ?? manga['title'] ?? ''}'.trim();
+    final result = _item(
+      title,
+      'mangatek://series?slug=${Uri.encodeQueryComponent(slug)}',
+      _coverUrl(manga['cover_image'] ?? manga['cover']),
+      type: _typeFromData(manga),
+    );
+    result.addAll({
+      'native_title': '${manga['title'] ?? ''}',
+      'alternate_titles': manga['alternative_titles'] ?? '',
+      'author': '${manga['author'] ?? ''}',
+      'status': _status('${manga['status'] ?? ''}'),
+      'total_chapters': manga['chapters_count'] ?? manga['chapter_count'] ?? 0,
+      'latest_chapter_number': manga['latest_chapter_number'] ?? 0,
+    });
+    return result;
   }
 
   @override
