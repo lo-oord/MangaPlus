@@ -144,15 +144,20 @@ class MangaDarSource extends ContentSource {
         '${Uri.encodeComponent(parts.$2)}/';
     final document = await _document(chapterUrl);
     final pages = <String>[];
-    for (final image in document.querySelectorAll('img.h-page-img')) {
-      final encoded = image.attributes['data-mds'];
-      if (encoded == null || encoded.isEmpty) continue;
-      try {
-        final pageUrl = utf8.decode(base64.decode(encoded));
-        if (pageUrl.isNotEmpty && !pages.contains(pageUrl)) pages.add(pageUrl);
-      } on FormatException {
-        // Ignore malformed lazy-image tokens and keep valid pages.
+    for (final image in document.querySelectorAll('img[data-mds], img.h-page-img')) {
+      final encoded = image.attributes['data-mds']?.trim();
+      var pageUrl = '';
+      if (encoded != null && encoded.isNotEmpty) {
+        try {
+          pageUrl = utf8.decode(base64.decode(encoded));
+        } on FormatException {
+          // Fall back to the current src when the token is malformed.
+        }
       }
+      if (pageUrl.isEmpty) {
+        pageUrl = mangaAbsoluteUrl(_site, image.attributes['src']);
+      }
+      if (pageUrl.isNotEmpty && !pages.contains(pageUrl)) pages.add(pageUrl);
     }
     if (pages.isEmpty) {
       throw Exception('MangaDar: لا توجد صور متاحة لهذا الفصل.');
@@ -220,6 +225,30 @@ class MangaDarSource extends ContentSource {
         'date': date,
         'url': href,
       });
+    }
+    // MangaDar keeps the complete chapter list in an Alpine x-data `rows`
+    // attribute and only turns it into <a> elements in the browser. A plain
+    // HTTP client therefore sees only the first/last navigation links.
+    final chapterUrlPattern = RegExp(
+      r'https?://mangadar\.com/manga/([^/"\s]+)/([^/"\s]+)/',
+    );
+    for (final node in document.querySelectorAll('[x-data]')) {
+      final data = node.attributes.values.join(' ');
+      for (final match in chapterUrlPattern.allMatches(data)) {
+        if (match.group(1) != slug) continue;
+        final chapter = match.group(2)!;
+        final href = match.group(0)!;
+        if (!seen.add(chapter)) continue;
+        final number = mangaChapterNumber(chapter);
+        results.add({
+          'title': 'الفصل $chapter',
+          'number': number ?? 0,
+          'chapter_number': number ?? chapter,
+          'release_date': '',
+          'date': '',
+          'url': href,
+        });
+      }
     }
     results.sort((a, b) =>
         (mangaChapterNumber('${b['number']}') ?? 0)
