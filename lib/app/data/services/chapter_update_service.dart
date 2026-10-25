@@ -68,7 +68,7 @@ class ChapterUpdateService {
   bool get backgroundEnabled => _storage.read(_backgroundEnabledKey) != false;
   bool get mangaNotificationsEnabled => _storage.read(_mangaEnabledKey) != false;
   bool get novelNotificationsEnabled => _storage.read(_novelEnabledKey) != false;
-  int get frequencyHours => (_storage.read(_frequencyKey) as int?) ?? 2;
+  int get frequencyHours => (_storage.read(_frequencyKey) as int?) ?? 1;
   bool get wifiOnly => _storage.read(_wifiOnlyKey) == true;
 
   Future<void> initializeBackground() async {
@@ -364,7 +364,7 @@ void chapterUpdateCallbackDispatcher() {
     );
     final service = ChapterUpdateService();
     service.attachNotificationPlugin(plugin);
-    await service.checkFavorites();
-    return true;
+    final result = await service.checkFavorites();
+    return result.failed == 0;
   });
 }
