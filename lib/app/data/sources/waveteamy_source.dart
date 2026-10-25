@@ -39,8 +39,14 @@ class WaveTeamySource extends ContentSource {
     if (title.isEmpty) throw Exception('WaveTeamy: لم يتم العثور على تفاصيل العمل.');
     final description = mangaHtmlText(document.querySelector('article, .description, [class*="description"]'));
     final text = mangaHtmlText(document.body);
-    final result = item(title: title, url: url, image: mangaAbsoluteUrl(_site, document.querySelector('meta[property="og:image"]')?.attributes['content']), type: 'manga', description: description, rating: SourceValues.rating(text));
-    final chapters = _chapters(document);
+    final cover = mangaAbsoluteUrl(
+      _site,
+      document.querySelector('meta[property="og:image"]')?.attributes['content'] ??
+          document.querySelector('img')?.attributes['src'],
+    );
+    final result = item(title: title, url: url, image: cover, type: 'manga', description: description, rating: SourceValues.rating(text));
+    var chapters = _chapters(document);
+    if (chapters.isEmpty) chapters = _generatedChapters(url, text);
     result.addAll({'synopsis': description, 'status': text.contains('متوقف') ? 'متوقف' : text.contains('منتهي') ? 'منتهي' : 'مستمر', 'author': _label(text, 'المؤلف'), 'artist': _label(text, 'الرسام'), 'total_chapters': chapters.length, 'latest_chapter_number': chapters.isEmpty ? '' : chapters.first['number'], 'chapters': chapters});
     return result;
   }
@@ -83,6 +89,22 @@ class WaveTeamySource extends ContentSource {
     }
     out.sort((a, b) => (double.tryParse('${b['number']}') ?? -1).compareTo(double.tryParse('${a['number']}') ?? -1));
     return out;
+  }
+
+  List<Map<String, dynamic>> _generatedChapters(String seriesUrl, String text) {
+    final idMatch = RegExp(r'/series/(\d+)').firstMatch(seriesUrl);
+    final count = int.tryParse(RegExp(r'الفصول\s*(\d+)').firstMatch(text)?.group(1) ?? '') ?? 0;
+    if (idMatch == null || count <= 0) return const [];
+    final id = idMatch.group(1)!;
+    return List<Map<String, dynamic>>.generate(count, (index) {
+      final number = count - index;
+      return {
+        'title': 'الفصل $number',
+        'number': number,
+        'chapter_number': '$number',
+        'url': '$_site/series/$id/$number',
+      };
+    }, growable: false);
   }
 
   String _label(String text, String label) { final match = RegExp('$label\\s*:?\\s*([^\\n]+)').firstMatch(text); return match?.group(1)?.trim() ?? ''; }
