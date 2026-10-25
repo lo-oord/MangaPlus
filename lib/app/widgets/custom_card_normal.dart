@@ -79,8 +79,6 @@ class CustomCardNormal extends StatelessWidget {
                 memCacheWidth: (width * 3).round(),
                 maxWidthDiskCache: 720,
                 fit: BoxFit.cover,
-                fadeInDuration: Duration.zero,
-                fadeOutDuration: Duration.zero,
                 placeholder: (context, url) => Container(
                   width: width,
                   height: coverHeight,

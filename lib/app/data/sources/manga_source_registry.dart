@@ -4,6 +4,7 @@ import 'mangatime_source.dart';
 import 'manga_online_source.dart';
 import 'lava_scans_source.dart';
 import 'mangatek_source.dart';
+import 'mangacloud_source.dart';
 import 'team_x_source.dart';
 import 'mknov_source.dart';
 import 'kawaii_manga_source.dart';
@@ -25,6 +26,7 @@ class MangaSourceRegistry {
   static final MangaOnlineSource mangaOnline = MangaOnlineSource();
   static final LavaScansSource lavaScans = LavaScansSource();
   static final MangaTekSource mangaTek = MangaTekSource();
+  static final MangaCloudSource mangaCloud = MangaCloudSource();
   static final MknovSource mknov = MknovSource();
   static final KawaiiMangaSource kawaiiManga = KawaiiMangaSource();
   static final KawaiiNovelsSource kawaiiNovels = KawaiiNovelsSource();
@@ -44,6 +46,7 @@ class MangaSourceRegistry {
         mangaOnline,
         lavaScans,
         mangaTek,
+        mangaCloud,
         mknov,
         kawaiiManga,
         kawaiiNovels,
