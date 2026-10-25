@@ -405,6 +405,8 @@ class KomikCardsSection extends GetView<HomeController> {
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
                   final comic = comics[index];
+                  final cardWidth =
+                      (MediaQuery.sizeOf(context).width - 40 - 16) / 3;
                   return GestureDetector(
                     onTap: () => Get.toNamed(
                       Routes.COMIC_DETAIL,
@@ -415,6 +417,7 @@ class KomikCardsSection extends GetView<HomeController> {
                       title: comic.title,
                       chapter: comic.chapter,
                       imageUrl: comic.image,
+                      width: cardWidth,
                       type: comic.type,
                       releaseDate: comic.latestChapterDate,
                       rating: comic.rating,
@@ -611,6 +614,8 @@ class KomikCardsSection extends GetView<HomeController> {
           itemCount: terbaruComics.length,
           itemBuilder: (context, index) {
             final comic = terbaruComics[index];
+            final cardWidth =
+                (MediaQuery.sizeOf(context).width - 40 - 16) / 3;
             return GestureDetector(
               onTap: () {
                 Get.toNamed(Routes.COMIC_DETAIL, arguments: comic.comicId);
@@ -620,6 +625,7 @@ class KomikCardsSection extends GetView<HomeController> {
                 title: comic.title,
                 chapter: comic.chapter,
                 imageUrl: comic.image,
+                width: cardWidth,
                 type: comic.type,
                 releaseDate: comic.latestChapterDate,
                 rating: comic.rating,
