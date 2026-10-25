@@ -32,29 +32,9 @@
 - تصميم متجاوب وتجربة مناسبة للشاشات المختلفة.
 - معالجة مرنة لانقطاع الشبكة بحيث تبقى البيانات المحلية وتجربة القراءة المتاحة مستقرة قدر الإمكان.
 
-## لقطات من واجهات التطبيق
+## لقطات ومحتوى التطبيق
 
-فيما يلي مجموعة من لقطات الواجهات الحالية للتطبيق. قد تتغير بعض التفاصيل البصرية أو النصوص مع تطور المشروع:
-
-<table>
-  <tr>
-    <td align="center"><strong>الواجهة الرئيسية</strong><br><img src="assets/screenshots/home.png" alt="الواجهة الرئيسية" width="220" /></td>
-    <td align="center"><strong>البحث</strong><br><img src="assets/screenshots/search.png" alt="واجهة البحث" width="220" /></td>
-    <td align="center"><strong>التصنيفات</strong><br><img src="assets/screenshots/genre.png" alt="واجهة التصنيفات" width="220" /></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>تفاصيل العمل</strong><br><img src="assets/screenshots/comic_detail.png" alt="تفاصيل العمل" width="220" /></td>
-    <td align="center"><strong>سجل القراءة</strong><br><img src="assets/screenshots/history.png" alt="سجل القراءة" width="220" /></td>
-    <td align="center"><strong>الملف الشخصي</strong><br><img src="assets/screenshots/profile.png" alt="الملف الشخصي" width="220" /></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>التنزيلات</strong><br><img src="assets/screenshots/download.png" alt="واجهة التنزيلات" width="220" /></td>
-    <td align="center"><strong>قراءة الفصل</strong><br><img src="assets/screenshots/chapter.png" alt="واجهة قراءة الفصل" width="220" /></td>
-    <td align="center"></td>
-  </tr>
-</table>
-
-يستخدم التطبيق مصادر محتوى عامة ومدعومة داخل الكود. يختلف توفر العمل أو الفصل باختلاف المصدر وحالته، وقد تتأثر النتائج بتغييرات المواقع الخارجية أو سياساتها. لا يستضيف هذا المستودع المحتوى الأصلي للأعمال ولا يعيد توزيعه.
+سيتم إضافة لقطات الواجهات الرسمية لاحقًا بعد توفيرها. يستخدم التطبيق مصادر محتوى عامة ومدعومة داخل الكود. يختلف توفر العمل أو الفصل باختلاف المصدر وحالته، وقد تتأثر النتائج بتغييرات المواقع الخارجية أو سياساتها. لا يستضيف هذا المستودع المحتوى الأصلي للأعمال ولا يعيد توزيعه.
 
 ## المتطلبات
 
