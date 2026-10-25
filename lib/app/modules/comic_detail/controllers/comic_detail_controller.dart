@@ -11,7 +11,6 @@ import 'package:mangaplus/app/data/models/download_task.dart';
 import 'package:mangaplus/app/data/models/history.dart';
 import 'package:mangaplus/app/data/services/app_data_service.dart';
 import 'package:mangaplus/app/data/services/account_gate_service.dart';
-import 'package:mangaplus/app/data/services/bookmark_state_service.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
 import 'package:mangaplus/app/data/services/download_manager_service.dart';
 import 'package:mangaplus/app/data/sources/team_x_source.dart';
@@ -287,7 +286,7 @@ class ComicDetailController extends GetxController {
   }
 
   bool isBookmarked(String comicId) =>
-      BookmarkStateService.instance.contains(comicId);
+      (_storage.read<Map<String, dynamic>>('bookmarks') ?? {}).containsKey(comicId);
 
   HistoryItem? readingHistoryFor(String comicId) {
     final entries = _storage.read<Map<String, dynamic>>('reading_history') ?? {};

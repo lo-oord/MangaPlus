@@ -95,9 +95,6 @@ class AppDataService {
   }
 
   Future<List<BookmarkItem>?> getBookmarks() async {
-    // Favorites require a verified, non-anonymous account. Do not expose
-    // stale device data to signed-out users or merge it into a new account.
-    if (!BookmarkStateService.instance.hasEligibleAccount) return const [];
     final entries = Map<String, dynamic>.from(
       _storage.read('bookmarks') ?? <String, dynamic>{},
     );
