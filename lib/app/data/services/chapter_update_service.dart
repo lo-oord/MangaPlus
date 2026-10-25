@@ -65,10 +65,10 @@ class ChapterUpdateService {
   FlutterLocalNotificationsPlugin? _notifications;
   String _languageCode = 'ar_SA';
 
-  bool get backgroundEnabled => _storage.read(_backgroundEnabledKey) == true;
+  bool get backgroundEnabled => _storage.read(_backgroundEnabledKey) != false;
   bool get mangaNotificationsEnabled => _storage.read(_mangaEnabledKey) != false;
   bool get novelNotificationsEnabled => _storage.read(_novelEnabledKey) != false;
-  int get frequencyHours => (_storage.read(_frequencyKey) as int?) ?? 2;
+  int get frequencyHours => 1;
   bool get wifiOnly => _storage.read(_wifiOnlyKey) == true;
 
   Future<void> initializeBackground() async {
@@ -352,19 +352,25 @@ class ChapterUpdateService {
 @pragma('vm:entry-point')
 void chapterUpdateCallbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
-    WidgetsFlutterBinding.ensureInitialized();
-    DartPluginRegistrant.ensureInitialized();
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-    await GetStorage.init();
-    final plugin = FlutterLocalNotificationsPlugin();
-    await plugin.initialize(
-      const InitializationSettings(
-        android: AndroidInitializationSettings('ic_stat_mangaplus'),
-      ),
-    );
-    final service = ChapterUpdateService();
-    service.attachNotificationPlugin(plugin);
-    await service.checkFavorites();
-    return true;
+    try {
+      WidgetsFlutterBinding.ensureInitialized();
+      DartPluginRegistrant.ensureInitialized();
+      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+      await GetStorage.init();
+      final plugin = FlutterLocalNotificationsPlugin();
+      await plugin.initialize(
+        const InitializationSettings(
+          android: AndroidInitializationSettings('ic_stat_mangaplus'),
+        ),
+      );
+      final service = ChapterUpdateService();
+      service.attachNotificationPlugin(plugin);
+      final result = await service.checkFavorites();
+      // Tell WorkManager to retry after transient source/network failures.
+      return result.failed == 0;
+    } catch (error, stackTrace) {
+      debugPrint('Background favorite chapter check failed: $error\n$stackTrace');
+      return false;
+    }
   });
 }

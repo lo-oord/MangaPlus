@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:image_picker/image_picker.dart';
@@ -27,6 +28,7 @@ class ProfileController extends GetxController {
   final RxBool novelNotificationsEnabled = true.obs;
   int _themeRevision = 0;
   late final AuthService? _auth;
+  StreamSubscription<User?>? _authStateSubscription;
 
   bool get canChangePassword {
     final user = _auth?.currentUser;
@@ -45,7 +47,14 @@ class ProfileController extends GetxController {
     favoritesNotificationsEnabled.value = chapterService.backgroundEnabled;
     mangaNotificationsEnabled.value = chapterService.mangaNotificationsEnabled;
     novelNotificationsEnabled.value = chapterService.novelNotificationsEnabled;
-    _loadAccount();
+    _authStateSubscription = _auth?.authStateChanges.listen((user) {
+      if (user == null) {
+        accountProfile.value = null;
+        accountLoading.value = false;
+      } else {
+        unawaited(_loadAccount());
+      }
+    });
     super.onInit();
   }
 
@@ -278,6 +287,12 @@ class ProfileController extends GetxController {
     } catch (error) {
       _message('تعذر حفظ الإعداد'.tr, error.toString());
     }
+  }
+
+  @override
+  void onClose() {
+    unawaited(_authStateSubscription?.cancel() ?? Future<void>.value());
+    super.onClose();
   }
 
   void _message(String title, String message) => Get.snackbar(title, message,
