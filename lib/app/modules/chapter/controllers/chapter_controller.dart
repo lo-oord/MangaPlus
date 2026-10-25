@@ -52,6 +52,9 @@ class ChapterController extends GetxController {
       );
   double _restoredScrollOffset = 0;
   double? _pendingScrollRestore;
+  bool _continuousPrependPending = false;
+  double _continuousPrependBaseExtent = 0;
+  double _continuousPrependOffset = 0;
 
   late final Map<String, dynamic> arguments =
       Map<String, dynamic>.from(Get.arguments as Map);
@@ -541,7 +544,11 @@ class ChapterController extends GetxController {
     return chapter?.title ?? '';
   }
 
-  Future<void> navigateToChapter(String? id, {bool reverse = false}) async {
+  Future<void> navigateToChapter(
+    String? id, {
+    bool reverse = false,
+    bool joinContinuousStream = false,
+  }) async {
     final reference = _chapterReference(id);
     if (reference == null ||
         _sameChapterReference(reference, chapterId) ||
@@ -551,6 +558,7 @@ class ChapterController extends GetxController {
     isNavigating.value = true;
     final previousId = chapterId;
     final previousTitle = currentChapterTitle;
+    if (!joinContinuousStream) _continuousPrependPending = false;
     final previousData = chapterData.value;
     final previousOffline = isOffline.value;
     final previousImages = localImages.toList(growable: false);
@@ -558,6 +566,15 @@ class ChapterController extends GetxController {
     final previousOffset = _scrollController?.hasClients == true
         ? _scrollController!.offset
         : _restoredScrollOffset;
+    final previousScrollExtent = _scrollController?.hasClients == true
+        ? _scrollController!.position.maxScrollExtent
+        : 0.0;
+    final keepContinuousStream = joinContinuousStream &&
+        readerMode.value == 'scroll' &&
+        continuousNavigation.value &&
+        !isOffline.value &&
+        !isNovel &&
+        previousData.chapter.images.isNotEmpty;
     final nextTitle = _chapterTitleFor(reference);
     endNoticeShown = false;
     try {
@@ -566,26 +583,65 @@ class ChapterController extends GetxController {
       }
       chapterId = reference;
       currentChapterTitle = nextTitle;
-      // Do not keep the old chapter's page widgets alive while the next chapter
-      // is loading. Their scroll/page callbacks can otherwise race the chapter
-      // transition and keep issuing image work against stale reader content.
-      chapterData.value = ChapterData(
-        chapter: DataChapter(
-          chapterId: reference,
-          title: nextTitle,
-          images: const [],
-          content: '',
-          previousChapter: '',
-          nextChapter: null,
-          chapters: const [],
-        ),
-        source: '',
-      );
+      // Continuous scroll transitions keep already rendered pages in place.
+      // The adjacent chapter is fetched first, then its pages are joined to the
+      // same ListView so the boundary has no blank/loading frame.
+      if (!keepContinuousStream) {
+        chapterData.value = ChapterData(
+          chapter: DataChapter(
+            chapterId: reference,
+            title: nextTitle,
+            images: const [],
+            content: '',
+            previousChapter: '',
+            nextChapter: null,
+            chapters: const [],
+          ),
+          source: '',
+        );
+      }
       await fetchChapter(
         reference,
         keepCurrentContent: false,
-        startAtEnd: reverse,
+        startAtEnd: reverse && !keepContinuousStream,
       );
+      if (!hasError.value && hasReadableContent && keepContinuousStream) {
+        final adjacent = chapterData.value;
+        final oldChapter = previousData.chapter;
+        final newChapter = adjacent.chapter;
+        final images = reverse
+            ? <String>[...newChapter.images, ...oldChapter.images]
+            : <String>[...oldChapter.images, ...newChapter.images];
+        chapterData.value = ChapterData(
+          chapter: DataChapter(
+            chapterId: newChapter.chapterId.isEmpty ? reference : newChapter.chapterId,
+            title: newChapter.title.isEmpty ? nextTitle : newChapter.title,
+            images: List<String>.unmodifiable(images),
+            previousChapter: reverse
+                ? newChapter.previousChapter
+                : oldChapter.previousChapter,
+            nextChapter: reverse
+                ? oldChapter.nextChapter
+                : newChapter.nextChapter,
+            chapters: newChapter.chapters.isNotEmpty
+                ? newChapter.chapters
+                : oldChapter.chapters,
+          ),
+          source: adjacent.source.isEmpty ? previousData.source : adjacent.source,
+        );
+        if (reverse) {
+          _continuousPrependPending = true;
+          _continuousPrependBaseExtent = previousScrollExtent;
+          _continuousPrependOffset = previousOffset;
+          _pendingScrollRestore = null;
+        } else {
+          _pendingScrollRestore = previousOffset;
+          _continuousPrependPending = false;
+        }
+        currentPage.value = reverse
+            ? oldChapter.images.length
+            : (oldChapter.images.length - 1).clamp(0, images.length - 1);
+      }
       if (hasError.value || !hasReadableContent) {
         final issue = loadIssue.value;
         chapterId = previousId;
@@ -770,9 +826,23 @@ class ChapterController extends GetxController {
 
   void syncScrollController() {
     final scroll = _scrollController;
-    final targetOffset = _pendingScrollRestore;
-    if (scroll?.hasClients != true || targetOffset == null) return;
+    if (scroll?.hasClients != true) return;
     final position = scroll!.position;
+    if (_continuousPrependPending) {
+      final addedExtent =
+          (position.maxScrollExtent - _continuousPrependBaseExtent).clamp(0.0, double.infinity);
+      final target = (_continuousPrependOffset + addedExtent)
+          .clamp(0.0, position.maxScrollExtent)
+          .toDouble();
+      if ((position.pixels - target).abs() > 1) scroll.jumpTo(target);
+      _restoredScrollOffset = target;
+      _continuousPrependPending = false;
+      _continuousPrependBaseExtent = 0;
+      _continuousPrependOffset = 0;
+      return;
+    }
+    final targetOffset = _pendingScrollRestore;
+    if (targetOffset == null) return;
     final target = targetOffset.clamp(0.0, position.maxScrollExtent).toDouble();
     if ((position.pixels - target).abs() > 1) scroll.jumpTo(target);
     _restoredScrollOffset = target;
@@ -1219,20 +1289,25 @@ class ChapterController extends GetxController {
     if (metrics.pixels <= threshold && (scrollDelta ?? 0) < -1) {
       final previous = previousChapterId;
       if (previous != null) {
-        await navigateToChapter(previous, reverse: true);
+        await navigateToChapter(
+          previous,
+          reverse: true,
+          joinContinuousStream: true,
+        );
         return;
       }
     }
     if (metrics.extentAfter > threshold) return;
     final next = nextChapterId;
     if (next != null) {
-      navigateToChapter(next);
+      navigateToChapter(next, joinContinuousStream: true);
     } else if (!_isLoadingChapterNavigation) {
       _showEndNoticeOnce();
     }
   }
 
   void _showEndNoticeOnce() {
+
     if (endNoticeShown) return;
     endNoticeShown = true;
     AppFeedback.show(
