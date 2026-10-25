@@ -95,6 +95,10 @@ void _handleForegroundMessage(RemoteMessage message) {
 
 void _handleLocalNotificationResponse(NotificationResponse response) {
   final comicId = response.payload?.trim() ?? '';
+  if (comicId == 'reading_stats_weekly') {
+    Get.toNamed(Routes.PROFILE);
+    return;
+  }
   if (comicId.isNotEmpty) {
     Get.toNamed(Routes.COMIC_DETAIL, arguments: comicId);
   } else {

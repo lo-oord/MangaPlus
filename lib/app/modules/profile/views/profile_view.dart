@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/data/models/user_profile.dart';
 import 'package:mangaplus/app/modules/profile/controllers/profile_controller.dart';
+import 'package:mangaplus/app/modules/profile/views/reading_stats_panel.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
@@ -32,6 +33,8 @@ class ProfileView extends GetView<ProfileController> {
                 onTap: () => Get.toNamed(Routes.PROFILE_DETAILS),
                 child: _profileHeader(),
               ),
+              const SizedBox(height: 16),
+              const ReadingStatsPanel(),
               const SizedBox(height: 24),
               _sectionTitle('التفضيلات'.tr),
               const SizedBox(height: 9),

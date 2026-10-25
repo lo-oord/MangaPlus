@@ -51,6 +51,7 @@ class ChapterUpdateService {
   static const String _backgroundEnabledKey = 'chapter_updates_background_enabled';
   static const String _mangaEnabledKey = 'chapter_updates_manga_enabled';
   static const String _novelEnabledKey = 'chapter_updates_novel_enabled';
+  static const int _weeklyReadingSummaryId = 728431;
   static const String _frequencyKey = 'chapter_updates_frequency_hours';
   static const String _wifiOnlyKey = 'chapter_updates_wifi_only';
   static const String backgroundTaskName = 'mangaplus.chapter_updates';
@@ -88,6 +89,60 @@ class ChapterUpdateService {
 
   Future<void> setNovelNotificationsEnabled(bool enabled) =>
       _storage.write(_novelEnabledKey, enabled);
+
+  Future<bool> setWeeklyReadingSummaryEnabled(
+    bool enabled, {
+    String languageCode = 'ar_SA',
+  }) async {
+    final plugin = _notifications;
+    if (plugin == null) return false;
+    if (!enabled) {
+      await plugin.cancel(_weeklyReadingSummaryId);
+      return true;
+    }
+    final android = plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (android != null && await android.areNotificationsEnabled() == false) {
+      final granted = await android.requestNotificationsPermission();
+      if (granted == false) return false;
+    }
+    final isEnglish = languageCode == 'en_US' || languageCode == 'en';
+    const channelId = 'reading_stats_weekly';
+    final channelName = isEnglish ? 'Weekly reading summary' : 'ملخص القراءة الأسبوعي';
+    final description = isEnglish
+        ? 'A weekly reminder to review your private reading statistics.'
+        : 'تذكير أسبوعي بمراجعة إحصاءات القراءة الخاصة بك.';
+    await plugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(AndroidNotificationChannel(
+          channelId,
+          channelName,
+          description: description,
+          importance: Importance.low,
+        ));
+    await plugin.periodicallyShow(
+      _weeklyReadingSummaryId,
+      channelName,
+      isEnglish
+          ? 'Review your weekly reading activity in your profile.'
+          : 'راجع نشاط القراءة الأسبوعي من صفحة الملف الشخصي.',
+      RepeatInterval.weekly,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          channelId,
+          channelName,
+          channelDescription: description,
+          icon: 'ic_stat_mangaplus',
+          importance: Importance.low,
+          priority: Priority.low,
+        ),
+        iOS: const DarwinNotificationDetails(),
+      ),
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      payload: 'reading_stats_weekly',
+    );
+    return true;
+  }
 
   Future<void> setFrequencyHours(int hours) async {
     await _storage.write(_frequencyKey, hours);

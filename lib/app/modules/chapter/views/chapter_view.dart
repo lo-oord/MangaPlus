@@ -130,6 +130,8 @@ class ChapterView extends GetView<ChapterController> {
                 scrollDelta: notification is ScrollUpdateNotification
                     ? notification.scrollDelta
                     : null,
+                userInitiated: notification is ScrollUpdateNotification &&
+                    notification.dragDetails != null,
               );
               if (notification.metrics.extentAfter <=
                       notification.metrics.viewportDimension * 2 &&
@@ -270,6 +272,9 @@ class ChapterView extends GetView<ChapterController> {
                       scrollDelta: notification is ScrollUpdateNotification
                           ? notification.scrollDelta
                           : null,
+                      userInitiated:
+                          notification is ScrollUpdateNotification &&
+                              notification.dragDetails != null,
                     );
                   }
                   if (notification is OverscrollNotification) {

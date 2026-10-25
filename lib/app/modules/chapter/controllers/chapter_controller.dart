@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/data/models/chapter.dart';
 import 'package:mangaplus/app/data/models/history.dart';
+import 'package:mangaplus/app/data/services/reading_stats_service.dart';
 import 'package:mangaplus/app/data/services/app_data_service.dart';
 import 'package:mangaplus/app/data/services/chapter_update_service.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
@@ -20,7 +21,7 @@ List<String> _splitNovelParagraphs(String content) => content
     .where((paragraph) => paragraph.isNotEmpty)
     .toList(growable: false);
 
-class ChapterController extends GetxController {
+class ChapterController extends GetxController with WidgetsBindingObserver {
   final ComicService _comicService = ComicService();
   final FlutterTts _flutterTts = FlutterTts();
   final GetStorage _storage = GetStorage();
@@ -42,6 +43,12 @@ class ChapterController extends GetxController {
   ChapterElement? _cachedPreviousAdjacentChapter;
   int _readChapterCacheRevision = -1;
   final Set<String> _readChapterIdentities = <String>{};
+  ReadingSessionRef? _readingStatsSession;
+  Timer? _readingStatsTimer;
+  Stopwatch? _readingStatsIdleStopwatch;
+  Stopwatch? _readingStatsClock;
+  Future<void> _readingStatsQueue = Future<void>.value();
+  bool _readingStatsEngaged = false;
 
   PageController? _pageController;
   PageController get pageController => _pageController ??= PageController(
@@ -413,6 +420,18 @@ class ChapterController extends GetxController {
         if (startAtEnd) _restoredScrollOffset = 0;
         _pendingScrollRestore = startAtEnd ? double.maxFinite : _restoredScrollOffset;
         currentPage.value = 0;
+      }
+      if (!hasError.value && hasReadableContent) {
+        await _enqueueReadingStats(() async {
+          final comicId = '${arguments['comicId'] ?? ''}'.trim();
+          final currentSession = _readingStatsSession;
+          if (comicId.isEmpty ||
+              currentSession == null ||
+              currentSession.comicId != comicId ||
+              currentSession.chapterId != id) {
+            await _replaceReadingStatsSession(id, currentChapterTitle);
+          }
+        });
       }
     } catch (error) {
       if (generation != _chapterLoadGeneration) return;
@@ -1246,6 +1265,14 @@ class ChapterController extends GetxController {
 
   void onPageChanged(int page) {
     if (chapterData.value.chapter.images.isEmpty) return;
+    if (page != currentPage.value) {
+      final count = chapterData.value.chapter.images.length;
+      final progress = count <= 0 ? 0.0 : ((page + 1) / count).clamp(0.0, 1.0);
+      _recordReadingActivity(
+        progress,
+        chapterCompleted: progress >= .80,
+      );
+    }
     setCurrentPage(page);
     if (_suppressEndBoundaryOnce &&
         page >= chapterData.value.chapter.images.length - 1) {
@@ -1274,7 +1301,18 @@ class ChapterController extends GetxController {
   Future<void> handleScroll(
     ScrollMetrics metrics, {
     double? scrollDelta,
+    bool userInitiated = false,
   }) async {
+    if (userInitiated && scrollDelta != null && scrollDelta.abs() >= 2) {
+      final progress = metrics.maxScrollExtent <= 0
+          ? 0.0
+          : (metrics.pixels / metrics.maxScrollExtent).clamp(0.0, 1.0);
+      _recordReadingActivity(
+        progress,
+        chapterCompleted: metrics.extentAfter <=
+            (metrics.viewportDimension * .10).clamp(24.0, 120.0),
+      );
+    }
     if (readerMode.value != 'scroll' || !continuousNavigation.value) return;
     final threshold = metrics.viewportDimension * 0.04 > 28
         ? metrics.viewportDimension * 0.04
@@ -1362,6 +1400,7 @@ class ChapterController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    WidgetsBinding.instance.addObserver(this);
     _storage.listenKey('readChapters', (_) => chapterNavigationRevision.value++);
     _storage.listenKey('reading_history', (_) => chapterNavigationRevision.value++);
     _readChapterNavigationArguments();
@@ -1382,6 +1421,8 @@ class ChapterController extends GetxController {
 
   @override
   void onClose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(_enqueueReadingStats(_finishReadingStatsSession));
     unawaited(stopNovelSpeech());
     _pageController?.dispose();
     _scrollController?.dispose();
@@ -1412,6 +1453,153 @@ class ChapterController extends GetxController {
           ));
     } catch (error) {
       debugPrint('Unable to sync reader history: $error');
+    }
+  }
+
+  Future<void> _replaceReadingStatsSession(String id, String title) async {
+    if (!Get.isRegistered<ReadingStatsService>()) return;
+    await _finishReadingStatsSession();
+    final comicId = '${arguments['comicId'] ?? ''}'.trim();
+    if (comicId.isEmpty) return;
+    final uri = Uri.tryParse(comicId);
+    final service = Get.find<ReadingStatsService>();
+    _readingStatsSession = await service.beginSession(
+      comicId: comicId,
+      sourceId: uri?.host.isNotEmpty == true ? uri!.host : 'unknown',
+      title: '${arguments['comicTitle'] ?? ''}',
+      coverImage: '${arguments['coverImage'] ?? ''}',
+      type: '${arguments['comicType'] ?? 'manga'}',
+      chapterId: id,
+      chapterTitle: title.isNotEmpty ? title : id,
+    );
+  }
+
+  void _recordReadingActivity(
+    double progress, {
+    bool chapterCompleted = false,
+  }) {
+    unawaited(_enqueueReadingStats(
+      () => _ensureReadingStatsSession(progress, chapterCompleted),
+    ));
+  }
+
+  Future<void> _enqueueReadingStats(Future<void> Function() operation) {
+    _readingStatsQueue = _readingStatsQueue.then((_) => operation()).catchError(
+      (Object error) {
+        debugPrint('Reading statistics operation failed: $error');
+      },
+    );
+    return _readingStatsQueue;
+  }
+
+  Future<void> _ensureReadingStatsSession(
+    double progress,
+    bool chapterCompleted,
+  ) async {
+    if (!Get.isRegistered<ReadingStatsService>()) return;
+    final idleBeforeActivity = _readingStatsIdleStopwatch;
+    if (_readingStatsEngaged &&
+        idleBeforeActivity != null &&
+        idleBeforeActivity.elapsed >= const Duration(minutes: 2)) {
+      await _finishReadingStatsSession();
+    }
+    if (_readingStatsSession == null) {
+      await _replaceReadingStatsSession(chapterId, currentChapterTitle);
+    }
+    final session = _readingStatsSession;
+    if (session == null) return;
+    final service = Get.find<ReadingStatsService>();
+    if (!_readingStatsEngaged) {
+      _readingStatsEngaged = true;
+      _readingStatsIdleStopwatch = Stopwatch()
+        ..reset()
+        ..start();
+      _readingStatsClock = Stopwatch()..start();
+      _readingStatsTimer?.cancel();
+      _readingStatsTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+        unawaited(_enqueueReadingStats(_tickReadingStats));
+      });
+    } else {
+      await _flushReadingStatsSeconds();
+      _readingStatsIdleStopwatch!
+        ..reset()
+        ..start();
+      _readingStatsClock!
+        ..reset()
+        ..start();
+    }
+    await service.recordProgress(
+      session,
+      progress,
+      chapterCompleted: chapterCompleted,
+    );
+  }
+
+  Future<void> _tickReadingStats() async {
+    final session = _readingStatsSession;
+    final idle = _readingStatsIdleStopwatch;
+    if (session == null || !_readingStatsEngaged || idle == null) return;
+    await _flushReadingStatsSeconds();
+    if (idle.elapsed >= const Duration(minutes: 2)) {
+      await _finishReadingStatsSession();
+    }
+  }
+
+  Future<void> _flushReadingStatsSeconds() async {
+    final session = _readingStatsSession;
+    final idle = _readingStatsIdleStopwatch;
+    final clock = _readingStatsClock;
+    if (session == null || idle == null || clock == null || !clock.isRunning) return;
+    final elapsedMilliseconds = clock.elapsedMilliseconds;
+    if (elapsedMilliseconds <= 0) return;
+    final idleStartMilliseconds = idle.elapsedMilliseconds - elapsedMilliseconds;
+    final remainingGraceMilliseconds =
+        const Duration(minutes: 2).inMilliseconds - idleStartMilliseconds;
+    var seconds = elapsedMilliseconds ~/ Duration.millisecondsPerSecond;
+    final graceSeconds = remainingGraceMilliseconds <= 0
+        ? 0
+        : (remainingGraceMilliseconds + Duration.millisecondsPerSecond - 1) ~/
+            Duration.millisecondsPerSecond;
+    if (seconds > 30) seconds = 30;
+    if (seconds > graceSeconds) seconds = graceSeconds;
+    if (seconds > 0 && Get.isRegistered<ReadingStatsService>()) {
+      await Get.find<ReadingStatsService>().addActiveSeconds(
+        session,
+        seconds,
+        localTime: DateTime.now(),
+      );
+    }
+    clock
+      ..reset()
+      ..start();
+  }
+
+  Future<void> _finishReadingStatsSession() async {
+    await _flushReadingStatsSeconds();
+    _readingStatsTimer?.cancel();
+    _readingStatsTimer = null;
+    _readingStatsIdleStopwatch?.stop();
+    _readingStatsIdleStopwatch = null;
+    _readingStatsClock?.stop();
+    _readingStatsClock = null;
+    _readingStatsEngaged = false;
+    final session = _readingStatsSession;
+    _readingStatsSession = null;
+    if (session != null && Get.isRegistered<ReadingStatsService>()) {
+      try {
+        await Get.find<ReadingStatsService>().finishSession(session);
+      } catch (error) {
+        debugPrint('Unable to close reading session: $error');
+      }
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      unawaited(_enqueueReadingStats(_finishReadingStatsSession));
     }
   }
 }
