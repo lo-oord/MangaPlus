@@ -11,6 +11,7 @@ import 'kawaii_manga_source.dart';
 import 'kawaii_novels_source.dart';
 import 'cenele_source.dart';
 import 'mangadar_source.dart';
+import 'search_relevance.dart';
 import 'source_base.dart';
 
 class MangaSourceRegistry {
@@ -73,7 +74,10 @@ class MangaSourceRegistry {
                   ? const Duration(seconds: 35)
                   : const Duration(seconds: 18),
             );
-        final tagged = result.map((item) => {
+        final relevant = result.where(
+          (item) => SearchRelevance.isRelevant(query, item),
+        );
+        final tagged = relevant.map((item) => {
               ...item,
               'source_id': item['source_id'] ?? source.id,
               'source': item['source'] ?? source.name,

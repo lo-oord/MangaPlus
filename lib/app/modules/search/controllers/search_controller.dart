@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/data/models/comic.dart';
+import 'package:mangaplus/app/data/services/bookmark_state_service.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
+import 'package:mangaplus/app/data/sources/search_relevance.dart';
 
 class SearchController extends GetxController {
   final ComicService _comicService = ComicService();
@@ -60,7 +62,58 @@ class SearchController extends GetxController {
   }
 
   void _applyContentFilter() {
-    comicsList.assignAll(_allSearchResults.where(_matchesContentFilter));
+    final originalOrder = <String, int>{};
+    for (var index = 0; index < _allSearchResults.length; index++) {
+      originalOrder[_allSearchResults[index].comicId] = index;
+    }
+    final filtered = _allSearchResults.where(_matchesContentFilter).toList();
+    final favoriteById = <String, bool>{};
+    final scoreById = <String, int>{};
+    final workKeyById = <String, String>{};
+    final chaptersById = <String, int>{};
+    for (final comic in filtered) {
+      favoriteById[comic.comicId] =
+          BookmarkStateService.instance.contains(comic.comicId);
+      scoreById[comic.comicId] = SearchRelevance.comicScore(query.value, comic);
+      workKeyById[comic.comicId] = SearchRelevance.workKey(comic);
+      chaptersById[comic.comicId] = _chapterCount(comic);
+    }
+    filtered.sort((left, right) {
+      final leftFavorite = favoriteById[left.comicId] ?? false;
+      final rightFavorite = favoriteById[right.comicId] ?? false;
+      if (leftFavorite != rightFavorite) return leftFavorite ? -1 : 1;
+
+      // When the same work is available from multiple sources, prefer the
+      // source with the larger chapter catalog without disturbing unrelated
+      // results.
+      if (workKeyById[left.comicId] == workKeyById[right.comicId]) {
+        final chapters = (chaptersById[right.comicId] ?? 0)
+            .compareTo(chaptersById[left.comicId] ?? 0);
+        if (chapters != 0) return chapters;
+      }
+      final relevance = (scoreById[left.comicId] ?? 0)
+          .compareTo(scoreById[right.comicId] ?? 0);
+      if (relevance != 0) return -relevance;
+      return (originalOrder[left.comicId] ?? 0).compareTo(
+        originalOrder[right.comicId] ?? 0,
+      );
+    });
+    comicsList.assignAll(filtered);
+  }
+
+  int _chapterCount(ComicsList comic) {
+    final value = comic.totalChapters
+        .replaceAll('٠', '0')
+        .replaceAll('١', '1')
+        .replaceAll('٢', '2')
+        .replaceAll('٣', '3')
+        .replaceAll('٤', '4')
+        .replaceAll('٥', '5')
+        .replaceAll('٦', '6')
+        .replaceAll('٧', '7')
+        .replaceAll('٨', '8')
+        .replaceAll('٩', '9');
+    return int.tryParse(value.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
   }
 
   void searchComics(String searchQuery) {
