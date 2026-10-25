@@ -615,9 +615,6 @@ class _SourceLogo extends StatelessWidget {
 
   String? get localLogoAsset {
     final value = _normalizedSource;
-    if (value.contains('mangacloud')) {
-      return 'assets/images/mangacloud_source_logo.png';
-    }
     if (value.contains('mangatek')) {
       return 'assets/images/mangatek_source_logo.png';
     }
@@ -644,7 +641,7 @@ class _SourceLogo extends StatelessWidget {
     if (value.contains('lava')) {
       return 'https://lavascans.com/wp-content/uploads/2024/09/2024-09-28-10-58-25-1727564305679-192x192.png';
     }
-    if (value.contains('mangatek') || value.contains('mangacloud')) return null;
+    if (value.contains('mangatek')) return null;
     if (value.contains('teamx') || value.contains('olympus')) {
       return 'https://olympustaff.com/images/TeamX.png';
     }
@@ -655,6 +652,8 @@ class _SourceLogo extends StatelessWidget {
     if (value.contains('mangadar')) {
       return 'https://mangadar.com/wp-content/uploads/2026/04/Logo.png';
     }
+    if (value.contains('procomic')) return 'https://procomic.pro/favicon.svg';
+    if (value.contains('waveteamy')) return 'https://waveteamy.com/favicon.ico';
     return null;
   }
 

@@ -4,7 +4,6 @@ import 'mangatime_source.dart';
 import 'manga_online_source.dart';
 import 'lava_scans_source.dart';
 import 'mangatek_source.dart';
-import 'mangacloud_source.dart';
 import 'team_x_source.dart';
 import 'mknov_source.dart';
 import 'kawaii_manga_source.dart';
@@ -13,6 +12,8 @@ import 'cenele_source.dart';
 import 'mangadar_source.dart';
 import 'kolnovel_source.dart';
 import 'mangacool_source.dart';
+import 'procomic_source.dart';
+import 'waveteamy_source.dart';
 import 'search_relevance.dart';
 import 'source_base.dart';
 
@@ -26,7 +27,6 @@ class MangaSourceRegistry {
   static final MangaOnlineSource mangaOnline = MangaOnlineSource();
   static final LavaScansSource lavaScans = LavaScansSource();
   static final MangaTekSource mangaTek = MangaTekSource();
-  static final MangaCloudSource mangaCloud = MangaCloudSource();
   static final MknovSource mknov = MknovSource();
   static final KawaiiMangaSource kawaiiManga = KawaiiMangaSource();
   static final KawaiiNovelsSource kawaiiNovels = KawaiiNovelsSource();
@@ -35,6 +35,8 @@ class MangaSourceRegistry {
   static final MangaDarSource mangaDar = MangaDarSource();
   static final KolNovelSource kolNovel = KolNovelSource();
   static final MangaCoolSource mangaCool = MangaCoolSource();
+  static final ProComicSource proComic = ProComicSource();
+  static final WaveTeamySource waveTeamy = WaveTeamySource();
 
   /// Team X is intentionally excluded from the multi-source home feed contract;
   /// the home screen calls it directly through [ComicService.fetchComics].
@@ -46,7 +48,6 @@ class MangaSourceRegistry {
         mangaOnline,
         lavaScans,
         mangaTek,
-        mangaCloud,
         mknov,
         kawaiiManga,
         kawaiiNovels,
@@ -55,6 +56,8 @@ class MangaSourceRegistry {
         mangaDar,
         kolNovel,
         mangaCool,
+        proComic,
+        waveTeamy,
       ];
 
   static ContentSource? forUrl(String url) {

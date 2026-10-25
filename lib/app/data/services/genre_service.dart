@@ -19,7 +19,6 @@ class GenreService extends GetxService {
         'azora',
         'manga_swat',
         'mangatime',
-        'manga_cloud',
         'kawaii_manga',
       }.contains(source.id),
     );
