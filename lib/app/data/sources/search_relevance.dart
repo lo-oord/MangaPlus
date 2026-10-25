@@ -11,8 +11,15 @@ class SearchRelevance {
 
     final title = normalize('${item['title'] ?? ''}');
     final url = normalize(_urlPath('${item['url'] ?? item['link'] ?? ''}'));
-    final nativeTitle = normalize('${item['native_title'] ?? ''}');
-    final aliases = _flatten(item['alternate_titles'] ?? item['aliases']);
+    final nativeTitle = normalize(
+      '${item['native_title'] ?? item['nativeTitle'] ?? item['original_title'] ?? ''}',
+    );
+    final aliases = [
+      ..._flatten(item['alternate_titles'] ?? item['alternateTitles']),
+      ..._flatten(item['aliases'] ?? item['altTitles']),
+      ..._flatten(item['titleEn']),
+      ..._flatten(item['titleAr']),
+    ];
     final searchable = [title, url, nativeTitle, ...aliases]
         .where((value) => value.isNotEmpty)
         .toList(growable: false);
@@ -50,6 +57,12 @@ class SearchRelevance {
     final value = comic.comicId.trim();
     final uri = Uri.tryParse(value);
     if (uri != null) {
+      if (uri.scheme.isNotEmpty &&
+          uri.scheme != 'http' &&
+          uri.scheme != 'https') {
+        final customKey = normalize('${uri.scheme} ${uri.path} ${uri.query}');
+        if (customKey.isNotEmpty) return customKey;
+      }
       final segments = uri.pathSegments.where((segment) => segment.isNotEmpty).toList();
       final mangaIndex = segments.indexOf('manga');
       if (mangaIndex >= 0 && mangaIndex + 1 < segments.length) {
