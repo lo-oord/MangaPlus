@@ -46,7 +46,6 @@ jobs:
           lib/app/data/services/notification_permission_prompt.dart
           lib/app/modules/auth/controllers/auth_controller.dart
           lib/app/modules/chapter/controllers/chapter_controller.dart
-          lib/app/modules/comic_detail/views/comic_detail_view.dart
           lib/app/modules/notifications/controllers/notifications_controller.dart
           lib/app/modules/notifications/views/notifications_view.dart
           lib/app/modules/profile/controllers/profile_controller.dart
