@@ -67,6 +67,9 @@ class ProfileController extends GetxController {
       accountLoading.value = false;
       return;
     }
+    if (accountProfile.value?.uid != user.uid) {
+      accountProfile.value = _profileFromAuthUser(user);
+    }
     accountLoading.value = true;
     UserProfile? loadedProfile;
     try {
@@ -74,9 +77,13 @@ class ProfileController extends GetxController {
           .loadProfile(user.uid)
           .timeout(const Duration(seconds: 15));
       if (auth.currentUser?.uid == user.uid) {
-        accountProfile.value = loadedProfile;
+        accountProfile.value = loadedProfile ?? _profileFromAuthUser(user);
       }
     } catch (error) {
+      if (auth.currentUser?.uid == user.uid) {
+        // Keep the Firebase session visible while Firestore is offline or slow.
+        accountProfile.value = _profileFromAuthUser(user);
+      }
       _message('تعذر تحميل الحساب'.tr, error.toString());
     } finally {
       accountLoading.value = false;
@@ -87,6 +94,21 @@ class ProfileController extends GetxController {
       unawaited(_loadSettingsAndSync(auth, user.uid, themeRevisionAtStart));
     }
   }
+
+  UserProfile _profileFromAuthUser(User user) => UserProfile(
+        uid: user.uid,
+        email: user.email ?? '',
+        displayName: user.displayName?.trim().isNotEmpty == true
+            ? user.displayName!.trim()
+            : (user.email?.split('@').first ?? 'قارئ MangaPlus'),
+        username: '',
+        countryCode: '',
+        countryName: '',
+        createdAt: user.metadata.creationTime ?? DateTime.now(),
+        photoUrl: user.photoURL ?? '',
+        isGuest: user.isAnonymous,
+        emailVerified: user.emailVerified,
+      );
 
   Future<void> _loadSettingsAndSync(
     AuthService auth,
@@ -134,9 +156,6 @@ class ProfileController extends GetxController {
     favoritesNotificationsEnabled.value = value;
     final service = Get.find<ChapterUpdateService>();
     await service.setBackgroundEnabled(value);
-    if (value && await service.isBatteryOptimizationIgnored() == false) {
-      await service.requestBatteryOptimizationExemption();
-    }
   }
 
   Future<void> setMangaNotifications(bool value) async {

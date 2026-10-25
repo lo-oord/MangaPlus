@@ -52,7 +52,76 @@ class AuthController extends GetxController {
   void onInit() {
     super.onInit();
     profile.value = Get.arguments is UserProfile ? Get.arguments as UserProfile : null;
+    final user = service.currentUser;
+    if (profile.value == null && user != null && !user.isAnonymous) {
+      unawaited(_restoreExistingSession(user));
+    }
   }
+
+  Future<void> _restoreExistingSession(User user) async {
+    try {
+      await user.reload();
+    } catch (_) {
+      // A temporary network error must not sign out a locally persisted user.
+    }
+    final activeUser = service.currentUser;
+    if (activeUser == null || activeUser.uid != user.uid) return;
+
+    UserProfile? storedProfile;
+    try {
+      storedProfile = await service
+          .loadProfile(activeUser.uid)
+          .timeout(const Duration(seconds: 12));
+    } catch (_) {
+      // Firebase Auth remains the source of truth for the active session.
+    }
+    final restored = storedProfile ?? _profileFromAuthUser(activeUser);
+    profile.value = restored;
+
+    final isEmailAccount = activeUser.providerData
+        .any((provider) => provider.providerId == 'password');
+    if (isEmailAccount && !activeUser.emailVerified) {
+      emailVerificationRequired.value = true;
+      return;
+    }
+
+    final isIncompleteGoogleProfile = activeUser.providerData
+            .any((provider) => provider.providerId == 'google.com') &&
+        (storedProfile == null ||
+            storedProfile.username.isEmpty ||
+            storedProfile.countryCode.isEmpty ||
+            storedProfile.gender.isEmpty);
+    if (isIncompleteGoogleProfile) {
+      isCompletingGoogle.value = true;
+      displayName.text = restored.displayName;
+      username.text = restored.username;
+      selectedGender.value = restored.gender.isEmpty ? null : restored.gender;
+      birthDate.value = restored.birthDate;
+      final matchingCountries =
+          countries.where((country) => country.code == restored.countryCode);
+      selectedCountry.value = matchingCountries.isEmpty ? null : matchingCountries.first;
+      _onUsernameChanged();
+      return;
+    }
+
+    unawaited(AccountSyncService().syncLocalData());
+    Get.back(result: restored);
+  }
+
+  UserProfile _profileFromAuthUser(User user) => UserProfile(
+        uid: user.uid,
+        email: user.email ?? '',
+        displayName: user.displayName?.trim().isNotEmpty == true
+            ? user.displayName!.trim()
+            : (user.email?.split('@').first ?? 'قارئ MangaPlus'),
+        username: '',
+        countryCode: '',
+        countryName: '',
+        createdAt: user.metadata.creationTime ?? DateTime.now(),
+        photoUrl: user.photoURL ?? '',
+        isGuest: user.isAnonymous,
+        emailVerified: user.emailVerified,
+      );
 
   @override
   void onClose() {
