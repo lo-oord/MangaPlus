@@ -43,6 +43,10 @@ void main() {
       results.single['url'],
       'https://procomic.pro/ar/series/manhua/686/global-class-advancement',
     );
+    expect(
+      results.single['image_url'],
+      'https://cdn3.procomic.pro/686/image_series/cover.avif',
+    );
     expect(SearchRelevance.isRelevant('سيد الظلال', results.single), isTrue);
   });
 
