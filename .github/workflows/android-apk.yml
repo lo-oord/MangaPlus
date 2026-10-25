@@ -36,6 +36,10 @@ jobs:
           echo "KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}" >> "$GITHUB_ENV"
       - name: Install dependencies
         run: flutter pub get
+      - name: Analyze Dart code
+        run: flutter analyze --no-pub
+      - name: Run tests
+        run: flutter test --no-pub
       - name: Build one signed release APK
         run: flutter build apk --release --build-name=1.0.0 --build-number=${{ github.run_number }}
       - name: Publish APK artifact
