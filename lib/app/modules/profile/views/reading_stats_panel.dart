@@ -138,7 +138,7 @@ class _ReadingStatsPanelState extends State<ReadingStatsPanel> {
         _periodSelector(controller),
         const SizedBox(height: 11),
         LayoutBuilder(builder: (context, constraints) {
-          final gap = 9.0;
+          const gap = 9.0;
           final width = (constraints.maxWidth - gap) / 2;
           return Wrap(
             spacing: gap,
@@ -220,7 +220,7 @@ class _ReadingStatsPanelState extends State<ReadingStatsPanel> {
         ),
         const SizedBox(height: 12),
         LayoutBuilder(builder: (context, constraints) {
-          final gap = 9.0;
+          const gap = 9.0;
           final width = (constraints.maxWidth - gap) / 2;
           return Wrap(
             spacing: gap,
@@ -957,7 +957,7 @@ class _ReadingStatsPanelState extends State<ReadingStatsPanel> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               dense: true,
-              leading: Icon(Icons.delete_outline_rounded, color: AppColors.warning),
+              leading: const Icon(Icons.delete_outline_rounded, color: AppColors.warning),
               title: Text('إعادة ضبط الإحصاءات'.tr, style: TextStyle(color: AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w700)),
               subtitle: Text('لا يمكن التراجع عن حذف سجل الإحصاءات'.tr, style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
               onTap: () => _confirmReset(controller, preferences),
