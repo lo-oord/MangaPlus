@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -52,31 +53,69 @@ class ProfileController extends GetxController {
     final themeRevisionAtStart = _themeRevision;
     final auth = _auth;
     final user = auth?.currentUser;
-    if (auth == null || user == null) { accountProfile.value = null; return; }
+    if (auth == null || user == null) {
+      accountProfile.value = null;
+      accountLoading.value = false;
+      return;
+    }
     accountLoading.value = true;
+    UserProfile? loadedProfile;
     try {
-      accountProfile.value = await auth.loadProfile(user.uid);
-      if (accountProfile.value != null && !user.isAnonymous) {
-        final settings = await auth.loadSettings();
-        final language = settings['language'];
-        final theme = settings['themeMode'];
-        if (language == 'ar_SA' || language == 'en_US') {
-          selectedLanguage.value = language as String;
-          Get.updateLocale(language == 'en_US' ? const Locale('en', 'US') : const Locale('ar', 'SA'));
-          await _storage.write('language', language);
-        }
-        if ((theme == 'dark' || theme == 'light') && _themeRevision == themeRevisionAtStart) {
-          isDarkMode.value = theme == 'dark';
-          Get.changeThemeMode(theme == 'dark' ? ThemeMode.dark : ThemeMode.light);
-          AppColors.refreshTheme(theme == 'dark');
-          await _storage.write('themeMode', theme);
-        }
-        await AccountSyncService().syncLocalData();
+      loadedProfile = await auth
+          .loadProfile(user.uid)
+          .timeout(const Duration(seconds: 15));
+      if (auth.currentUser?.uid == user.uid) {
+        accountProfile.value = loadedProfile;
       }
     } catch (error) {
       _message('تعذر تحميل الحساب'.tr, error.toString());
     } finally {
       accountLoading.value = false;
+    }
+    if (loadedProfile != null &&
+        !user.isAnonymous &&
+        auth.currentUser?.uid == user.uid) {
+      unawaited(_loadSettingsAndSync(auth, user.uid, themeRevisionAtStart));
+    }
+  }
+
+  Future<void> _loadSettingsAndSync(
+    AuthService auth,
+    String uid,
+    int themeRevisionAtStart,
+  ) async {
+    try {
+      final settings = await auth
+          .loadSettings()
+          .timeout(const Duration(seconds: 10));
+      if (auth.currentUser?.uid != uid) return;
+      final language = settings['language'];
+      final theme = settings['themeMode'];
+      if (language == 'ar_SA' || language == 'en_US') {
+        selectedLanguage.value = language as String;
+        Get.updateLocale(
+          language == 'en_US' ? const Locale('en', 'US') : const Locale('ar', 'SA'),
+        );
+        await _storage.write('language', language);
+      }
+      if ((theme == 'dark' || theme == 'light') &&
+          _themeRevision == themeRevisionAtStart) {
+        isDarkMode.value = theme == 'dark';
+        Get.changeThemeMode(theme == 'dark' ? ThemeMode.dark : ThemeMode.light);
+        AppColors.refreshTheme(theme == 'dark');
+        await _storage.write('themeMode', theme);
+      }
+    } catch (_) {
+      // Profile display must not depend on optional remote settings.
+    }
+
+    if (auth.currentUser?.uid != uid) return;
+    try {
+      await AccountSyncService()
+          .syncLocalData()
+          .timeout(const Duration(seconds: 15));
+    } catch (_) {
+      // Keep account rendering independent from background library sync.
     }
   }
 

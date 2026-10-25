@@ -229,7 +229,7 @@ class AuthController extends GetxController {
         if (service.currentUser?.emailVerified != true && service.currentUser?.isAnonymous != true) {
           emailVerificationRequired.value = true;
         } else {
-          await AccountSyncService().syncLocalData();
+          unawaited(AccountSyncService().syncLocalData());
           Get.back(result: profile.value);
         }
       }
@@ -259,7 +259,7 @@ class AuthController extends GetxController {
         _message('أكمل بياناتك', 'أضف اسم المستخدم والدولة وتاريخ الميلاد لإكمال الحساب.');
       } else {
         profile.value = result;
-        await AccountSyncService().syncLocalData();
+        unawaited(AccountSyncService().syncLocalData());
         Get.back(result: result);
       }
     } catch (error) {
