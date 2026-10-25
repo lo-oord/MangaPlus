@@ -9,6 +9,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/data/models/chapter.dart';
 import 'package:mangaplus/app/data/models/history.dart';
 import 'package:mangaplus/app/data/services/app_data_service.dart';
+import 'package:mangaplus/app/data/services/chapter_update_service.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
 import 'package:mangaplus/app/core/utils/reader_load_issue.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
@@ -1318,8 +1319,11 @@ class ChapterController extends GetxController {
     );
     readChapters[id] = DateTime.now().toIso8601String();
     await _storage.write('readChapters', readChapters);
-    chapterNavigationRevision.value++;
     final comicId = '${arguments['comicId'] ?? ''}';
+    if (comicId.isNotEmpty && Get.isRegistered<ChapterUpdateService>()) {
+      await Get.find<ChapterUpdateService>().markChapterRead(comicId, id);
+    }
+    chapterNavigationRevision.value++;
     if (comicId.isEmpty || !Get.isRegistered<AppDataService>()) return;
     try {
       await Get.find<AppDataService>().addHistory(HistoryItem(

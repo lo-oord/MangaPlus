@@ -22,16 +22,11 @@ class AppNotificationService {
 
   Future<void> initialize() async {
     if (kIsWeb) return;
-    await _messaging.requestPermission(alert: true, badge: true, sound: true);
+    final settings = await _messaging.getNotificationSettings();
+    final allowed = settings.authorizationStatus == AuthorizationStatus.authorized ||
+        settings.authorizationStatus == AuthorizationStatus.provisional;
+    if (!allowed) return;
     await _messaging.subscribeToTopic(topic);
-    final token = await _messaging.getToken();
-    if (token != null) await _saveToken(token);
-    _messaging.onTokenRefresh.listen(_saveToken);
-  }
-
-  Future<void> _saveToken(String token) async {
-    // App-wide announcements use the FCM topic; no user token is stored in
-    // Firestore from the client.
   }
 
   Future<List<AppNotification>> loadNotifications() async {

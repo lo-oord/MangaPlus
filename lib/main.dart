@@ -16,7 +16,9 @@ import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/core/theme/theme.dart';
 import 'package:mangaplus/app/core/theme/theme_mode_preference.dart';
 import 'package:mangaplus/app/data/services/notification_presentation.dart';
+import 'package:mangaplus/app/data/services/notification_permission_prompt.dart';
 import 'package:mangaplus/app/data/services/app_notification_service.dart';
+import 'package:mangaplus/app/data/services/chapter_update_coordinator.dart';
 import 'package:mangaplus/app/data/services/chapter_update_service.dart';
 import 'package:mangaplus/app/data/services/download_manager_service.dart';
 import 'package:mangaplus/app/core/translations/app_translations.dart';
@@ -29,10 +31,46 @@ import 'app/routes/app_pages.dart';
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await AppNotificationService().recordRemoteMessage(message);
-  showFlutterNotification(message);
-  // If you're going to use other Firebase services in the background, such as Firestore,
-  // make sure you call `initializeApp` before using other Firebase services.
+  // FCM displays notification payloads itself in the background. Only show
+  // data-only messages locally to avoid duplicate system notifications.
+  if (message.notification == null) {
+    await _showBackgroundDataNotification(message);
+  }
   debugPrint('Handling a background message ${message.messageId}');
+}
+
+Future<void> _showBackgroundDataNotification(RemoteMessage message) async {
+  final data = message.data;
+  final title = '${data['title'] ?? ''}'.trim();
+  final body = '${data['body'] ?? data['message'] ?? ''}'.trim();
+  if (title.isEmpty && body.isEmpty) return;
+
+  final plugin = FlutterLocalNotificationsPlugin();
+  await plugin.initialize(
+    const InitializationSettings(
+      android: AndroidInitializationSettings('ic_stat_mangaplus'),
+    ),
+  );
+  final backgroundChannel = NotificationPresentation.channelFor('ar_SA');
+  await plugin
+      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(backgroundChannel);
+  await plugin.show(
+    message.messageId?.hashCode ?? DateTime.now().millisecondsSinceEpoch,
+    title,
+    body,
+    NotificationDetails(
+      android: AndroidNotificationDetails(
+        backgroundChannel.id,
+        backgroundChannel.name,
+        channelDescription: backgroundChannel.description,
+        icon: 'ic_stat_mangaplus',
+        color: const Color(0xff5b9bd5),
+        importance: Importance.high,
+        priority: Priority.high,
+      ),
+    ),
+  );
 }
 
 /// Create a [AndroidNotificationChannel] for heads up notifications
@@ -86,39 +124,32 @@ Future<void> setupFlutterNotifications({required String languageCode}) async {
       .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>()
       ?.createNotificationChannel(channel);
-  await flutterLocalNotificationsPlugin
-      .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>()
-      ?.requestNotificationsPermission();
-
   isFlutterLocalNotificationsInitialized = true;
 }
 
 void showFlutterNotification(RemoteMessage message) {
-  RemoteNotification? notification = message.notification;
-  AndroidNotification? android = message.notification?.android;
-  if (notification != null && android != null && !kIsWeb) {
-    debugPrint("NOTIF RECEIVED:");
-    debugPrint("Title: ${notification.title}");
-    debugPrint("Body: ${notification.body}");
+  if (kIsWeb) return;
+  final notification = message.notification;
+  final title = '${notification?.title ?? message.data['title'] ?? ''}'.trim();
+  final body = '${notification?.body ?? message.data['body'] ?? message.data['message'] ?? ''}'.trim();
+  if (title.isEmpty && body.isEmpty) return;
 
-    flutterLocalNotificationsPlugin.show(
-      notification.hashCode,
-      notification.title,
-      notification.body,
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          channel.id,
-          channel.name,
-          channelDescription: channel.description,
-          icon: 'ic_stat_mangaplus',
-          color: const Color(0xff5b9bd5),
-          importance: Importance.high,
-          priority: Priority.high,
-        ),
+  unawaited(flutterLocalNotificationsPlugin.show(
+    message.messageId?.hashCode ?? DateTime.now().millisecondsSinceEpoch,
+    title,
+    body,
+    NotificationDetails(
+      android: AndroidNotificationDetails(
+        channel.id,
+        channel.name,
+        channelDescription: channel.description,
+        icon: 'ic_stat_mangaplus',
+        color: const Color(0xff5b9bd5),
+        importance: Importance.high,
+        priority: Priority.high,
       ),
-    );
-  }
+    ),
+  ));
 }
 
 /// Initialize the [FlutterLocalNotificationsPlugin] package.
@@ -181,17 +212,23 @@ void main() async {
     permanent: true,
   );
   if (!kIsWeb) {
-    unawaited(notificationService.initialize().catchError((_) {}));
-  }
-  if (!kIsWeb) {
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      unawaited(notificationService.recordRemoteMessage(message));
-      Get.toNamed(Routes.NOTIFICATIONS);
+      unawaited(() async {
+        try {
+          await notificationService.recordRemoteMessage(message);
+        } catch (_) {
+          // Opening the inbox should still work when local persistence fails.
+        }
+        Get.toNamed(Routes.NOTIFICATIONS);
+      }());
     });
   }
   final initialNotification = !kIsWeb
       ? await FirebaseMessaging.instance.getInitialMessage()
       : null;
+  if (initialNotification != null) {
+    await notificationService.recordRemoteMessage(initialNotification);
+  }
   runApp(
     GetMaterialApp(
       debugShowCheckedModeBanner: false,
@@ -226,7 +263,9 @@ void main() async {
           languageCode: savedLanguage,
         );
         unawaited(chapterUpdateService.initializeBackground());
-        unawaited(chapterUpdateService.checkOnAppOpen());
+        ChapterUpdateCoordinator(chapterUpdateService).start();
+        unawaited(Future<void>.delayed(const Duration(seconds: 1)).then((_) =>
+            NotificationPermissionPrompt.showIfNeeded()).catchError((_) {}));
         for (final message in _pendingForegroundNotifications) {
           showFlutterNotification(message);
         }
