@@ -65,7 +65,7 @@ class ChapterUpdateService {
   FlutterLocalNotificationsPlugin? _notifications;
   String _languageCode = 'ar_SA';
 
-  bool get backgroundEnabled => _storage.read(_backgroundEnabledKey) == true;
+  bool get backgroundEnabled => _storage.read(_backgroundEnabledKey) != false;
   bool get mangaNotificationsEnabled => _storage.read(_mangaEnabledKey) != false;
   bool get novelNotificationsEnabled => _storage.read(_novelEnabledKey) != false;
   int get frequencyHours => (_storage.read(_frequencyKey) as int?) ?? 2;
