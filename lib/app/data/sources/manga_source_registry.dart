@@ -11,6 +11,7 @@ import 'kawaii_manga_source.dart';
 import 'kawaii_novels_source.dart';
 import 'cenele_source.dart';
 import 'mangadar_source.dart';
+import 'kolnovel_source.dart';
 import 'search_relevance.dart';
 import 'source_base.dart';
 
@@ -31,6 +32,7 @@ class MangaSourceRegistry {
   static final CeneleNovelSource ceneleNovels = CeneleNovelSource();
   static final CeneleMangaSource ceneleManga = CeneleMangaSource();
   static final MangaDarSource mangaDar = MangaDarSource();
+  static final KolNovelSource kolNovel = KolNovelSource();
 
   /// Team X is intentionally excluded from the multi-source home feed contract;
   /// the home screen calls it directly through [ComicService.fetchComics].
@@ -49,6 +51,7 @@ class MangaSourceRegistry {
         ceneleNovels,
         ceneleManga,
         mangaDar,
+        kolNovel,
       ];
 
   static ContentSource? forUrl(String url) {

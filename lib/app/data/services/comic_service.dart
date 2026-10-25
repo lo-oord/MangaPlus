@@ -31,6 +31,7 @@ class ComicService {
   final _mknov = MangaSourceRegistry.mknov;
   final _kawaiiManga = MangaSourceRegistry.kawaiiManga;
   final _kawaiiNovels = MangaSourceRegistry.kawaiiNovels;
+  final _kolNovel = MangaSourceRegistry.kolNovel;
   static const String sourceName = 'Team X';
 
   static ComicsList mapComicItem(Map<String, dynamic> item) {
@@ -151,6 +152,10 @@ class ComicService {
           .searchSuggestions(limit: limit)
           .timeout(const Duration(seconds: 40))
           .catchError((_) => <Map<String, dynamic>>[]),
+      _kolNovel
+          .searchSuggestions(limit: limit)
+          .timeout(const Duration(seconds: 40))
+          .catchError((_) => <Map<String, dynamic>>[]),
     ]);
     final bySource = <List<Map<String, dynamic>>>[
       results[0]
@@ -186,6 +191,13 @@ class ComicService {
                 ...item,
                 'source_id': item['source_id'] ?? _kawaiiNovels.id,
                 'source': item['source'] ?? _kawaiiNovels.name,
+              })
+          .toList(growable: false),
+      results[5]
+          .map((item) => {
+                ...item,
+                'source_id': item['source_id'] ?? _kolNovel.id,
+                'source': item['source'] ?? _kolNovel.name,
               })
           .toList(growable: false),
     ];
