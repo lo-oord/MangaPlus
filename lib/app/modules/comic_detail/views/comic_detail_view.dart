@@ -623,6 +623,7 @@ class _SourceLogo extends StatelessWidget {
 
   String? get logoUrl {
     final value = _normalizedSource;
+    if (value.contains('kolnovel')) return 'https://kolnovel.com/favicon.ico';
     if (value.contains('kawaii')) {
       return 'https://kawaiimanga.org/logo.png';
     }

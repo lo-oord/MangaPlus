@@ -246,9 +246,13 @@ class KolNovelSource extends ContentSource {
     }
 
     collect(baseDocument);
-    final latestVolume = baseDocument.querySelector('details[data-kol-chapter-volume]')
-        ?.attributes['data-kol-chapter-volume'];
-    if (latestVolume != null && latestVolume.isNotEmpty) {
+    final volumeElement =
+        baseDocument.querySelector('details[data-kol-chapter-volume]');
+    if (volumeElement != null) {
+      // KolNovel uses an empty data-kol-chapter-volume for its default volume.
+      // The attribute's presence still means the chapter list must be fetched.
+      final latestVolume =
+          volumeElement.attributes['data-kol-chapter-volume'] ?? '';
       final uri = Uri.parse(seriesUrl).replace(
         queryParameters: {'chapter_volume': latestVolume, 'chapter_page': '1'},
       );
