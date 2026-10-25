@@ -71,7 +71,7 @@ void main() {
           dayKey: _key(day),
         );
       });
-      final now = firstDay.add(const Duration(days: 2, hours: 15));
+      final now = firstDay.add(const Duration(days: 2, hours: 10));
       final report = ReadingStatsAnalytics.build(sessions, now: now);
 
       expect(report.todaySeconds, 600);
