@@ -117,8 +117,19 @@ class ChapterUpdateService {
   Future<void> checkOnAppOpen() async {
     final last = DateTime.tryParse('${_storage.read(_lastOpenCheckKey) ?? ''}');
     if (last != null && DateTime.now().difference(last) < const Duration(hours: 6)) return;
-    await _storage.write(_lastOpenCheckKey, DateTime.now().toUtc().toIso8601String());
-    await checkFavorites();
+    try {
+      final result = await checkFavorites();
+      if (result.failed == 0) {
+        await _storage.write(
+          _lastOpenCheckKey,
+          DateTime.now().toUtc().toIso8601String(),
+        );
+      }
+    } catch (error) {
+      // Keep the previous timestamp so a transient source/network failure can
+      // be retried on the next app open instead of being suppressed for 6h.
+      debugPrint('Unable to check favorite chapters on app open: $error');
+    }
   }
 
   Future<bool> isBatteryOptimizationIgnored() async {

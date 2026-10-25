@@ -85,6 +85,10 @@ Future<void> setupFlutterNotifications({required String languageCode}) async {
       .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>()
       ?.createNotificationChannel(channel);
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.requestNotificationsPermission();
 
   isFlutterLocalNotificationsInitialized = true;
 }
