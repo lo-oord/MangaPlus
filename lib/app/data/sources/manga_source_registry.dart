@@ -13,7 +13,6 @@ import 'mangadar_source.dart';
 import 'kolnovel_source.dart';
 import 'mangacool_source.dart';
 import 'procomic_source.dart';
-import 'waveteamy_source.dart';
 import 'search_relevance.dart';
 import 'source_base.dart';
 
@@ -36,7 +35,6 @@ class MangaSourceRegistry {
   static final KolNovelSource kolNovel = KolNovelSource();
   static final MangaCoolSource mangaCool = MangaCoolSource();
   static final ProComicSource proComic = ProComicSource();
-  static final WaveTeamySource waveTeamy = WaveTeamySource();
 
   /// Team X is intentionally excluded from the multi-source home feed contract;
   /// the home screen calls it directly through [ComicService.fetchComics].
@@ -57,7 +55,6 @@ class MangaSourceRegistry {
         kolNovel,
         mangaCool,
         proComic,
-        waveTeamy,
       ];
 
   static ContentSource? forUrl(String url) {

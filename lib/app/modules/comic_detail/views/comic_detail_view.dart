@@ -653,7 +653,6 @@ class _SourceLogo extends StatelessWidget {
       return 'https://mangadar.com/wp-content/uploads/2026/04/Logo.png';
     }
     if (value.contains('procomic')) return 'https://procomic.pro/favicon.svg';
-    if (value.contains('waveteamy')) return 'https://waveteamy.com/favicon.ico';
     return null;
   }
 
