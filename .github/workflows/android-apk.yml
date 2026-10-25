@@ -50,14 +50,12 @@ jobs:
           lib/app/data/models/reading_stats.dart
           lib/app/modules/auth/controllers/auth_controller.dart
           lib/app/modules/chapter/controllers/chapter_controller.dart
-          lib/app/modules/chapter/views/chapter_view.dart
           lib/app/modules/main/bindings/main_binding.dart
           lib/app/modules/notifications/controllers/notifications_controller.dart
           lib/app/modules/notifications/views/notifications_view.dart
           lib/app/modules/profile/bindings/profile_binding.dart
           lib/app/modules/profile/controllers/reading_stats_controller.dart
           lib/app/modules/profile/controllers/profile_controller.dart
-          lib/app/modules/profile/views/profile_view.dart
           lib/app/modules/profile/views/reading_stats_panel.dart
           test/reading_stats_test.dart
       - name: Run tests
