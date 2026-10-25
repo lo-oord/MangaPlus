@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:html/parser.dart' as html_parser;
 import 'package:http/http.dart' as http;
 
 import 'source_base.dart';
@@ -67,7 +68,7 @@ class ProComicSource extends ContentSource {
     if (response.statusCode < 200 || response.statusCode >= 300) throw Exception('ProComic: فشل تحميل الفصل (${response.statusCode}).');
     final html = utf8.decode(response.bodyBytes, allowMalformed: true);
     final images = <String>[];
-    final pattern = RegExp(r'https://(?:cdn2|app)\.procomic\.pro/[^"\\]+?\.(?:avif|webp|jpg|jpeg|png)', caseSensitive: false);
+    final pattern = RegExp(r'https://(?:cdn\d+|app)\.procomic\.pro/[^"\\\s]+?\.(?:avif|webp|jpg|jpeg|png)', caseSensitive: false);
     for (final match in pattern.allMatches(html)) {
       final image = match.group(0)!;
       if (!images.contains(image) && (image.contains('/chapters/') || image.contains('/${_contentId(url)}/'))) images.add(image);
@@ -82,14 +83,28 @@ class ProComicSource extends ContentSource {
     if (id <= 0 || seriesUrl.isEmpty) return const [];
     final response = await _client.get(Uri.parse(seriesUrl), headers: {..._headers, 'Accept': 'text/html'}).timeout(_timeout);
     if (response.statusCode < 200 || response.statusCode >= 300) return const [];
-    final html = utf8.decode(response.bodyBytes, allowMalformed: true);
-    final pattern = RegExp(r'https://procomic\.pro/(?:ar|en)/chapter/[^"< ]+-([0-9]+)-([0-9]+)', caseSensitive: false);
-    final seen = <String>{}; final result = <Map<String, dynamic>>[];
-    for (final match in pattern.allMatches(html)) {
-      final number = match.group(1)!; final chapterId = match.group(2)!;
+    final document = html_parser.parse(utf8.decode(response.bodyBytes, allowMalformed: true));
+    final base = Uri.parse(seriesUrl);
+    final seen = <String>{};
+    final result = <Map<String, dynamic>>[];
+    for (final anchor in document.querySelectorAll('a[href*="/chapter/"]')) {
+      final href = anchor.attributes['href']?.trim() ?? '';
+      if (href.isEmpty) continue;
+      final chapterUri = base.resolve(href);
+      if (chapterUri.host != 'procomic.pro' && !chapterUri.host.endsWith('.procomic.pro')) continue;
+      final path = chapterUri.pathSegments.isEmpty ? '' : chapterUri.pathSegments.last;
+      final match = RegExp(r'-([0-9]+(?:\.[0-9]+)?)-([0-9]+)$').firstMatch(path);
+      if (match == null) continue;
+      final number = match.group(1)!;
+      final chapterId = match.group(2)!;
       if (!seen.add('$number|$chapterId')) continue;
-      final chapterUrl = match.group(0)!;
-      result.add({'title': 'الفصل $number', 'number': double.tryParse(number) ?? number, 'chapter_number': number, 'chapter_id': int.tryParse(chapterId) ?? 0, 'url': chapterUrl});
+      result.add({
+        'title': 'الفصل $number',
+        'number': double.tryParse(number) ?? number,
+        'chapter_number': number,
+        'chapter_id': int.tryParse(chapterId) ?? 0,
+        'url': chapterUri.toString(),
+      });
     }
     result.sort((a, b) => _chapterValue(b['number']).compareTo(_chapterValue(a['number'])));
     return result;
@@ -98,7 +113,20 @@ class ProComicSource extends ContentSource {
   List<Map<String, dynamic>> _items(List<Map<String, dynamic>> raw) => raw.map(_item).where((e) => '${e['title']}'.trim().isNotEmpty).toList(growable: false);
   Map<String, dynamic> _item(Map<String, dynamic> raw) {
     final metadata = _metadata(raw); final title = _text(raw['title']);
-    final image = _image(_text(raw['coverImage']).isNotEmpty ? _text(raw['coverImage']) : _text(raw['thumbnail']));
+    final appCover = raw['coverImageApp'] is Map
+        ? (raw['coverImageApp'] as Map)['desktop'] ?? (raw['coverImageApp'] as Map)['mobile']
+        : raw['coverImageApp'];
+    final image = _image(
+      _firstText([
+        raw['coverImage'],
+        raw['cover_image'],
+        metadata['coverImage'],
+        metadata['cover_image'],
+        raw['thumbnail'],
+        appCover,
+      ]),
+      cdnPath: _text(raw['cdn_path']),
+    );
     final result = item(title: title, url: _seriesUrl(raw), image: image, type: _text(raw['type']), genres: _listStrings(metadata['genres']), description: _text(raw['description']), rating: SourceValues.rating(raw['series_rating'] ?? raw['rating']));
     result.addAll({'native_title': _text(metadata['originalTitle']), 'alternate_titles': metadata['altTitles'] ?? metadata['alternate_titles'] ?? const [], 'status': _text(raw['progress']), 'total_chapters': '${raw['chapters_count'] ?? ''}', 'latest_chapter_number': '${raw['chapters_count'] ?? ''}',});
     return result;
@@ -112,10 +140,29 @@ class ProComicSource extends ContentSource {
     return decoded is Map<String, dynamic> ? decoded : Map<String, dynamic>.from(decoded as Map);
   }
 
-  List<Map<String, dynamic>> _list(Map<String, dynamic> raw) => (raw['data'] is List ? raw['data'] as List : const []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+  List<Map<String, dynamic>> _list(Map<String, dynamic> raw) {
+    final data = raw['data'];
+    final entries = data is List
+        ? data
+        : data is Map
+            ? data['series'] ?? data['results'] ?? data['items'] ?? data['content'] ?? const []
+            : const [];
+    return entries is List
+        ? entries.whereType<Map>().map((entry) => Map<String, dynamic>.from(entry)).toList(growable: false)
+        : const [];
+  }
   Map<String, dynamic> _metadata(Map<String, dynamic> raw) => raw['metadata'] is Map ? Map<String, dynamic>.from(raw['metadata']) : {};
   List<String> _listStrings(dynamic value) => value is List ? value.map(_text).where((e) => e.isNotEmpty).toList() : const [];
-  String _image(String value) => value.isEmpty ? '' : value.startsWith('http') ? value : 'https://cdn2.procomic.pro$value';
+  String _image(String value, {String cdnPath = 'cdn2'}) {
+    if (value.isEmpty) return '';
+    final uri = Uri.tryParse(value);
+    if (uri?.hasScheme == true) {
+      return uri!.scheme == 'http' || uri.scheme == 'https' ? uri.toString() : '';
+    }
+    final cdn = RegExp(r'^cdn\d+$').hasMatch(cdnPath) ? cdnPath : 'cdn2';
+    final path = value.startsWith('/') ? value : '/$value';
+    return 'https://$cdn.procomic.pro$path';
+  }
   String _seriesUrl(Map<String, dynamic> raw) {
     final type = _text(raw['type']);
     final id = _int(raw['id']);
@@ -138,6 +185,13 @@ class ProComicSource extends ContentSource {
   }
   String _chapterNumber(String value) => RegExp(r'-([0-9]+)-[0-9]+/?$').firstMatch(value)?.group(1) ?? '';
   double _chapterValue(dynamic value) => double.tryParse('$value') ?? -1;
+  String _firstText(Iterable<dynamic> values) {
+    for (final value in values) {
+      final text = _text(value);
+      if (text.isNotEmpty && text != 'null') return text;
+    }
+    return '';
+  }
   String _text(dynamic value) => value?.toString().trim() ?? '';
   int _int(dynamic value) => int.tryParse(_text(value)) ?? 0;
 }

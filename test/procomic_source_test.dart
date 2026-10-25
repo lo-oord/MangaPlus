@@ -19,7 +19,8 @@ void main() {
               'title': 'Global Class Advancement',
               'slug': 'global-class-advancement',
               'type': 'manhua',
-              'thumbnail': 'https://app.procomic.pro/cover.avif',
+              'thumbnail': '/686/image_series/cover.avif',
+              'cdn_path': 'cdn3',
               'metadata': {
                 'altTitles': ['سيد الظلال', 'Lord of Shadows'],
               },
@@ -43,6 +44,20 @@ void main() {
       'https://procomic.pro/ar/series/manhua/686/global-class-advancement',
     );
     expect(SearchRelevance.isRelevant('سيد الظلال', results.single), isTrue);
+  });
+
+  test('reads ordered chapter pages from current ProComic image paths', () async {
+    final client = MockClient((request) async =>
+        http.Response(_readerPage, 200, headers: _htmlHeaders));
+    final source = ProComicSource(client: client);
+    final chapter = await source.chapterImages(
+      'https://procomic.pro/ar/chapter/global-class-advancement-3-50319',
+    );
+    expect(chapter?['chapter_number'], '3');
+    expect(chapter?['pages'], [
+      'https://app.procomic.pro/chapters/686/50319/p1/page-1.avif',
+      'https://cdn3.procomic.pro/chapters/686/50319/p2/page-2.webp',
+    ]);
   });
 
   test('loads details using the current ProComic series route', () async {
@@ -90,8 +105,15 @@ const _seriesData = {
 
 const _seriesPage = '''
 <html><body>
-  <a href="https://procomic.pro/ar/chapter/global-class-advancement-3-50319">
+  <a href="/ar/chapter/global-class-advancement-3-50319">
     الفصل 3
   </a>
+</body></html>
+''';
+
+const _readerPage = '''
+<html><body>
+  <img src="https://app.procomic.pro/chapters/686/50319/p1/page-1.avif">
+  <img src="https://cdn3.procomic.pro/chapters/686/50319/p2/page-2.webp">
 </body></html>
 ''';
