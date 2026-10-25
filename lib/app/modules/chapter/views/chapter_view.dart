@@ -1468,8 +1468,13 @@ class ChapterView extends GetView<ChapterController> {
     final uri = Uri.tryParse(imageUrl);
     final isMangaCloud = uri?.host == 'cdn.mangacloud.online' ||
         uri?.host.endsWith('.mangacloud.online') == true;
+    final isMangaDar = uri?.host == 'storage.mangadar.com' ||
+        uri?.host.endsWith('.storage.mangadar.com') == true ||
+        uri?.host == 'mangadar.com';
     return {
-      'Referer': isMangaCloud
+      'Referer': isMangaDar
+          ? 'https://mangadar.com/'
+          : isMangaCloud
           ? 'https://mangacloud.online/'
           : uri == null || uri.host.isEmpty
           ? 'https://olympustaff.com/'

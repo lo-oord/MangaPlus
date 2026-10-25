@@ -10,6 +10,7 @@ import 'mknov_source.dart';
 import 'kawaii_manga_source.dart';
 import 'kawaii_novels_source.dart';
 import 'cenele_source.dart';
+import 'mangadar_source.dart';
 import 'source_base.dart';
 
 class MangaSourceRegistry {
@@ -28,6 +29,7 @@ class MangaSourceRegistry {
   static final KawaiiNovelsSource kawaiiNovels = KawaiiNovelsSource();
   static final CeneleNovelSource ceneleNovels = CeneleNovelSource();
   static final CeneleMangaSource ceneleManga = CeneleMangaSource();
+  static final MangaDarSource mangaDar = MangaDarSource();
 
   /// Team X is intentionally excluded from the multi-source home feed contract;
   /// the home screen calls it directly through [ComicService.fetchComics].
@@ -45,6 +47,7 @@ class MangaSourceRegistry {
         kawaiiNovels,
         ceneleNovels,
         ceneleManga,
+        mangaDar,
       ];
 
   static ContentSource? forUrl(String url) {

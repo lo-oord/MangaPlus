@@ -652,6 +652,9 @@ class _SourceLogo extends StatelessWidget {
     if (value.contains('cenele')) {
       return 'https://cenele.com/wp-content/uploads/2026/08/cropped-%D9%81%D8%B6%D8%A7%D8%A1-%D8%B1%D9%88%D8%A7%D9%8A%D8%A7%D8%AA.png';
     }
+    if (value.contains('mangadar')) {
+      return 'https://mangadar.com/wp-content/uploads/2026/04/Logo.png';
+    }
     return null;
   }
 

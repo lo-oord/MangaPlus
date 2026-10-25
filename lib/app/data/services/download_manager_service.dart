@@ -331,7 +331,16 @@ class DownloadManagerService extends GetxService {
         if (current?.status == DownloadTaskStatus.paused ||
             current?.status == DownloadTaskStatus.cancelled) return;
         final imageUri = Uri.parse(data.chapter.images[index]);
-        final headers = imageUri.host.contains('olympustaff.com')
+        final isMangaDar = imageUri.host == 'storage.mangadar.com' ||
+            imageUri.host.endsWith('.storage.mangadar.com') ||
+            imageUri.host == 'mangadar.com';
+        final headers = isMangaDar
+            ? <String, String>{
+                'Referer': 'https://mangadar.com/',
+                'User-Agent':
+                    'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+              }
+            : imageUri.host.contains('olympustaff.com')
             ? source.imageRequestHeaders
             : <String, String>{
                 'Referer': '${imageUri.scheme}://${imageUri.host}/',
