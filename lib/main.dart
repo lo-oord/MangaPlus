@@ -173,10 +173,14 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   try {
-    // Wait until Firebase restores any persisted user before controllers read currentUser.
-    await FirebaseAuth.instance.authStateChanges().first;
+    // Do not block the first frame indefinitely while Firebase restores auth state.
+    // Auth persistence is local; a network outage must not terminate startup.
+    await FirebaseAuth.instance
+        .authStateChanges()
+        .first
+        .timeout(const Duration(seconds: 3));
   } catch (error) {
-    debugPrint('Unable to restore Firebase auth session: $error');
+    debugPrint('Unable to restore Firebase auth session before timeout: $error');
   }
 
   FlutterError.onError = (errorDetails) {
@@ -227,11 +231,23 @@ void main() async {
       }());
     });
   }
-  final initialNotification = !kIsWeb
-      ? await FirebaseMessaging.instance.getInitialMessage()
-      : null;
+  RemoteMessage? initialNotification;
+  if (!kIsWeb) {
+    try {
+      // FCM may wait on network/token state; it must never prevent runApp().
+      initialNotification = await FirebaseMessaging.instance
+          .getInitialMessage()
+          .timeout(const Duration(seconds: 3));
+    } catch (error) {
+      debugPrint('Unable to read the initial Firebase message: $error');
+    }
+  }
   if (initialNotification != null) {
-    await notificationService.recordRemoteMessage(initialNotification);
+    try {
+      await notificationService.recordRemoteMessage(initialNotification);
+    } catch (error) {
+      debugPrint('Unable to persist the initial Firebase message: $error');
+    }
   }
   runApp(
     GetMaterialApp(
