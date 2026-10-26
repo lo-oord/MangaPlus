@@ -8,9 +8,12 @@ import 'package:mangaplus/app/data/sources/source_base.dart';
 import 'package:mangaplus/app/data/sources/team_x_source.dart';
 
 class GenreService extends GetxService {
-  GenreService({TeamXSource? source}) : _source = source ?? TeamXSource();
+  GenreService({TeamXSource? source, Iterable<ContentSource>? sources})
+      : _source = source ?? TeamXSource(),
+        _sources = sources ?? MangaSourceRegistry.searchableSources;
 
   final TeamXSource _source;
+  final Iterable<ContentSource> _sources;
 
   Future<GenreData> fetchGenres() async {
     final entriesRequest = _source.genres();
