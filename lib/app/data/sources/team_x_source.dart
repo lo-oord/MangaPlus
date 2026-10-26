@@ -64,7 +64,7 @@ class TeamXSource extends ContentSource {
           .replaceFirst('thumbnail_', '');
       return _seriesItem(title, url, image);
     }).where(_validItem).toList();
-    return _withSeriesBriefs(items);
+    return items;
   }
 
     Future<List<Map<String, dynamic>>> searchSuggestions({int limit = 6}) async {
