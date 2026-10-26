@@ -347,12 +347,7 @@ class DownloadManagerService extends GetxService {
                 'User-Agent':
                     'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
               };
-        final response = await _httpClient
-            .get(imageUri, headers: headers)
-            .timeout(const Duration(seconds: 35));
-        if (response.statusCode < 200 || response.statusCode >= 300) {
-          throw HttpException('HTTP ${response.statusCode}');
-        }
+        final response = await _getImageWithRetry(imageUri, headers);
         final contentType = response.headers['content-type']?.toLowerCase() ?? '';
         final extension = contentType.contains('png')
             ? 'png'
@@ -387,9 +382,9 @@ class DownloadManagerService extends GetxService {
       }
     }
     try {
-      final concurrency = data.chapter.images.length < 5
+      final concurrency = data.chapter.images.length < 3
           ? data.chapter.images.length
-          : 5;
+          : 3;
       await Future.wait(List.generate(concurrency, (_) => downloadImage()));
       final current = _task(task.id);
       if (completedPages != data.chapter.images.length ||
@@ -407,6 +402,36 @@ class DownloadManagerService extends GetxService {
     }
   }
 
+  Future<http.Response> _getImageWithRetry(
+    Uri imageUri,
+    Map<String, String> headers,
+  ) async {
+    const maxAttempts = 2;
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        final response = await _httpClient
+            .get(imageUri, headers: headers)
+            .timeout(const Duration(seconds: 35));
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          return response;
+        }
+        final retryable = response.statusCode == 408 ||
+            response.statusCode == 429 ||
+            response.statusCode >= 500;
+        if (!retryable || attempt == maxAttempts - 1) {
+          throw HttpException('HTTP ${response.statusCode}');
+        }
+      } on TimeoutException {
+        if (attempt == maxAttempts - 1) rethrow;
+      } on SocketException {
+        if (attempt == maxAttempts - 1) rethrow;
+      } on http.ClientException {
+        if (attempt == maxAttempts - 1) rethrow;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+    throw HttpException('تعذر تحميل صورة الفصل بعد إعادة المحاولة.');
+  }
   Future<void> _saveDownloadedChapter(
     DownloadTask task,
     String chapterId,

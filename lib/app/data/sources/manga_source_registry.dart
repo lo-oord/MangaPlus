@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'manga_swat_source.dart';
 import 'azora_source.dart';
 import 'mangatime_source.dart';
@@ -67,9 +68,12 @@ class MangaSourceRegistry {
   static Future<List<Map<String, dynamic>>> search(
     String query, {
     void Function(List<Map<String, dynamic>> batch)? onBatch,
+    Iterable<ContentSource>? sources,
+    Duration progressiveDeadline = const Duration(seconds: 15),
   }) async {
     final batches = <Map<String, dynamic>>[];
-    await Future.wait(searchableSources.map((source) async {
+    final sourcesToSearch = sources ?? searchableSources;
+    final sourceRequests = Future.wait(sourcesToSearch.map((source) async {
       try {
         final result = await source.search(query).timeout(
               source.id == 'kawaii_novels'
@@ -98,6 +102,24 @@ class MangaSourceRegistry {
         // A down source must never block the results of healthy sources.
       }
     }));
+    if (onBatch == null) {
+      await sourceRequests;
+    } else {
+      // Return the early snapshot for the UI, but do not cancel the other
+      // source futures: their onBatch callbacks can still add late results.
+      final deadline = Completer<void>();
+      final timer = Timer(progressiveDeadline, () {
+        if (!deadline.isCompleted) deadline.complete();
+      });
+      try {
+        await Future.any<void>([
+          sourceRequests.then<void>((_) {}),
+          deadline.future,
+        ]);
+      } finally {
+        timer.cancel();
+      }
+    }
     final seen = <String>{};
     return batches.where((item) {
       final key = '${item['source_id']}|${item['url']}';

@@ -15,8 +15,8 @@ class ComicService {
   })  : _teamX = source ?? MangaSourceRegistry.teamX,
         _sourceResolver = sourceResolver ?? MangaSourceRegistry.forUrl,
         _detailRequestTimeout = detailRequestTimeout;
-  static const Duration _detailCacheTtl = Duration(minutes: 3);
-  static const Duration _chapterCacheTtl = Duration(minutes: 3);
+  static const Duration _detailCacheTtl = Duration(minutes: 15);
+  static const Duration _chapterCacheTtl = Duration(minutes: 15);
   static final Map<String, ComicDetailData> _detailCache = {};
   static final Map<String, DateTime> _detailCacheTimes = {};
   static final Map<String, Future<ComicDetailData>> _detailRequests = {};

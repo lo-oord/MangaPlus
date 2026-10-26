@@ -1426,7 +1426,7 @@ class ChapterView extends GetView<ChapterController> {
     BuildContext context,
     List<String> imageUrls, {
     int start = 0,
-    int count = 3,
+    int count = 1,
   }) async {
     if (!context.mounted) return;
     final urls = imageUrls
@@ -1461,11 +1461,11 @@ class ChapterView extends GetView<ChapterController> {
     unawaited(controller.prefetchChapter(adjacentChapter).then((data) {
       if (!context.mounted || data == null || controller.isNovel) return;
       final start = previous
-          ? (data.chapter.images.length - 3)
+          ? (data.chapter.images.length - 1)
               .clamp(0, data.chapter.images.length)
               .toInt()
           : 0;
-      _preloadImages(context, data.chapter.images, start: start, count: 3);
+      _preloadImages(context, data.chapter.images, start: start, count: 1);
     }));
   }
 

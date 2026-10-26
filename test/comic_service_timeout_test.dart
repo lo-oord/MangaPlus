@@ -19,6 +19,8 @@ void main() {
 
     final retry = await service.fetchComicDetail('https://example.test/comic/1');
     expect(retry.comicDetail.title, 'Recovered manga');
+    final cached = await service.fetchComicDetail('https://example.test/comic/1');
+    expect(cached.comicDetail.title, 'Recovered manga');
     expect(source.detailRequests, 2);
   });
 }
