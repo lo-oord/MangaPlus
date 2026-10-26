@@ -376,13 +376,18 @@ class TeamXSource extends ContentSource {
   }
 
   Future<List<Map<String, dynamic>>> genres() async {
-    final document = await _document('$_site/series/');
-    return document.querySelectorAll('select[name="genre"] option, #select_genre option').map((option) {
-      final value = (option.attributes['value'] ?? '').trim();
-      return {'name': mangaHtmlText(option), 'value': value};
-    }).where((entry) =>
-        (entry['name']?.toString().isNotEmpty ?? false) &&
-        (entry['value']?.toString().isNotEmpty ?? false)).toList();
+    try {
+      final document = await _document('$_site/series/');
+      return document.querySelectorAll('select[name="genre"] option, #select_genre option').map((option) {
+        final value = (option.attributes['value'] ?? '').trim();
+        return {'name': mangaHtmlText(option), 'value': value};
+      }).where((entry) =>
+          (entry['name']?.toString().isNotEmpty ?? false) &&
+          (entry['value']?.toString().isNotEmpty ?? false)).toList();
+    } catch (_) {
+      // The catalog may be temporarily unavailable; keep the filter UI usable.
+      return const <Map<String, dynamic>>[];
+    }
   }
 
   @override

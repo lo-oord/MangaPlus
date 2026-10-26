@@ -70,4 +70,9 @@ void main() {
     expect(page.nextPage, 2);
     expect(genres, [{'name': 'فانتازيا', 'value': 'فانتازيا'}]);
   });
+  test('keeps genre loading non-fatal when Team X is unavailable', () async {
+    final client = MockClient((request) async => http.Response('unavailable', 503));
+    final genres = await TeamXSource(client: client).genres();
+    expect(genres, isEmpty);
+  });
 }
