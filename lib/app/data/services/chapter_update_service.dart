@@ -56,6 +56,7 @@ class ChapterUpdateService {
   static const int _weeklyReadingSummaryId = 728431;
   static const String _frequencyKey = 'chapter_updates_frequency_hours';
   static const String _wifiOnlyKey = 'chapter_updates_wifi_only';
+  static const String _lastOpenCheckKey = 'chapter_updates_last_open_check';
   static const String backgroundTaskName = 'mangaplus.chapter_updates';
   static const String _chapterChannelId = 'chapter_updates';
   static const MethodChannel _systemChannel = MethodChannel('com.mangaplus.app/system');
