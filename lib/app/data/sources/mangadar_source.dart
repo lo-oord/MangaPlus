@@ -100,7 +100,7 @@ class MangaDarSource extends ContentSource {
         .where((value) => value.isNotEmpty)
         .toSet()
         .toList(growable: false);
-    final chapters = _chapters(document, slug);
+    final chapters = await _chapters(document, slug);
     final rating = _rating(document);
     final type = info['النوع'] ?? _typeFromPage(document);
     final status = info['الحالة'] ?? '';
@@ -206,7 +206,96 @@ class MangaDarSource extends ContentSource {
     return results;
   }
 
-  List<Map<String, dynamic>> _chapters(Document document, String slug) {
+  Future<List<Map<String, dynamic>>> _chapters(
+    Document document,
+    String slug,
+  ) async {
+    try {
+      final chapters = await _chaptersFromApi(document, slug);
+      if (chapters.isNotEmpty) return chapters;
+    } catch (_) {
+      // Keep chapter details available if MangaDar's REST API is unavailable.
+    }
+    return _chaptersFromHtml(document, slug);
+  }
+  Future<List<Map<String, dynamic>>> _chaptersFromApi(
+    Document document,
+    String slug,
+  ) async {
+    final bodyClass = document.body?.attributes['class'] ?? '';
+    final postId = RegExp(r'\bpostid-(\d+)\b')
+        .firstMatch(bodyClass)
+        ?.group(1);
+    if (postId == null) return const [];
+    final endpoint = Uri.parse(
+      '$_site/wp-json/mangadar/v1/manga/$postId/chapters',
+    );
+    final apiHeaders = {
+      ..._pageHeaders,
+      'Accept': 'application/json',
+    };
+    Future<Map<String, dynamic>> fetchPage(int page) async {
+      final uri = page <= 1
+          ? endpoint
+          : endpoint.replace(queryParameters: {'page': '$page'});
+      final response = await _client.get(uri, headers: apiHeaders).timeout(
+            const Duration(seconds: 25),
+          );
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('MangaDar chapters API: HTTP ${response.statusCode}.');
+      }
+      final decoded = jsonDecode(
+        utf8.decode(response.bodyBytes, allowMalformed: true),
+      );
+      if (decoded is! Map) return const {};
+      return Map<String, dynamic>.from(decoded);
+    }
+    final firstPage = await fetchPage(1);
+    final results = <Map<String, dynamic>>[];
+    void addRecords(dynamic value) {
+      if (value is! List) return;
+      for (final raw in value.whereType<Map>()) {
+        final record = Map<String, dynamic>.from(raw);
+        final url = mangaAbsoluteUrl(_site, '${record['url'] ?? ''}');
+        final parts = _chapterParts(url);
+        if (parts == null || parts.$1 != slug) continue;
+        final numberText = '${record['number'] ?? ''}'.trim();
+        final title = '${record['title'] ?? ''}'.trim();
+        final number = mangaChapterNumber(numberText.isEmpty ? title : numberText);
+        final date = mangaDateFromUnixSeconds(
+          '${record['date'] ?? record['created_at'] ?? ''}',
+        );
+        results.add({
+          if (record['id'] != null) 'id': record['id'],
+          'title': title.isEmpty
+              ? 'الفصل ${numberText.isEmpty ? parts.$2 : numberText}'
+              : title,
+          'number': number ?? 0,
+          'chapter_number': number ?? (numberText.isEmpty ? parts.$2 : numberText),
+          'release_date': date,
+          'date': date,
+          'url': url,
+        });
+      }
+    }
+    addRecords(firstPage['items']);
+    final totalPages = int.tryParse('${firstPage['total_pages'] ?? 1}') ?? 1;
+    for (var page = 2; page <= totalPages; page++) {
+      final nextPage = await fetchPage(page);
+      addRecords(nextPage['items']);
+    }
+    final seen = <String>{};
+    final unique = results.where((chapter) =>
+        seen.add('${chapter['url']}')).toList();
+    unique.sort((a, b) =>
+        (mangaChapterNumber('${b['number']}') ?? 0)
+            .compareTo(mangaChapterNumber('${a['number']}') ?? 0));
+    return unique;
+  }
+  List<Map<String, dynamic>> _chaptersFromHtml(
+    Document document,
+    String slug,
+  ) {
     final results = <Map<String, dynamic>>[];
     final seen = <String>{};
     for (final anchor in document.querySelectorAll('a[href*="/manga/"]')) {
