@@ -7,6 +7,7 @@ import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/custom_card_normal.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
+import 'package:mangaplus/app/widgets/manga_shimmer.dart';
 
 class BookmarkView extends GetView<BookmarkController> {
   const BookmarkView({super.key});
@@ -74,7 +75,7 @@ class BookmarkView extends GetView<BookmarkController> {
         ),
         body: Obx(() {
           if (controller.isLoading.value) {
-            return BrandState(title: 'جارٍ تحميل المفضلة'.tr, loading: true);
+            return _buildLoadingSkeleton(context);
           }
           if (controller.bookmarks.isEmpty) return _buildEmptyBookmark();
           final bookmarks = controller.visibleBookmarks;
@@ -168,6 +169,39 @@ class BookmarkView extends GetView<BookmarkController> {
       });
 
   Widget _buildEmptyBookmark() => BrandState(title: 'لا توجد إشارات مرجعية بعد'.tr);
+
+  Widget _buildLoadingSkeleton(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final columns = width >= 800 ? 7 : (width >= 600 ? 5 : (width >= 390 ? 4 : 3));
+    final cellWidth = (width - 28 - (columns - 1) * 10) / columns;
+    final cardWidth = cellWidth.clamp(92.0, 132.0).toDouble();
+    return MangaShimmer(
+      child: GridView.builder(
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 18),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: columns,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 20,
+          mainAxisExtent: cardWidth * 1.25 + 62,
+        ),
+        itemCount: columns * 3,
+        itemBuilder: (_, __) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            MangaShimmer.shape(
+              width: cardWidth,
+              height: cardWidth * 1.25,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            const SizedBox(height: 7),
+            MangaShimmer.shape(width: cardWidth * .9, height: 12, radius: 5),
+            const SizedBox(height: 6),
+            MangaShimmer.shape(width: cardWidth * .55, height: 10, radius: 5),
+          ],
+        ),
+      ),
+    );
+  }
 
   Future<void> _openImport() async {
     final records = await controller.pickDropsauceBackup();

@@ -70,4 +70,49 @@ class MangaShimmer extends StatelessWidget {
       ),
     );
   }
+
+  /// Skeleton rows for collection/history views while their first page loads.
+  static Widget listRows({
+    int itemCount = 5,
+    required double leadingWidth,
+    required double leadingHeight,
+    EdgeInsetsGeometry padding = const EdgeInsets.fromLTRB(16, 8, 16, 20),
+  }) {
+    return MangaShimmer(
+      child: ListView.separated(
+        padding: padding,
+        itemCount: itemCount,
+        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        itemBuilder: (context, index) => Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              shape(
+                width: leadingWidth,
+                height: leadingHeight,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    shape(width: 170, height: 13, radius: 5),
+                    const SizedBox(height: 9),
+                    shape(width: 112, height: 10, radius: 5),
+                    const SizedBox(height: 9),
+                    shape(width: 84, height: 24, radius: 8),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

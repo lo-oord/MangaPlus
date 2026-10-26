@@ -36,7 +36,12 @@ class LocalLibraryView extends GetView<LocalLibraryController> {
       ),
       body: Obx(() {
         if (controller.isLoading.value) {
-          return BrandState(title: 'جارٍ تحميل التخزين المحلي'.tr, loading: true);
+          return MangaShimmer.listRows(
+            itemCount: 4,
+            leadingWidth: 76,
+            leadingHeight: 96,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          );
         }
         if (controller.groups.isEmpty) {
           return BrandState(

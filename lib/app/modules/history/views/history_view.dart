@@ -27,7 +27,12 @@ class HistoryView extends GetView<HistoryController> {
       ),
       body: Obx(() {
         if (controller.isLoading.value) {
-          return BrandState(title: 'جارٍ تحميل سجل القراءة'.tr, loading: true);
+          return MangaShimmer.listRows(
+            itemCount: 5,
+            leadingWidth: 85,
+            leadingHeight: 114,
+            padding: const EdgeInsets.only(top: 8, bottom: 16),
+          );
         }
         final histories = controller.histories;
 

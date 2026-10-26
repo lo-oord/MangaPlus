@@ -80,10 +80,7 @@ class HomeView extends GetView<HomeController> {
             Expanded(
               child: Obx(() {
                 if (controller.isGenreLoading.value) {
-                  return BrandState(
-                    title: 'جارٍ تحميل التصنيف'.tr,
-                    loading: true,
-                  );
+                  return _buildGenreLoadingSkeleton();
                 }
                 if (controller.genreHasError.value &&
                     controller.genreComics.isEmpty) {
@@ -121,12 +118,10 @@ class HomeView extends GetView<HomeController> {
                       mainAxisExtent: 236,
                     ),
                     itemCount: controller.genreComics.length +
-                        (controller.isGenreLoadingMore.value ? 1 : 0),
+                        (controller.isGenreLoadingMore.value ? 6 : 0),
                     itemBuilder: (context, index) {
                       if (index >= controller.genreComics.length) {
-                        return Center(
-                          child: const MangaPlusLoader(size: 42),
-                        );
+                        return _buildGenreCardSkeleton();
                       }
                       final comic = controller.genreComics[index];
                       return GestureDetector(
@@ -347,6 +342,39 @@ class HomeView extends GetView<HomeController> {
       ),
     );
   }
+
+  Widget _buildGenreLoadingSkeleton() => MangaShimmer(
+        child: GridView.builder(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 10,
+            mainAxisExtent: 236,
+          ),
+          itemCount: 9,
+          itemBuilder: (_, __) => _buildGenreCardShape(),
+        ),
+      );
+
+  Widget _buildGenreCardSkeleton() => MangaShimmer(
+        child: _buildGenreCardShape(),
+      );
+
+  Widget _buildGenreCardShape() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          MangaShimmer.shape(
+            width: double.infinity,
+            height: 164,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          const SizedBox(height: 7),
+          MangaShimmer.shape(width: 104, height: 12, radius: 5),
+          const SizedBox(height: 6),
+          MangaShimmer.shape(width: 62, height: 10, radius: 5),
+        ],
+      );
 }
 
 class KomikCardsSection extends GetView<HomeController> {
