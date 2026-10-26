@@ -7,6 +7,7 @@ import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 import 'package:mangaplus/app/widgets/custom_card_normal.dart';
 import 'package:mangaplus/app/widgets/manga_shimmer.dart';
+import 'package:mangaplus/app/widgets/staggered_entrance.dart';
 
 class GenreDetailView extends GetView<GenreDetailController> {
   const GenreDetailView({super.key});
@@ -124,18 +125,23 @@ class GenreDetailView extends GetView<GenreDetailController> {
                 );
               }
               final comic = controller.comicsList[index];
-              return GestureDetector(
-                onTap: () => Get.toNamed(
-                  Routes.COMIC_DETAIL,
-                  arguments: comic.comicId,
-                ),
-                child: CustomCardNormal(
+              return StaggeredEntrance(
+                key: ValueKey('genre-${comic.comicId}'),
+                index: index,
+                child: GestureDetector(
+                  onTap: () => Get.toNamed(
+                    Routes.COMIC_DETAIL,
+                    arguments: comic.comicId,
+                  ),
+                  child: CustomCardNormal(
+                    key: ValueKey(comic.comicId),
                   title: comic.title,
                   chapter: comic.chapter,
                   imageUrl: comic.image,
                   type: comic.type,
                   rating: comic.rating,
                   status: comic.status ?? '',
+                  ),
                 ),
               );
             },

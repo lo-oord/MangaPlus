@@ -13,89 +13,132 @@ class MainView extends GetView<MainController> {
 
   @override
   Widget build(BuildContext context) {
-    return ThemeAwareBuilder(builder: (context) => Scaffold(
-      backgroundColor: AppColors.background,
-      body: PageView(
-        controller: controller.pageController,
-        physics: const NeverScrollableScrollPhysics(),
-        onPageChanged: (value) => controller.index.value = value,
-        children: const [HomeView(), SearchView(), BookmarkView(), ProfileView()],
-      ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        minimum: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: Obx(
-            () => Container(
-            height: 58,
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-            decoration: BoxDecoration(
-              color: AppColors.card,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.divider.withValues(alpha: 0.75)),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.10),
-                  blurRadius: 18,
-                  offset: const Offset(0, 5),
+    return ThemeAwareBuilder(
+      builder: (context) => Scaffold(
+        backgroundColor: AppColors.background,
+        body: PageView(
+          controller: controller.pageController,
+          physics: const NeverScrollableScrollPhysics(),
+          onPageChanged: (value) => controller.index.value = value,
+          children: const [HomeView(), SearchView(), BookmarkView(), ProfileView()],
+        ),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          minimum: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Obx(
+              () => Container(
+                height: 58,
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.card,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: AppColors.divider.withValues(alpha: 0.75),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.10),
+                      blurRadius: 18,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            child: Row(
-              children: [
-                _navItem(0, Icons.home_rounded, Icons.home_outlined, 'home'.tr),
-                _navItem(1, Icons.search_rounded, Icons.search, 'بحث'.tr),
-                _navItem(2, Icons.bookmarks_rounded, Icons.bookmark_border_rounded, 'المفضلة'.tr),
-                _navItem(3, Icons.settings_rounded, Icons.settings_outlined, 'settings'.tr),
-              ],
-            ),
+                child: Row(
+                  children: [
+                    _navItem(context, 0, Icons.home_rounded,
+                        Icons.home_outlined, 'home'.tr),
+                    _navItem(context, 1, Icons.search_rounded,
+                        Icons.search_outlined, 'بحث'.tr),
+                    _navItem(context, 2, Icons.bookmarks_rounded,
+                        Icons.bookmark_border_rounded, 'المفضلة'.tr),
+                    _navItem(context, 3, Icons.settings_rounded,
+                        Icons.settings_outlined, 'settings'.tr),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
       ),
-    ));
+    );
   }
 
-  Widget _navItem(int itemIndex, IconData activeIcon, IconData inactiveIcon, String label) {
+  Widget _navItem(
+    BuildContext context,
+    int itemIndex,
+    IconData activeIcon,
+    IconData inactiveIcon,
+    String label,
+  ) {
     final selected = controller.index.value == itemIndex;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final duration = reduceMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 200);
+
     return Expanded(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(15),
-            onTap: () => controller.changeIndex(itemIndex),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              decoration: BoxDecoration(
-                color: selected
-                    ? AppColors.primary.withValues(alpha: 0.13)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    selected ? activeIcon : inactiveIcon,
-                    size: 22,
-                    color: selected ? AppColors.primary : AppColors.icon,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: selected ? AppColors.primary : AppColors.textSecondary,
-                      fontSize: 9,
-                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+        child: Semantics(
+          button: true,
+          selected: selected,
+          label: label,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(15),
+              excludeFromSemantics: true,
+              onTap: () => controller.changeIndex(itemIndex),
+              child: AnimatedContainer(
+                duration: duration,
+                curve: Curves.easeOutCubic,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? AppColors.primary.withValues(alpha: 0.13)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    AnimatedScale(
+                      scale: selected ? 1.06 : 1,
+                      duration: duration,
+                      curve: Curves.easeOutCubic,
+                      child: AnimatedSwitcher(
+                        duration: duration,
+                        switchInCurve: Curves.easeOut,
+                        switchOutCurve: Curves.easeIn,
+                        transitionBuilder: (child, animation) => FadeTransition(
+                          opacity: animation,
+                          child: ScaleTransition(scale: animation, child: child),
+                        ),
+                        child: Icon(
+                          selected ? activeIcon : inactiveIcon,
+                          key: ValueKey('${itemIndex}_$selected'),
+                          size: 22,
+                          color: selected ? AppColors.primary : AppColors.icon,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 2),
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: selected
+                            ? AppColors.primary
+                            : AppColors.textSecondary,
+                        fontSize: 9,
+                        fontWeight:
+                            selected ? FontWeight.w800 : FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

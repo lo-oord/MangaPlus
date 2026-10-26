@@ -1264,6 +1264,7 @@ class ChapterView extends GetView<ChapterController> {
               fit: fit,
               filterQuality: FilterQuality.medium,
               gaplessPlayback: true,
+              frameBuilder: _readerPageFrameBuilder,
               errorBuilder: (context, error, stackTrace) => const Center(
                 child: Icon(Icons.broken_image_outlined, color: Colors.white70),
               ),
@@ -1279,6 +1280,7 @@ class ChapterView extends GetView<ChapterController> {
                   fit: fit,
                   filterQuality: FilterQuality.medium,
                   gaplessPlayback: true,
+                  frameBuilder: _readerPageFrameBuilder,
                 ),
                 progressIndicatorBuilder: (context, url, downloadProgress) =>
                     Center(
@@ -1324,6 +1326,24 @@ class ChapterView extends GetView<ChapterController> {
         child: SizedBox.expand(child: image),
       );
     });
+  }
+
+  Widget _readerPageFrameBuilder(
+    BuildContext context,
+    Widget child,
+    int? frame,
+    bool wasSynchronouslyLoaded,
+  ) {
+    if (wasSynchronouslyLoaded ||
+        (frame != null && MediaQuery.disableAnimationsOf(context))) {
+      return child;
+    }
+    return AnimatedOpacity(
+      opacity: frame == null ? 0 : 1,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      child: child,
+    );
   }
 
   Widget _buildImage(BuildContext context, String imageUrl) {

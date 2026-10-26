@@ -12,6 +12,7 @@ import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 import 'package:mangaplus/app/widgets/manga_shimmer.dart';
+import 'package:mangaplus/app/widgets/staggered_entrance.dart';
 
 class SearchView extends GetView<search_controller.SearchController> {
   const SearchView({super.key});
@@ -237,14 +238,22 @@ class SearchView extends GetView<search_controller.SearchController> {
             child: const Center(child: MangaPlusLoader(size: 42)),
           );
         }
-        return _SearchComicTile(comic: items[index - 1]);
+        final comic = items[index - 1];
+        return StaggeredEntrance(
+          key: ValueKey('search-${comic.comicId}'),
+          index: index - 1,
+          child: _SearchComicTile(
+            key: ValueKey(comic.comicId),
+            comic: comic,
+          ),
+        );
       },
     );
   }
 }
 
 class _SearchComicTile extends StatelessWidget {
-  const _SearchComicTile({required this.comic});
+  const _SearchComicTile({super.key, required this.comic});
 
   final ComicsList comic;
 

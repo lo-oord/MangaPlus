@@ -34,13 +34,13 @@ class DownloadView extends GetView<DownloadController> {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           itemCount: tasks.length,
           separatorBuilder: (_, __) => const SizedBox(height: 10),
-          itemBuilder: (_, index) => _taskCard(tasks[index]),
+          itemBuilder: (context, index) => _taskCard(context, tasks[index]),
         );
       }),
     ));
   }
 
-  Widget _taskCard(DownloadTask task) {
+  Widget _taskCard(BuildContext context, DownloadTask task) {
     final percent = (task.progress * 100).round();
     final active = task.status == DownloadTaskStatus.downloading;
     final paused = task.status == DownloadTaskStatus.paused;
@@ -121,15 +121,30 @@ class DownloadView extends GetView<DownloadController> {
             ],
           ),
           const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: task.status == DownloadTaskStatus.completed
-                  ? 1
-                  : task.progress,
-              minHeight: 7,
-              backgroundColor: AppColors.divider,
-              color: _statusColor(task.status),
+          TweenAnimationBuilder<double>(
+            key: ValueKey('download-progress-${task.id}'),
+            tween: Tween<double>(
+              begin: 0,
+              end: task.status == DownloadTaskStatus.completed
+                  ? 1.0
+                  : task.progress.clamp(0.0, 1.0).toDouble(),
+            ),
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 260),
+            curve: Curves.easeOutCubic,
+            builder: (context, progress, _) => Semantics(
+              label: 'تقدم التنزيل'.tr,
+              value: '$percent%',
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 7,
+                  backgroundColor: AppColors.divider,
+                  color: _statusColor(task.status),
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 7),

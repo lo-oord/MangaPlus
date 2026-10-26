@@ -12,6 +12,7 @@ import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:mangaplus/app/widgets/manga_shimmer.dart';
+import 'package:mangaplus/app/widgets/staggered_entrance.dart';
 
 class HomeView extends GetView<HomeController> {
   const HomeView({super.key});
@@ -399,12 +400,16 @@ class KomikCardsSection extends GetView<HomeController> {
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
                   final comic = comics[index];
-                  return GestureDetector(
-                    onTap: () => Get.toNamed(
-                      Routes.COMIC_DETAIL,
-                      arguments: comic.comicId,
-                    ),
-                    child: CustomCardNormal(
+                  return StaggeredEntrance(
+                    key: ValueKey('latest-${comic.comicId}'),
+                    index: index,
+                    child: GestureDetector(
+                      onTap: () => Get.toNamed(
+                        Routes.COMIC_DETAIL,
+                        arguments: comic.comicId,
+                      ),
+                      child: CustomCardNormal(
+                        key: ValueKey(comic.comicId),
                       comicId: comic.comicId,
                       title: comic.title,
                       chapter: comic.chapter,
@@ -413,6 +418,7 @@ class KomikCardsSection extends GetView<HomeController> {
                       releaseDate: comic.latestChapterDate,
                       rating: comic.rating,
                       status: comic.status ?? '',
+                      ),
                     ),
                   );
                 },
