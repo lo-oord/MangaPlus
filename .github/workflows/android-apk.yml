@@ -40,22 +40,8 @@ jobs:
         run: >-
           flutter analyze --no-pub
           lib/main.dart
-          lib/app/data/services/app_notification_service.dart
-          lib/app/data/services/chapter_update_coordinator.dart
           lib/app/data/services/chapter_update_service.dart
-          lib/app/data/services/notification_permission_prompt.dart
-          lib/app/data/services/reading_stats_service.dart
-          lib/app/data/models/reading_stats.dart
-          lib/app/modules/auth/controllers/auth_controller.dart
-          lib/app/modules/chapter/controllers/chapter_controller.dart
-          lib/app/modules/main/bindings/main_binding.dart
-          lib/app/modules/notifications/controllers/notifications_controller.dart
-          lib/app/modules/notifications/views/notifications_view.dart
-          lib/app/modules/profile/bindings/profile_binding.dart
-          lib/app/modules/profile/controllers/reading_stats_controller.dart
           lib/app/modules/profile/controllers/profile_controller.dart
-          lib/app/modules/profile/views/reading_stats_panel.dart
-          test/reading_stats_test.dart
       - name: Run tests
         run: flutter test --no-pub
       - name: Build one signed release APK

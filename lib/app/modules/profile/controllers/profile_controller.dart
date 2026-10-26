@@ -47,22 +47,11 @@ class ProfileController extends GetxController {
     favoritesNotificationsEnabled.value = chapterService.backgroundEnabled;
     mangaNotificationsEnabled.value = chapterService.mangaNotificationsEnabled;
     novelNotificationsEnabled.value = chapterService.novelNotificationsEnabled;
-    final restoredUser = _auth?.currentUser;
-    if (restoredUser != null) {
-      // Firebase Auth restores its native session independently of Firestore.
-      // Render that user immediately so a slow/offline profile read never looks
-      // like an automatic logout.
-      accountProfile.value = _profileFromAuthUser(restoredUser);
-      accountLoading.value = true;
-    }
     _authStateSubscription = _auth?.authStateChanges.listen((user) {
       if (user == null) {
         accountProfile.value = null;
         accountLoading.value = false;
       } else {
-        if (accountProfile.value?.uid != user.uid) {
-          accountProfile.value = _profileFromAuthUser(user);
-        }
         unawaited(_loadAccount());
       }
     });
@@ -78,9 +67,6 @@ class ProfileController extends GetxController {
       accountLoading.value = false;
       return;
     }
-    if (accountProfile.value?.uid != user.uid) {
-      accountProfile.value = _profileFromAuthUser(user);
-    }
     accountLoading.value = true;
     UserProfile? loadedProfile;
     try {
@@ -88,13 +74,9 @@ class ProfileController extends GetxController {
           .loadProfile(user.uid)
           .timeout(const Duration(seconds: 15));
       if (auth.currentUser?.uid == user.uid) {
-        accountProfile.value = loadedProfile ?? _profileFromAuthUser(user);
+        accountProfile.value = loadedProfile;
       }
     } catch (error) {
-      if (auth.currentUser?.uid == user.uid) {
-        // Keep the Firebase session visible while Firestore is offline or slow.
-        accountProfile.value = _profileFromAuthUser(user);
-      }
       _message('تعذر تحميل الحساب'.tr, error.toString());
     } finally {
       accountLoading.value = false;
@@ -146,33 +128,15 @@ class ProfileController extends GetxController {
     }
   }
 
-  UserProfile _profileFromAuthUser(User user) {
-    final email = user.email ?? '';
-    final displayName = user.displayName?.trim().isNotEmpty == true
-        ? user.displayName!.trim()
-        : email.contains('@')
-            ? email.split('@').first
-            : 'قارئ MangaPlus';
-    return UserProfile(
-      uid: user.uid,
-      email: email,
-      displayName: displayName,
-      username: displayName,
-      countryCode: '',
-      countryName: '',
-      createdAt: user.metadata.creationTime ?? DateTime.now(),
-      photoUrl: user.photoURL ?? '',
-      isGuest: user.isAnonymous,
-      emailVerified: user.emailVerified,
-    );
-  }
-
   Future<void> refreshAccount() => _loadAccount();
 
   Future<void> setFavoritesNotifications(bool value) async {
     favoritesNotificationsEnabled.value = value;
     final service = Get.find<ChapterUpdateService>();
     await service.setBackgroundEnabled(value);
+    if (value && await service.isBatteryOptimizationIgnored() == false) {
+      await service.requestBatteryOptimizationExemption();
+    }
   }
 
   Future<void> setMangaNotifications(bool value) async {

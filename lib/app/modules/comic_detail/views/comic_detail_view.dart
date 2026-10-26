@@ -8,7 +8,6 @@ import 'package:mangaplus/app/core/cache/manga_cover_cache_manager.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/models/comic_detail.dart';
-import 'package:mangaplus/app/data/services/chapter_update_service.dart';
 import 'package:mangaplus/app/modules/comic_detail/controllers/comic_detail_controller.dart';
 import 'package:mangaplus/app/modules/home/controllers/home_controller.dart';
 import 'package:mangaplus/app/modules/main/controllers/main_controller.dart';
@@ -810,8 +809,6 @@ class _ChapterList extends StatefulWidget {
 
 class _ChapterListState extends State<_ChapterList> {
   final TextEditingController _searchController = TextEditingController();
-  final ChapterUpdateService _chapterUpdateService =
-      Get.find<ChapterUpdateService>();
   bool _searchVisible = false;
   bool _filtersVisible = false;
 
@@ -826,7 +823,6 @@ class _ChapterListState extends State<_ChapterList> {
     final chapters = widget.comic.chapters;
     final isNovel = widget.comic.type.trim().toLowerCase() == 'novel';
     return Obx(() {
-      _chapterUpdateService.unreadRevision.value;
       widget.controller.downloadRevision.value;
       widget.controller.historyRevision.value;
       widget.controller.downloadingChapters.length;
@@ -1062,10 +1058,6 @@ class _ChapterListState extends State<_ChapterList> {
     final selected = widget.controller.selectedChapterIds.contains(chapter.chapterId);
     final downloaded = widget.controller.isChapterDownloaded(chapter.chapterId);
     final read = widget.controller.isChapterRead(chapter.chapterId);
-    final isNew = _chapterUpdateService.isNewChapter(
-      widget.comic.comicId,
-      chapter.chapterId,
-    );
     final progress = widget.controller.chapterDownloadProgress(chapter.chapterId);
     final task = widget.controller.downloadTaskForChapter(chapter.chapterId);
     final taskStatus = task?.status.name;
@@ -1191,34 +1183,16 @@ class _ChapterListState extends State<_ChapterList> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            chapter.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 14,
-                              height: 1.25,
-                              fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        if (isNew) ...[
-                          const SizedBox(width: 7),
-                          Text(
-                            Get.locale?.languageCode == 'en' ? 'NEW' : 'جديد',
-                            style: TextStyle(
-                              color: AppColors.error,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ],
-                      ],
+                    Text(
+                      chapter.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        height: 1.25,
+                        fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Wrap(

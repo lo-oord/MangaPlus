@@ -95,13 +95,7 @@ class AuthService {
       await refreshedUser.getIdToken(true);
     }
     final profile = await loadProfile(user.uid);
-    if (profile == null) {
-      // Do not leave a persisted Firebase session that has no application
-      // profile. The next launch would otherwise repeatedly restore a
-      // half-created account and bypass the normal onboarding path.
-      await _auth.signOut();
-      throw const AuthException('بيانات الحساب غير مكتملة.');
-    }
+    if (profile == null) throw const AuthException('بيانات الحساب غير مكتملة.');
     return profile;
   }
 
@@ -137,14 +131,8 @@ class AuthService {
     required DateTime birthDate,
     required String gender,
   }) async {
-    final initialUser = currentUser;
-    if (initialUser == null) throw const AuthException('انتهت جلسة التسجيل.');
-    await initialUser.reload();
     final user = currentUser;
-    if (user == null ||
-        !user.providerData.any((provider) => provider.providerId == 'google.com')) {
-      throw const AuthException('انتهت جلسة تسجيل Google.');
-    }
+    if (user == null) throw const AuthException('انتهت جلسة التسجيل.');
     final normalized = normalizeUsername(username);
     validateUsername(normalized);
     return _reserveUsernameAndCreateProfile(

@@ -19,52 +19,6 @@ service cloud.firestore {
         request.auth.token.email_verified == true;
     }
 
-    function profileKeysAreValid(data) {
-      return data.keys().hasOnly([
-        'uid', 'email', 'displayName', 'username', 'countryCode',
-        'countryName', 'createdAt', 'birthDate', 'gender', 'bio',
-        'photoUrl', 'photoData', 'isGuest', 'emailVerified',
-        'isVerified', 'isOfficialDeveloper', 'syncFavorites', 'privacy'
-      ]) && data.keys().hasAll([
-        'uid', 'email', 'displayName', 'username', 'countryCode',
-        'countryName', 'createdAt', 'birthDate', 'gender', 'bio',
-        'photoUrl', 'photoData', 'isGuest', 'emailVerified',
-        'isVerified', 'isOfficialDeveloper', 'syncFavorites', 'privacy'
-      ]);
-    }
-
-    function isAnonymousProvider() {
-      return request.auth.token.firebase.sign_in_provider == 'anonymous';
-    }
-
-    function validLibrary(data) {
-      return data is map &&
-        data.keys().hasOnly([
-          'bookmarks', 'deletedBookmarks', 'history', 'readChapters', 'updatedAt'
-        ]) &&
-        data.keys().hasAll([
-          'bookmarks', 'deletedBookmarks', 'history', 'readChapters', 'updatedAt'
-        ]) &&
-        data.bookmarks is map && data.bookmarks.keys().size() <= 2000 &&
-        data.deletedBookmarks is map && data.deletedBookmarks.keys().size() <= 2000 &&
-        data.history is map && data.history.keys().size() <= 2000 &&
-        data.readChapters is map && data.readChapters.keys().size() <= 5000 &&
-        data.updatedAt is timestamp;
-    }
-
-    function validPrivacy(data) {
-      return data is map &&
-        data.keys().hasOnly([
-          'bio', 'country', 'statistics', 'lists', 'bookmarks',
-          'completed', 'activity', 'achievements', 'customLists'
-        ]) &&
-        data.bio is bool && data.country is bool &&
-        data.statistics is bool && data.lists is bool &&
-        data.bookmarks is bool && data.completed is bool &&
-        data.activity is bool && data.achievements is bool &&
-        data.customLists is bool;
-    }
-
     function validReadingStatsPreferences(data) {
       return data is map &&
         data.keys().hasOnly([
@@ -169,26 +123,7 @@ service cloud.firestore {
 
       // إنشاء الملف مسموح لصاحبه فقط، ولا يستطيع العميل منح نفسه توثيقًا.
       allow create: if signedInAs(uid)
-        && profileKeysAreValid(request.resource.data)
         && request.resource.data.uid == uid
-        && request.resource.data.email is string
-        && request.resource.data.email.size() <= 320
-        && request.resource.data.displayName is string
-        && request.resource.data.displayName.size() > 0
-        && request.resource.data.displayName.size() <= 40
-        && request.resource.data.username is string
-        && request.resource.data.username.matches('^[a-z0-9_]{3,24}$')
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.privacy is map
-        && validPrivacy(request.resource.data.privacy)
-        && request.resource.data.isGuest == isAnonymousProvider()
-        && request.resource.data.emailVerified == (
-          isAnonymousProvider() ? false : request.auth.token.email_verified == true
-        )
-        && (
-          (isAnonymousProvider() && request.resource.data.email == '') ||
-          (!isAnonymousProvider() && request.resource.data.email == request.auth.token.email)
-        )
         && request.resource.data.isVerified == false
         && request.resource.data.isOfficialDeveloper == false;
 
@@ -235,10 +170,7 @@ service cloud.firestore {
       allow delete: if false;
 
       match /private/library {
-        allow read: if verifiedOrAnonymous(uid);
-        allow create, update: if verifiedOrAnonymous(uid)
-          && validLibrary(request.resource.data);
-        allow delete: if verifiedOrAnonymous(uid);
+        allow read, write: if verifiedOrAnonymous(uid);
       }
 
       match /private/favorites/{mangaKey} {
@@ -285,19 +217,18 @@ service cloud.firestore {
       allow list: if false;
 
       allow create: if request.auth != null
-        && username.matches('^[a-z0-9_]{3,24}$')
-        && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.createdAt is timestamp
         && !exists(
           /databases/$(database)/documents/usernames/$(username)
         );
 
       allow update: if request.auth != null
-        && username.matches('^[a-z0-9_]{3,24}$')
         && resource.data.uid == request.auth.uid
         && request.resource.data.uid == resource.data.uid
-        && request.resource.data.createdAt == resource.data.createdAt;
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'uid',
+          'createdAt'
+        ]);
 
       allow delete: if request.auth != null
         && resource.data.uid == request.auth.uid;

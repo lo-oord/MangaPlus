@@ -48,14 +48,123 @@ class NotificationsView extends GetView<NotificationsController> {
               color: AppColors.primary,
               onRefresh: controller.load,
               child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-                itemCount: controller.notifications.length,
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+                itemCount: controller.notifications.length + 2,
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
-                itemBuilder: (context, index) =>
-                    _notificationCard(controller.notifications[index]),
+                itemBuilder: (context, index) {
+                  if (index == 0) return _introCard();
+                  if (index == 1) return _trackingSettings();
+                  return _notificationCard(controller.notifications[index - 2]);
+                },
               ),
             );
           }),
+        ),
+      );
+
+  Widget _trackingSettings() => Obx(() => Container(
+        padding: const EdgeInsets.fromLTRB(15, 8, 15, 10),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Column(
+          children: [
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              value: controller.backgroundEnabled.value,
+              onChanged: controller.setBackgroundEnabled,
+              activeColor: AppColors.primary,
+              secondary: Icon(Icons.update_rounded, color: AppColors.primary),
+              title: Text('إشعارات الفصول الجديدة'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
+              subtitle: Text('يفحص المفضلة على جهازك دون خادم مركزي'.tr, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+            ),
+            if (controller.backgroundEnabled.value) ...[
+              Divider(height: 1, color: AppColors.divider),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.schedule_rounded, color: AppColors.icon),
+                title: Text('فترة الفحص'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                trailing: DropdownButton<int>(
+                  value: controller.frequencyHours.value,
+                  underline: const SizedBox.shrink(),
+                  items: [2, 6, 12, 24].map((hours) => DropdownMenuItem<int>(value: hours, child: Text('$hours ${'ساعة'.tr}'))).toList(),
+                  onChanged: (value) {
+                    if (value != null) controller.setFrequency(value);
+                  },
+                ),
+              ),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                value: controller.wifiOnly.value,
+                onChanged: controller.setWifiOnly,
+                activeColor: AppColors.primary,
+                secondary: Icon(Icons.wifi_rounded, color: AppColors.icon),
+                title: Text('الفحص عبر Wi‑Fi فقط'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+              ),
+              Divider(height: 1, color: AppColors.divider),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.battery_saver_rounded, color: AppColors.icon),
+                title: Text('تحسين عمل الخلفية'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                subtitle: Text(controller.batteryOptimizationActive.value ? 'قد يؤخر النظام الفحص'.tr : 'السماح بالعمل في الخلفية مفعّل'.tr, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                trailing: controller.batteryOptimizationActive.value
+                    ? TextButton(onPressed: controller.requestBatteryExemption, child: Text('السماح'.tr))
+                    : Icon(Icons.check_circle_rounded, color: AppColors.success),
+              ),
+            ],
+          ],
+        ),
+      ));
+
+  Widget _introCard() => Container(
+        padding: const EdgeInsets.all(17),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.primary, AppColors.accent],
+            begin: AlignmentDirectional.topStart,
+            end: AlignmentDirectional.bottomEnd,
+          ),
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: .18),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(Icons.campaign_rounded, color: Colors.white, size: 27),
+            ),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('مستجدات MangaPlus'.tr, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  Text('ستظهر هنا أخبار التطبيق وإعلاناته المهمة'.tr, style: TextStyle(color: Colors.white.withValues(alpha: .86), height: 1.35, fontSize: 12)),
+                  const SizedBox(height: 12),
+                  Obx(() => OutlinedButton.icon(
+                        onPressed: controller.isCheckingFavorites.value ? null : controller.checkFavorites,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: BorderSide(color: Colors.white.withValues(alpha: .65)),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          minimumSize: Size.zero,
+                        ),
+                        icon: controller.isCheckingFavorites.value
+                            ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.sync_rounded, size: 17),
+                        label: Text(controller.isCheckingFavorites.value ? 'جارٍ فحص المفضلة'.tr : 'فحص المفضلة الآن'.tr),
+                      )),
+                ],
+              ),
+            ),
+          ],
         ),
       );
 

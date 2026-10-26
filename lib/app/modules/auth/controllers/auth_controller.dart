@@ -1,12 +1,12 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/data/models/user_profile.dart';
 import 'package:mangaplus/app/data/services/account_sync_service.dart';
 import 'package:mangaplus/app/data/services/auth_service.dart';
-import 'package:mangaplus/app/routes/app_pages.dart';
 
 class AuthController extends GetxController {
   final AuthService service = Get.find<AuthService>();
@@ -33,7 +33,6 @@ class AuthController extends GetxController {
   Timer? _usernameDebounce;
   int _usernameRequest = 0;
   int _suggestionRequest = 0;
-  bool _closed = false;
 
   static const countries = <ArabCountry>[
     ArabCountry('DZ', 'الجزائر'), ArabCountry('BH', 'البحرين'),
@@ -53,92 +52,10 @@ class AuthController extends GetxController {
   void onInit() {
     super.onInit();
     profile.value = Get.arguments is UserProfile ? Get.arguments as UserProfile : null;
-    final user = service.currentUser;
-    if (profile.value == null && user != null && !user.isAnonymous) {
-      unawaited(_restoreExistingSession(user));
-    }
-  }
-
-  Future<void> _restoreExistingSession(User user) async {
-    if (_closed) return;
-    try {
-      await user.reload();
-    } catch (_) {
-      // A temporary network error must not sign out a locally persisted user.
-    }
-    final activeUser = service.currentUser;
-    if (_closed || activeUser == null || activeUser.uid != user.uid) return;
-
-    UserProfile? storedProfile;
-    try {
-      storedProfile = await service
-          .loadProfile(activeUser.uid)
-          .timeout(const Duration(seconds: 12));
-    } catch (_) {
-      // Firebase Auth remains the source of truth for the active session.
-    }
-    if (_closed || service.currentUser?.uid != user.uid) return;
-    final restored = storedProfile ?? _profileFromAuthUser(activeUser);
-    profile.value = restored;
-
-    final isEmailAccount = activeUser.providerData
-        .any((provider) => provider.providerId == 'password');
-    if (isEmailAccount && !activeUser.emailVerified) {
-      emailVerificationRequired.value = true;
-      return;
-    }
-
-    final isIncompleteGoogleProfile = activeUser.providerData
-            .any((provider) => provider.providerId == 'google.com') &&
-        (storedProfile == null ||
-            storedProfile.username.isEmpty ||
-            storedProfile.countryCode.isEmpty ||
-            storedProfile.gender.isEmpty);
-    if (isIncompleteGoogleProfile) {
-      isCompletingGoogle.value = true;
-      displayName.text = restored.displayName;
-      username.text = restored.username;
-      selectedGender.value = restored.gender.isEmpty ? null : restored.gender;
-      birthDate.value = restored.birthDate;
-      final matchingCountries =
-          countries.where((country) => country.code == restored.countryCode);
-      selectedCountry.value = matchingCountries.isEmpty ? null : matchingCountries.first;
-      _onUsernameChanged();
-      return;
-    }
-
-    unawaited(AccountSyncService().syncLocalData());
-    _finishAuth(restored);
-  }
-
-  UserProfile _profileFromAuthUser(User user) => UserProfile(
-        uid: user.uid,
-        email: user.email ?? '',
-        displayName: user.displayName?.trim().isNotEmpty == true
-            ? user.displayName!.trim()
-            : (user.email?.split('@').first ?? 'قارئ MangaPlus'),
-        username: '',
-        countryCode: '',
-        countryName: '',
-        createdAt: user.metadata.creationTime ?? DateTime.now(),
-        photoUrl: user.photoURL ?? '',
-        isGuest: user.isAnonymous,
-        emailVerified: user.emailVerified,
-      );
-
-  void _finishAuth(UserProfile result) {
-    if (_closed || Get.currentRoute != Routes.AUTH) return;
-    final previous = Get.previousRoute;
-    if (previous.isNotEmpty && previous != Routes.AUTH && previous != Routes.SPLASH) {
-      Get.back(result: result);
-    } else {
-      Get.offAllNamed(Routes.MAIN, arguments: result);
-    }
   }
 
   @override
   void onClose() {
-    _closed = true;
     for (final controller in [email, password, confirmPassword, displayName, username, bio]) {
       controller.dispose();
     }
@@ -168,10 +85,9 @@ class AuthController extends GetxController {
     usernameAvailability.value = UsernameAvailability.checking;
     final request = ++_usernameRequest;
     _usernameDebounce = Timer(const Duration(milliseconds: 450), () async {
-      if (_closed) return;
       try {
         final available = await service.isUsernameAvailable(value);
-        if (!_closed && request == _usernameRequest && value == AuthService.normalizeUsername(username.text)) {
+        if (request == _usernameRequest && value == AuthService.normalizeUsername(username.text)) {
           if (available) {
             usernameAvailability.value = UsernameAvailability.available;
           } else {
@@ -180,7 +96,7 @@ class AuthController extends GetxController {
           }
         }
       } catch (_) {
-        if (!_closed && request == _usernameRequest) usernameAvailability.value = UsernameAvailability.error;
+        if (request == _usernameRequest) usernameAvailability.value = UsernameAvailability.error;
       }
     });
   }
@@ -188,7 +104,6 @@ class AuthController extends GetxController {
   void usernameChanged(String _) => _onUsernameChanged();
 
   Future<void> _loadUsernameSuggestions(String base) async {
-    if (_closed) return;
     final request = ++_suggestionRequest;
     final clean = base.replaceAll(RegExp(r'[^a-z0-9_]'), '').toLowerCase();
     if (clean.isEmpty) return;
@@ -212,7 +127,7 @@ class AuthController extends GetxController {
         return null;
       }
     }));
-    if (!_closed && request == _suggestionRequest) {
+    if (request == _suggestionRequest) {
       usernameSuggestions.assignAll(results.whereType<String>().take(4));
     }
   }
@@ -283,7 +198,7 @@ class AuthController extends GetxController {
           birthDate: birthDate.value!,
           gender: selectedGender.value!,
         );
-        _finishAuth(profile.value!);
+        Get.back(result: profile.value);
       } else if (isRegister.value) {
         final country = selectedCountry.value!;
         if (profile.value != null && service.currentUser?.providerData.any((provider) => provider.providerId == 'google.com') == true) {
@@ -294,7 +209,7 @@ class AuthController extends GetxController {
             birthDate: birthDate.value!,
             gender: selectedGender.value!,
           );
-          _finishAuth(profile.value!);
+          Get.back(result: profile.value);
         } else {
           profile.value = await service.registerEmail(
             displayName: displayName.text,
@@ -315,7 +230,7 @@ class AuthController extends GetxController {
           emailVerificationRequired.value = true;
         } else {
           unawaited(AccountSyncService().syncLocalData());
-          _finishAuth(profile.value!);
+          Get.back(result: profile.value);
         }
       }
     } on VerificationEmailSendException catch (error) {
@@ -345,7 +260,7 @@ class AuthController extends GetxController {
       } else {
         profile.value = result;
         unawaited(AccountSyncService().syncLocalData());
-        _finishAuth(result);
+        Get.back(result: result);
       }
     } catch (error) {
       _message('تعذر تسجيل الدخول', _friendlyError(error));
@@ -359,7 +274,7 @@ class AuthController extends GetxController {
     isBusy.value = true;
     try {
       profile.value = await service.continueAsGuest();
-      _finishAuth(profile.value!);
+      Get.back(result: profile.value);
     } catch (error) {
       _message('تعذر بدء وضع الضيف', _friendlyError(error));
     } finally {
@@ -375,7 +290,7 @@ class AuthController extends GetxController {
       if (service.currentUser?.emailVerified == true) {
         profile.value = refreshed;
         emailVerificationRequired.value = false;
-        _finishAuth(refreshed);
+        Get.back(result: refreshed);
       } else {
         _message('لم يتم التحقق بعد', 'افتح رسالة التحقق ثم اضغط هذا الزر مرة أخرى.');
       }
