@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -243,6 +245,16 @@ void main() async {
     debugPrint('Firebase initialization failed: $error');
     runApp(_FirebaseStartupFailure(details: '$error'));
     return;
+  }
+  try {
+    // Require a fresh sign-in on every launch: clear Firebase's persisted user
+    // and the cached Google sign-in session before showing the app.
+    await FirebaseAuth.instance.signOut();
+    await GoogleSignIn(
+      serverClientId: '479859476328-67vu8i5cp6rttk5p6sstutjuq5kv2au5.apps.googleusercontent.com',
+    ).signOut();
+  } catch (error) {
+    debugPrint('Unable to clear the previous sign-in session: $error');
   }
   FlutterError.onError = (errorDetails) {
     FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
