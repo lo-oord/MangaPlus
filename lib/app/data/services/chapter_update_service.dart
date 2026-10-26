@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:workmanager/workmanager.dart';
@@ -48,13 +49,13 @@ class ChapterUpdateService {
         _appNotificationService = appNotificationService ?? AppNotificationService();
 
   static const String _trackingKey = 'chapter_update_tracking';
+  static const String _unreadChaptersKey = 'chapter_updates_unread_chapters';
   static const String _backgroundEnabledKey = 'chapter_updates_background_enabled';
   static const String _mangaEnabledKey = 'chapter_updates_manga_enabled';
   static const String _novelEnabledKey = 'chapter_updates_novel_enabled';
   static const int _weeklyReadingSummaryId = 728431;
   static const String _frequencyKey = 'chapter_updates_frequency_hours';
   static const String _wifiOnlyKey = 'chapter_updates_wifi_only';
-  static const String _lastOpenCheckKey = 'chapter_updates_last_open_check';
   static const String backgroundTaskName = 'mangaplus.chapter_updates';
   static const String _chapterChannelId = 'chapter_updates';
   static const MethodChannel _systemChannel = MethodChannel('com.mangaplus.app/system');
@@ -63,13 +64,14 @@ class ChapterUpdateService {
   final AppNotificationService _appNotificationService;
   final GetStorage _storage = GetStorage();
   final Map<String, Future<void>> _inFlight = {};
+  final RxInt unreadRevision = 0.obs;
   FlutterLocalNotificationsPlugin? _notifications;
   String _languageCode = 'ar_SA';
 
   bool get backgroundEnabled => _storage.read(_backgroundEnabledKey) != false;
   bool get mangaNotificationsEnabled => _storage.read(_mangaEnabledKey) != false;
   bool get novelNotificationsEnabled => _storage.read(_novelEnabledKey) != false;
-  int get frequencyHours => 1;
+  int get frequencyHours => (_storage.read(_frequencyKey) as int?) ?? 12;
   bool get wifiOnly => _storage.read(_wifiOnlyKey) == true;
 
   Future<void> initializeBackground() async {
@@ -146,6 +148,7 @@ class ChapterUpdateService {
   }
 
 
+
   Future<void> setFrequencyHours(int hours) async {
     await _storage.write(_frequencyKey, hours);
     if (backgroundEnabled) await scheduleBackgroundChecks();
@@ -161,7 +164,8 @@ class ChapterUpdateService {
     await Workmanager().registerPeriodicTask(
       backgroundTaskName,
       backgroundTaskName,
-      frequency: Duration(hours: frequencyHours.clamp(1, 24).toInt()),
+      // Android WorkManager rejects periodic intervals shorter than 15 minutes.
+      frequency: const Duration(minutes: 15),
       constraints: Constraints(
         networkType: wifiOnly ? NetworkType.unmetered : NetworkType.connected,
       ),
@@ -171,19 +175,11 @@ class ChapterUpdateService {
   }
 
   Future<void> checkOnAppOpen() async {
-    final last = DateTime.tryParse('${_storage.read(_lastOpenCheckKey) ?? ''}');
-    if (last != null && DateTime.now().difference(last) < const Duration(hours: 6)) return;
+    if (!backgroundEnabled) return;
     try {
-      final result = await checkFavorites();
-      if (result.failed == 0) {
-        await _storage.write(
-          _lastOpenCheckKey,
-          DateTime.now().toUtc().toIso8601String(),
-        );
-      }
+      await checkFavorites();
     } catch (error) {
-      // Keep the previous timestamp so a transient source/network failure can
-      // be retried on the next app open instead of being suppressed for 6h.
+      // A later resume, connectivity event, or timer cycle can retry this check.
       debugPrint('Unable to check favorite chapters on app open: $error');
     }
   }
@@ -225,6 +221,7 @@ class ChapterUpdateService {
     final raw = _storage.read('bookmarks');
     final entries = raw is Map ? raw.entries : const <MapEntry<dynamic, dynamic>>[];
     final bookmarks = entries
+        .where((entry) => entry.value is Map)
         .map((entry) => BookmarkItem.fromJson(
               '${entry.key}',
               Map<String, dynamic>.from(entry.value as Map),
@@ -243,6 +240,13 @@ class ChapterUpdateService {
           updated++;
           await onUpdate?.call(update);
           await _showNotification(update);
+          final source = MangaSourceRegistry.forUrl(update.bookmark.comicId);
+          if (source != null && update.chapters.isNotEmpty) {
+            final tracking = _tracking();
+            tracking['${source.id}|${update.bookmark.comicId}'] =
+                _trackingEntry(update.chapters.first);
+            await _saveTracking(tracking);
+          }
         }
       } catch (error) {
         failed++;
@@ -292,8 +296,6 @@ class ChapterUpdateService {
       if (lastIndex == 0) return null;
 
       final newChapters = chapters.take(lastIndex).toList(growable: false);
-      tracking[key] = _trackingEntry(latest);
-      await _saveTracking(tracking);
       return ChapterUpdate(bookmark: bookmark, chapters: newChapters);
     } finally {
       completer.complete();
@@ -316,6 +318,49 @@ class ChapterUpdateService {
   Future<void> _saveTracking(Map<String, dynamic> tracking) =>
       _storage.write(_trackingKey, tracking);
 
+  bool isNewChapter(String comicId, String chapterId) =>
+      newChapterIds(comicId).contains(chapterId);
+
+  Set<String> newChapterIds(String comicId) {
+    final raw = _storage.read(_unreadChaptersKey);
+    if (raw is! Map) return <String>{};
+    final chapters = raw[comicId];
+    if (chapters is! List) return <String>{};
+    return chapters.map((value) => '$value').where((id) => id.isNotEmpty).toSet();
+  }
+
+  Future<void> markChapterRead(String comicId, String chapterId) async {
+    if (comicId.isEmpty || chapterId.isEmpty) return;
+    final raw = _storage.read(_unreadChaptersKey);
+    if (raw is! Map) return;
+    final unread = Map<String, dynamic>.from(raw);
+    final chapters = unread[comicId];
+    if (chapters is! List) return;
+    final remaining = chapters.map((value) => '$value').toSet();
+    if (!remaining.remove(chapterId)) return;
+    if (remaining.isEmpty) {
+      unread.remove(comicId);
+    } else {
+      unread[comicId] = remaining.toList(growable: false);
+    }
+    await _storage.write(_unreadChaptersKey, unread);
+    unreadRevision.value++;
+  }
+
+  Future<void> _recordNewChapters(String comicId, Iterable<Chapter> chapters) async {
+    final raw = _storage.read(_unreadChaptersKey);
+    final unread = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+    final ids = unread[comicId] is List
+        ? (unread[comicId] as List).map((value) => '$value').toSet()
+        : <String>{};
+    final before = ids.length;
+    ids.addAll(chapters.map((chapter) => chapter.chapterId.trim()).where((id) => id.isNotEmpty));
+    if (ids.length == before) return;
+    unread[comicId] = ids.toList(growable: false);
+    await _storage.write(_unreadChaptersKey, unread);
+    unreadRevision.value++;
+  }
+
   Future<void> _showNotification(ChapterUpdate update) async {
     final title = update.bookmark.title.trim().isEmpty
         ? 'فصل جديد متاح'
@@ -335,7 +380,15 @@ class ChapterUpdateService {
       title: title,
       body: body,
       imageUrl: update.bookmark.coverImage,
-      data: {'comicId': update.bookmark.comicId, 'source': 'chapter_updates'},
+      data: {
+        'comicId': update.bookmark.comicId,
+        'chapterId': update.chapters.first.chapterId,
+        'source': 'chapter_updates',
+      },
+    );
+    await _recordNewChapters(
+      update.bookmark.comicId,
+      update.chapters,
     );
     final plugin = _notifications;
     if (plugin == null) return;

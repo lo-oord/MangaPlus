@@ -4,6 +4,11 @@ import android.content.Intent
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
+import io.flutter.plugin.common.EventChannel
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -11,6 +16,62 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        EventChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "com.mangaplus.app/connectivity",
+        ).setStreamHandler(object : EventChannel.StreamHandler {
+            private var manager: ConnectivityManager? = null
+            private var callback: ConnectivityManager.NetworkCallback? = null
+            private var sink: EventChannel.EventSink? = null
+
+            override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
+                val connectivity = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+                manager = connectivity
+                sink = events
+                val networkCallback = object : ConnectivityManager.NetworkCallback() {
+                    override fun onAvailable(network: Network) = emitStatus()
+                    override fun onLost(network: Network) = emitStatus()
+                    override fun onCapabilitiesChanged(
+                        network: Network,
+                        networkCapabilities: NetworkCapabilities,
+                    ) = emitStatus()
+                }
+                callback = networkCallback
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                    connectivity.registerDefaultNetworkCallback(networkCallback)
+                } else {
+                    connectivity.registerNetworkCallback(
+                        NetworkRequest.Builder()
+                            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                            .build(),
+                        networkCallback,
+                    )
+                }
+                emitStatus()
+            }
+
+            override fun onCancel(arguments: Any?) {
+                val activeManager = manager
+                val activeCallback = callback
+                if (activeManager != null && activeCallback != null) {
+                    runCatching { activeManager.unregisterNetworkCallback(activeCallback) }
+                }
+                manager = null
+                callback = null
+                sink = null
+            }
+
+            private fun emitStatus() {
+                val activeManager = manager ?: return
+                val network = activeManager.activeNetwork
+                val capabilities = network?.let(activeManager::getNetworkCapabilities)
+                val hasInternet = capabilities != null &&
+                    capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                    capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                sink?.success(hasInternet)
+            }
+        })
+
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "com.mangaplus.app/mknov_font_decoder",
