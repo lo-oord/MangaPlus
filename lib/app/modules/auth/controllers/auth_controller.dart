@@ -108,9 +108,7 @@ class AuthController extends GetxController {
     }
 
     unawaited(AccountSyncService().syncLocalData());
-    if (!_closed && Get.currentRoute == Routes.AUTH) {
-      Get.back(result: restored);
-    }
+    _finishAuth(restored);
   }
 
   UserProfile _profileFromAuthUser(User user) => UserProfile(
@@ -127,6 +125,16 @@ class AuthController extends GetxController {
         isGuest: user.isAnonymous,
         emailVerified: user.emailVerified,
       );
+
+  void _finishAuth(UserProfile result) {
+    if (_closed || Get.currentRoute != Routes.AUTH) return;
+    final previous = Get.previousRoute;
+    if (previous.isNotEmpty && previous != Routes.AUTH && previous != Routes.SPLASH) {
+      Get.back(result: result);
+    } else {
+      Get.offAllNamed(Routes.MAIN, arguments: result);
+    }
+  }
 
   @override
   void onClose() {
@@ -275,7 +283,7 @@ class AuthController extends GetxController {
           birthDate: birthDate.value!,
           gender: selectedGender.value!,
         );
-        Get.back(result: profile.value);
+        _finishAuth(profile.value!);
       } else if (isRegister.value) {
         final country = selectedCountry.value!;
         if (profile.value != null && service.currentUser?.providerData.any((provider) => provider.providerId == 'google.com') == true) {
@@ -286,7 +294,7 @@ class AuthController extends GetxController {
             birthDate: birthDate.value!,
             gender: selectedGender.value!,
           );
-          Get.back(result: profile.value);
+          _finishAuth(profile.value!);
         } else {
           profile.value = await service.registerEmail(
             displayName: displayName.text,
@@ -307,7 +315,7 @@ class AuthController extends GetxController {
           emailVerificationRequired.value = true;
         } else {
           unawaited(AccountSyncService().syncLocalData());
-          Get.back(result: profile.value);
+          _finishAuth(profile.value!);
         }
       }
     } on VerificationEmailSendException catch (error) {
@@ -337,7 +345,7 @@ class AuthController extends GetxController {
       } else {
         profile.value = result;
         unawaited(AccountSyncService().syncLocalData());
-        Get.back(result: result);
+        _finishAuth(result);
       }
     } catch (error) {
       _message('تعذر تسجيل الدخول', _friendlyError(error));
@@ -351,7 +359,7 @@ class AuthController extends GetxController {
     isBusy.value = true;
     try {
       profile.value = await service.continueAsGuest();
-      Get.back(result: profile.value);
+      _finishAuth(profile.value!);
     } catch (error) {
       _message('تعذر بدء وضع الضيف', _friendlyError(error));
     } finally {
@@ -367,7 +375,7 @@ class AuthController extends GetxController {
       if (service.currentUser?.emailVerified == true) {
         profile.value = refreshed;
         emailVerificationRequired.value = false;
-        Get.back(result: refreshed);
+        _finishAuth(refreshed);
       } else {
         _message('لم يتم التحقق بعد', 'افتح رسالة التحقق ثم اضغط هذا الزر مرة أخرى.');
       }
