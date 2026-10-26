@@ -45,29 +45,29 @@ class TeamXSource extends ContentSource {
   bool handles(String url) => url.startsWith('teamx://') || super.handles(url);
 
   @override
+  @override
   Future<List<Map<String, dynamic>>> search(String query) async {
     final normalized = query.trim();
     if (normalized.isEmpty) return const [];
-    final uri = Uri.parse('$_site/search').replace(queryParameters: {'keyword': normalized});
+    final uri = Uri.parse('$_site/ajax/search').replace(
+      queryParameters: {'keyword': normalized},
+    );
     final document = await _document(uri.toString());
-    final items = document.querySelectorAll('div.tx-grid a.tx-card').map((anchor) {
-      final title = mangaHtmlText(anchor.querySelector('h3'));
+    final items = document.querySelectorAll('a[href*="/series/"]').map((anchor) {
       final url = mangaAbsoluteUrl(_site, anchor.attributes['href']);
+      final path = Uri.tryParse(url)?.pathSegments ?? const <String>[];
+      if (path.length != 2 || path.first != 'series') return <String, dynamic>{};
+      final title = mangaHtmlText(anchor.querySelector('h4')).isNotEmpty
+          ? mangaHtmlText(anchor.querySelector('h4'))
+          : (anchor.attributes['title'] ?? mangaHtmlText(anchor)).trim();
       final image = mangaImageUrl(anchor.querySelector('img'), _site)
           .replaceFirst('thumbnail_', '');
-      final item = _seriesItem(title, url, image);
-      final chapterCount = mangaChapterNumber(
-        mangaHtmlText(anchor.querySelector('.tx-badge')),
-      );
-      final type = mangaHtmlText(anchor.querySelector('.tx-type'));
-      if (chapterCount != null) item['total_chapters'] = chapterCount;
-      if (type.isNotEmpty) item['type'] = type;
-      return item;
+      return _seriesItem(title, url, image);
     }).where(_validItem).toList();
     return _withSeriesBriefs(items);
   }
 
-  Future<List<Map<String, dynamic>>> searchSuggestions({int limit = 6}) async {
+    Future<List<Map<String, dynamic>>> searchSuggestions({int limit = 6}) async {
     final safeLimit = limit.clamp(1, 8).toInt();
     final items = (await latest(page: 1)).take(safeLimit).toList();
     return _withSeriesBriefs(items);
@@ -139,36 +139,43 @@ class TeamXSource extends ContentSource {
   }
 
   @override
+  @override
   Future<List<Map<String, dynamic>>> latest({int page = 1}) async {
     final safePage = page < 1 ? 1 : page;
     final url = safePage == 1 ? '$_site/' : '$_site/?page=$safePage';
     final document = await _document(url);
-    return document.querySelectorAll('div.last-chapter div.box').map((box) {
-      final anchor = box.querySelector('div.info a');
-      final title = mangaHtmlText(anchor?.querySelector('h3'));
-      final seriesUrl = mangaAbsoluteUrl(_site, anchor?.attributes['href']);
-      final image = mangaImageUrl(box.querySelector('div.imgu img'), _site)
+    return document.querySelectorAll('.box .uta, .uta').map((card) {
+      final seriesAnchor = card.querySelector('.imgu a[href]') ??
+          card.querySelector('a[href*="/series/"]');
+      if (seriesAnchor == null) return <String, dynamic>{};
+      final seriesUrl = mangaAbsoluteUrl(_site, seriesAnchor.attributes['href']);
+      final titleNode = card.querySelector('.info h3');
+      final title = mangaHtmlText(titleNode).isNotEmpty
+          ? mangaHtmlText(titleNode)
+          : (seriesAnchor.attributes['title'] ?? mangaHtmlText(seriesAnchor)).trim();
+      final image = mangaImageUrl(card.querySelector('img'), _site)
           .replaceFirst('thumbnail_', '');
-      final chapterAnchor = box.querySelector('div.info ul a[href]');
-      final chapterUrl = mangaAbsoluteUrl(_site, chapterAnchor?.attributes['href']);
-      final chapterNumber = mangaChapterNumber(mangaHtmlText(chapterAnchor)) ??
-          (chapterUrl.isEmpty
-              ? null
-              : mangaChapterNumber(Uri.parse(chapterUrl).pathSegments.last));
       final item = _seriesItem(title, seriesUrl, image);
-      if (chapterNumber != null) item['latest_chapter_number'] = chapterNumber;
-      if (chapterUrl.isNotEmpty) {
+      for (final anchor in card.querySelectorAll('a[href]')) {
+        final chapterUrl = mangaAbsoluteUrl(_site, anchor.attributes['href']);
+        if (_chapterUrl(chapterUrl).isEmpty) continue;
+        final number = mangaChapterNumber(mangaHtmlText(anchor)) ??
+            (Uri.tryParse(chapterUrl)?.pathSegments.isNotEmpty == true
+                ? mangaChapterNumber(Uri.parse(chapterUrl).pathSegments.last)
+                : null);
+        if (number != null) item['latest_chapter_number'] = number;
         item['latest_chapter_url'] = _internalChapter(
           chapterUrl,
           seriesUrl: seriesUrl,
-          title: chapterNumber == null ? 'الفصل' : 'الفصل $chapterNumber',
+          title: number == null ? 'الفصل' : 'الفصل $number',
         );
+        break;
       }
       return item;
     }).where(_validItem).toList();
   }
 
-  Future<List<Map<String, dynamic>>> latestWithChapterDates({int page = 1}) async {
+    Future<List<Map<String, dynamic>>> latestWithChapterDates({int page = 1}) async {
     final items = (await latest(page: page)).take(_latestFeedPageSize).toList();
     return enrichLatestChapterDates(items);
   }
@@ -337,11 +344,19 @@ class TeamXSource extends ContentSource {
       queryParameters: query.isEmpty ? null : query,
     );
     final document = await _document(uri.toString());
-    final rawItems = document.querySelectorAll('div.listupd div.bsx').map((box) {
-      final anchor = box.querySelector('a');
+    final currentCards = document.querySelectorAll('.bs');
+    final cards = currentCards.isNotEmpty
+        ? currentCards
+        : document.querySelectorAll('.listupd .bsx');
+    final rawItems = cards.map((box) {
+      final anchor = box.querySelector('a[href*="/series/"]') ??
+          box.querySelector('a[href]');
       final title = (anchor?.attributes['title'] ?? '').trim().isNotEmpty
           ? anchor!.attributes['title']!.trim()
-          : mangaHtmlText(anchor);
+          : (mangaHtmlText(box.querySelector('.tt'))
+                  .isNotEmpty
+              ? mangaHtmlText(box.querySelector('.tt'))
+              : mangaHtmlText(anchor));
       final seriesUrl = mangaAbsoluteUrl(_site, anchor?.attributes['href']);
       final image = mangaImageUrl(box.querySelector('img'), _site)
           .replaceFirst('thumbnail_', '');
@@ -362,7 +377,7 @@ class TeamXSource extends ContentSource {
 
   Future<List<Map<String, dynamic>>> genres() async {
     final document = await _document('$_site/series/');
-    return document.querySelectorAll('#select_genre option').map((option) {
+    return document.querySelectorAll('select[name="genre"] option, #select_genre option').map((option) {
       final value = (option.attributes['value'] ?? '').trim();
       return {'name': mangaHtmlText(option), 'value': value};
     }).where((entry) =>
@@ -383,10 +398,10 @@ class TeamXSource extends ContentSource {
     final seriesUrl = _seriesUrl(url);
     if (seriesUrl.isEmpty) throw Exception('Team X: رابط المانجا غير صالح.');
     final document = await _document(seriesUrl);
-    final title = mangaHtmlText(document.querySelector('div.author-info-title h1'));
+    final title = mangaHtmlText(document.querySelector('h1, div.author-info-title h1'));
     if (title.isEmpty) throw Exception('Team X: لم يتم العثور على تفاصيل هذه المانجا.');
 
-    var description = mangaHtmlText(document.querySelector('div.review-content'));
+    var description = mangaHtmlText(document.querySelector('.review-content p, div.review-content'));
     if (description.isEmpty) {
       description = mangaHtmlText(document.querySelector('div.review-content p'));
     }
@@ -395,7 +410,7 @@ class TeamXSource extends ContentSource {
         .map(mangaHtmlText)
         .where((value) => value.isNotEmpty)
         .toList();
-    final image = mangaImageUrl(document.querySelector('div.text-right img'), _site)
+    final image = mangaImageUrl(document.querySelector('img.shadow-sm, div.text-right img'), _site)
         .replaceFirst('thumbnail_', '');
     final statusLabel = _fieldValue(document, 'الحالة');
     final typeLabel = _fieldValue(document, 'النوع');
