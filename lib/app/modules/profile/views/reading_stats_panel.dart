@@ -885,7 +885,7 @@ class _ReadingStatsPanelState extends State<ReadingStatsPanel> {
           contentPadding: EdgeInsets.zero,
           dense: true,
           leading: Icon(
-            IconData(achievement.icon, fontFamily: 'MaterialIcons'),
+            _achievementIcon(achievement.icon),
             color: achievement.unlocked ? AppColors.primary : AppColors.icon.withValues(alpha: .45),
             size: 21,
           ),
@@ -1112,6 +1112,28 @@ class _ReadingStatsPanelState extends State<ReadingStatsPanel> {
 
   String _dayKey(DateTime day) =>
       '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+}
+
+IconData _achievementIcon(int codePoint) {
+  // Keep every IconData instance statically known so release tree-shaking works.
+  switch (codePoint) {
+    case 0xe8ef:
+      return Icons.auto_stories_rounded;
+    case 0xe8d2:
+      return Icons.collections_bookmark_rounded;
+    case 0xe1d7:
+      return Icons.local_fire_department_rounded;
+    case 0xe865:
+      return Icons.menu_book_rounded;
+    case 0xe3a6:
+      return Icons.nightlight_round;
+    case 0xe5d5:
+      return Icons.replay_rounded;
+    case 0xe8f4:
+      return Icons.workspace_premium_rounded;
+    default:
+      return Icons.emoji_events_rounded;
+  }
 }
 
 class _ChartPoint {
