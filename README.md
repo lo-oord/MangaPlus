@@ -33,21 +33,24 @@
 - معالجة مرنة لانقطاع الشبكة بحيث تبقى البيانات المحلية وتجربة القراءة المتاحة مستقرة قدر الإمكان.
 
 ## لقطات من واجهات التطبيق
-
-لقطات حقيقية من واجهات التطبيق معروضة داخل إطار هاتف لتوضيح تجربة الاستخدام على Android:
+لقطات من شاشات التطبيق:
 
 <table>
   <tr>
-    <td align="center"><strong>الواجهة الرئيسية</strong><br><img src="assets/screenshots/phone/home.png" alt="الواجهة الرئيسية داخل هاتف" width="230" /></td>
-    <td align="center"><strong>البحث</strong><br><img src="assets/screenshots/phone/search.png" alt="واجهة البحث داخل هاتف" width="230" /></td>
+    <td align="center"><strong>الرئيسية</strong><br><img src="assets/screenshots/home.png" alt="واجهة التطبيق الرئيسية" width="220" /></td>
+    <td align="center"><strong>البحث</strong><br><img src="assets/screenshots/search.png" alt="واجهة البحث" width="220" /></td>
+    <td align="center"><strong>تفاصيل العمل</strong><br><img src="assets/screenshots/comic_detail.png" alt="واجهة تفاصيل العمل" width="220" /></td>
   </tr>
   <tr>
-    <td align="center"><strong>المفضلة</strong><br><img src="assets/screenshots/phone/favorites.png" alt="واجهة المفضلة داخل هاتف" width="230" /></td>
-    <td align="center"><strong>تفاصيل العمل</strong><br><img src="assets/screenshots/phone/detail.png" alt="تفاصيل العمل داخل هاتف" width="230" /></td>
+    <td align="center"><strong>الفصول</strong><br><img src="assets/screenshots/chapter.png" alt="واجهة الفصول" width="220" /></td>
+    <td align="center"><strong>التنزيلات</strong><br><img src="assets/screenshots/download.png" alt="واجهة التنزيلات" width="220" /></td>
+    <td align="center"><strong>التصنيفات</strong><br><img src="assets/screenshots/genre.png" alt="واجهة التصنيفات" width="220" /></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>سجل القراءة</strong><br><img src="assets/screenshots/history.png" alt="واجهة سجل القراءة" width="220" /></td>
+    <td align="center"><strong>الملف الشخصي</strong><br><img src="assets/screenshots/profile.png" alt="واجهة الملف الشخصي" width="220" /></td>
   </tr>
 </table>
-
-الصور مأخوذة من الواجهات التي تم توفيرها للمشروع، وقد تتغير بعض التفاصيل البصرية أو النصوص مع تطور التطبيق.
 
 يستخدم التطبيق مصادر محتوى عامة ومدعومة داخل الكود. يختلف توفر العمل أو الفصل باختلاف المصدر وحالته، وقد تتأثر النتائج بتغييرات المواقع الخارجية أو سياساتها. لا يستضيف هذا المستودع المحتوى الأصلي للأعمال ولا يعيد توزيعه.
 
