@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:mangaplus/app/data/models/user_profile.dart';
 import 'package:mangaplus/app/data/services/account_sync_service.dart';
 import 'package:mangaplus/app/data/services/auth_service.dart';
+import 'package:mangaplus/app/routes/app_pages.dart';
 
 class AuthController extends GetxController {
   final AuthService service = Get.find<AuthService>();
@@ -32,6 +33,7 @@ class AuthController extends GetxController {
   Timer? _usernameDebounce;
   int _usernameRequest = 0;
   int _suggestionRequest = 0;
+  bool _closed = false;
 
   static const countries = <ArabCountry>[
     ArabCountry('DZ', 'الجزائر'), ArabCountry('BH', 'البحرين'),
@@ -58,13 +60,14 @@ class AuthController extends GetxController {
   }
 
   Future<void> _restoreExistingSession(User user) async {
+    if (_closed) return;
     try {
       await user.reload();
     } catch (_) {
       // A temporary network error must not sign out a locally persisted user.
     }
     final activeUser = service.currentUser;
-    if (activeUser == null || activeUser.uid != user.uid) return;
+    if (_closed || activeUser == null || activeUser.uid != user.uid) return;
 
     UserProfile? storedProfile;
     try {
@@ -74,6 +77,7 @@ class AuthController extends GetxController {
     } catch (_) {
       // Firebase Auth remains the source of truth for the active session.
     }
+    if (_closed || service.currentUser?.uid != user.uid) return;
     final restored = storedProfile ?? _profileFromAuthUser(activeUser);
     profile.value = restored;
 
@@ -104,7 +108,9 @@ class AuthController extends GetxController {
     }
 
     unawaited(AccountSyncService().syncLocalData());
-    Get.back(result: restored);
+    if (!_closed && Get.currentRoute == Routes.AUTH) {
+      Get.back(result: restored);
+    }
   }
 
   UserProfile _profileFromAuthUser(User user) => UserProfile(
@@ -124,6 +130,7 @@ class AuthController extends GetxController {
 
   @override
   void onClose() {
+    _closed = true;
     for (final controller in [email, password, confirmPassword, displayName, username, bio]) {
       controller.dispose();
     }
@@ -153,9 +160,10 @@ class AuthController extends GetxController {
     usernameAvailability.value = UsernameAvailability.checking;
     final request = ++_usernameRequest;
     _usernameDebounce = Timer(const Duration(milliseconds: 450), () async {
+      if (_closed) return;
       try {
         final available = await service.isUsernameAvailable(value);
-        if (request == _usernameRequest && value == AuthService.normalizeUsername(username.text)) {
+        if (!_closed && request == _usernameRequest && value == AuthService.normalizeUsername(username.text)) {
           if (available) {
             usernameAvailability.value = UsernameAvailability.available;
           } else {
@@ -164,7 +172,7 @@ class AuthController extends GetxController {
           }
         }
       } catch (_) {
-        if (request == _usernameRequest) usernameAvailability.value = UsernameAvailability.error;
+        if (!_closed && request == _usernameRequest) usernameAvailability.value = UsernameAvailability.error;
       }
     });
   }
@@ -172,6 +180,7 @@ class AuthController extends GetxController {
   void usernameChanged(String _) => _onUsernameChanged();
 
   Future<void> _loadUsernameSuggestions(String base) async {
+    if (_closed) return;
     final request = ++_suggestionRequest;
     final clean = base.replaceAll(RegExp(r'[^a-z0-9_]'), '').toLowerCase();
     if (clean.isEmpty) return;
@@ -195,7 +204,7 @@ class AuthController extends GetxController {
         return null;
       }
     }));
-    if (request == _suggestionRequest) {
+    if (!_closed && request == _suggestionRequest) {
       usernameSuggestions.assignAll(results.whereType<String>().take(4));
     }
   }
