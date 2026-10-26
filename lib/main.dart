@@ -189,6 +189,43 @@ Future<void> _initializeRemoteMessaging(AppNotificationService notificationServi
   }
 }
 
+class _FirebaseStartupFailure extends StatelessWidget {
+  const _FirebaseStartupFailure({required this.details});
+
+  final String details;
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'تعذر تشغيل خدمات الحساب',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'تحقق من اتصال الإنترنت ثم أعد فتح التطبيق.',
+                    textAlign: TextAlign.center,
+                  ),
+                  if (details.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(details, textAlign: TextAlign.center),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   LicenseRegistry.addLicense(() async* {
@@ -199,9 +236,15 @@ void main() async {
     );
   });
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (error) {
+    debugPrint('Firebase initialization failed: $error');
+    runApp(_FirebaseStartupFailure(details: '$error'));
+    return;
+  }
   try {
     // Let Firebase restore its persisted user before auth screens read currentUser.
     // A network/auth provider problem must never prevent the first frame.
