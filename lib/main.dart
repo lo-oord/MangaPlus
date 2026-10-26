@@ -18,7 +18,6 @@ import 'package:mangaplus/app/core/theme/theme_mode_preference.dart';
 import 'package:mangaplus/app/data/services/notification_presentation.dart';
 import 'package:mangaplus/app/data/services/app_notification_service.dart';
 import 'package:mangaplus/app/data/services/chapter_update_service.dart';
-import 'package:mangaplus/app/data/services/chapter_update_coordinator.dart';
 import 'package:mangaplus/app/data/services/download_manager_service.dart';
 import 'package:mangaplus/app/core/translations/app_translations.dart';
 
@@ -231,7 +230,7 @@ void main() async {
           languageCode: savedLanguage,
         );
         unawaited(chapterUpdateService.initializeBackground());
-        ChapterUpdateCoordinator(chapterUpdateService).start();
+        unawaited(chapterUpdateService.checkOnAppOpen());
         for (final message in _pendingForegroundNotifications) {
           showFlutterNotification(message);
         }
