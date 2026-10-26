@@ -6,9 +6,60 @@ import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 import 'package:mangaplus/app/widgets/custom_card_normal.dart';
+import 'package:mangaplus/app/widgets/manga_shimmer.dart';
 
 class GenreDetailView extends GetView<GenreDetailController> {
   const GenreDetailView({super.key});
+
+  Widget _buildLoadingSkeleton() {
+    return MangaShimmer(
+      child: GridView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        physics: const ClampingScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 10,
+          mainAxisExtent: 236,
+        ),
+        itemCount: 9,
+        itemBuilder: (context, index) => _buildCardSkeleton(context),
+      ),
+    );
+  }
+
+  Widget _buildCardSkeleton(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          MangaShimmer.shape(
+            width: constraints.maxWidth,
+            height: 150,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          const SizedBox(height: 7),
+          MangaShimmer.shape(
+            width: constraints.maxWidth * 0.82,
+            height: 12,
+            radius: 5,
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              MangaShimmer.shape(width: 34, height: 10, radius: 5),
+              const SizedBox(width: 7),
+              MangaShimmer.shape(
+                width: constraints.maxWidth * 0.45,
+                height: 10,
+                radius: 5,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,8 +81,8 @@ class GenreDetailView extends GetView<GenreDetailController> {
             )),
       ),
       body: Obx(() {
-        if (controller.isLoading.value) {
-          return BrandState(title: 'جارٍ تحميل التصنيف'.tr, loading: true);
+        if (controller.isLoading.value && controller.comicsList.isEmpty) {
+          return _buildLoadingSkeleton();
         }
         if (controller.hasError.value && controller.comicsList.isEmpty) {
           return BrandState(
@@ -68,8 +119,8 @@ class GenreDetailView extends GetView<GenreDetailController> {
                 (controller.isLoadingMore.value ? 1 : 0),
             itemBuilder: (context, index) {
               if (index >= controller.comicsList.length) {
-                return Center(
-                  child: const MangaPlusLoader(size: 42),
+                return MangaShimmer(
+                  child: _buildCardSkeleton(context),
                 );
               }
               final comic = controller.comicsList[index];

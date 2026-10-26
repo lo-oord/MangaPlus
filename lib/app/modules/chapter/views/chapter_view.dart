@@ -12,6 +12,7 @@ import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
+import 'package:mangaplus/app/widgets/manga_shimmer.dart';
 
 class ChapterView extends GetView<ChapterController> {
   ChapterView({super.key});
@@ -1365,22 +1366,23 @@ class ChapterView extends GetView<ChapterController> {
                     SizedBox(
                   width: double.infinity,
                   height: MediaQuery.sizeOf(context).height * 0.68,
-                  child: Center(
-                    child: MangaPlusLoader(
-                      size: 58,
-                      progress: controller.isNovel ? null : downloadProgress.progress,
-                    ),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      MangaShimmer.fill(),
+                      Center(
+                        child: MangaPlusLoader(
+                          size: 58,
+                          progress: controller.isNovel ? null : downloadProgress.progress,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 placeholder: (context, url) => SizedBox(
                   width: double.infinity,
                   height: MediaQuery.sizeOf(context).height * 0.68,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const MangaPlusLoader(size: 54),
-                    ],
-                  ),
+                  child: MangaShimmer.fill(),
                 ),
                 errorWidget: (context, url, error) {
                   final issue = ReaderLoadIssue.from(

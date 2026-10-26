@@ -11,6 +11,7 @@ import 'package:mangaplus/app/modules/search/controllers/search_controller.dart'
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
+import 'package:mangaplus/app/widgets/manga_shimmer.dart';
 
 class SearchView extends GetView<search_controller.SearchController> {
   const SearchView({super.key});
@@ -82,7 +83,7 @@ class SearchView extends GetView<search_controller.SearchController> {
               if (controller.query.value.isEmpty) {
                 if (controller.isLoadingSuggestions.value &&
                     controller.suggestions.isEmpty) {
-                  return BrandState(title: 'جارٍ تحميل المحتوى'.tr, loading: true);
+                  return _buildLoadingList();
                 }
                 if (controller.suggestions.isEmpty) {
                   return BrandState(
@@ -104,7 +105,7 @@ class SearchView extends GetView<search_controller.SearchController> {
                 );
               }
               if (controller.isLoading.value && controller.comicsList.isEmpty) {
-                return BrandState(title: 'جارٍ البحث'.tr, loading: true);
+                return _buildLoadingList();
               }
               if (controller.hasError.value) {
                 return BrandState(
@@ -141,6 +142,54 @@ class SearchView extends GetView<search_controller.SearchController> {
       labelStyle: TextStyle(
         color: selected ? AppColors.primary : AppColors.textSecondary,
         fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+
+  Widget _buildLoadingList() {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+      itemCount: 5,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (context, index) => Card(
+        margin: EdgeInsets.zero,
+        color: AppColors.card,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: AppColors.divider),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: MangaShimmer(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                MangaShimmer.shape(
+                  width: 76,
+                  height: 104,
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 4),
+                      MangaShimmer.shape(width: 150, height: 14, radius: 5),
+                      const SizedBox(height: 10),
+                      MangaShimmer.shape(width: 95, height: 10, radius: 5),
+                      const SizedBox(height: 9),
+                      MangaShimmer.shape(width: 165, height: 10, radius: 5),
+                      const SizedBox(height: 9),
+                      MangaShimmer.shape(width: 72, height: 10, radius: 5),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -265,13 +314,7 @@ class _SearchComicTile extends StatelessWidget {
                       memCacheWidth: 228,
                       maxWidthDiskCache: 720,
                       fit: BoxFit.cover,
-                      placeholder: (_, __) => Container(
-                        width: 76,
-                        height: 104,
-                        color: AppColors.searchBar,
-                        alignment: Alignment.center,
-                        child: const MangaPlusLogo(size: 30),
-                      ),
+                      placeholder: (_, __) => MangaShimmer.fill(),
                       errorWidget: (_, __, ___) => Container(
                         width: 76,
                         height: 104,

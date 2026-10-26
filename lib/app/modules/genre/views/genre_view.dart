@@ -5,9 +5,32 @@ import 'package:mangaplus/app/modules/genre/controllers/genre_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
+import 'package:mangaplus/app/widgets/manga_shimmer.dart';
 
 class GenreView extends GetView<GenreController> {
   const GenreView({super.key});
+
+  Widget _buildLoadingSkeleton() {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+      itemCount: 7,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (context, index) => Card(
+        color: AppColors.card,
+        child: ListTile(
+          leading: MangaShimmer(
+            child: MangaShimmer.shape(width: 24, height: 24, radius: 12),
+          ),
+          title: MangaShimmer(
+            child: MangaShimmer.shape(width: 150, height: 14, radius: 5),
+          ),
+          trailing: MangaShimmer(
+            child: MangaShimmer.shape(width: 18, height: 18, radius: 9),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,10 +44,10 @@ class GenreView extends GetView<GenreController> {
         elevation: 0,
       ),
       body: Obx(() {
-        if (controller.isLoading.value) {
-          return BrandState(title: 'جارٍ تحميل التصنيفات'.tr, loading: true);
-        }
         final genres = controller.genreData.value.genres;
+        if (controller.isLoading.value && genres.isEmpty) {
+          return _buildLoadingSkeleton();
+        }
         if (genres.isEmpty) {
           return BrandState(
             title: 'تعذر تحميل التصنيفات'.tr,

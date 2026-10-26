@@ -11,6 +11,7 @@ import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
+import 'package:mangaplus/app/widgets/manga_shimmer.dart';
 
 class HomeView extends GetView<HomeController> {
   const HomeView({super.key});
@@ -21,14 +22,11 @@ class HomeView extends GetView<HomeController> {
       backgroundColor: AppColors.background,
       body: Obx(() {
         if (controller.showGenrePage.value) return _buildInlineGenrePage();
-        if (controller.isLoading.value) {
-          return BrandState(
-            title: 'جارٍ تحميل المحتوى'.tr,
-            loading: true,
-          );
-        }
         final hasContent = controller.heroComics.isNotEmpty ||
             controller.comicData.value.comicsList.isNotEmpty;
+        if (controller.isLoading.value && !hasContent) {
+          return const KomikCardsSection()._buildLoadingSkeleton();
+        }
         if (!hasContent) {
           return BrandState(
             title: 'تعذر تحميل المحتوى'.tr,
@@ -156,10 +154,11 @@ class HomeView extends GetView<HomeController> {
 
   Widget _buildHeroImage(BuildContext context) {
     return Obx(() {
-      if (controller.isLoading.value) {
-        return BrandState(title: 'جارٍ تحميل المحتوى'.tr, loading: true);
+      if (controller.heroComics.isEmpty) {
+        return controller.isLoading.value
+            ? _buildHeroImageSkeleton()
+            : const SizedBox.shrink();
       }
-      if (controller.heroComics.isEmpty) return const SizedBox.shrink();
       return Column(
         children: [
           SizedBox(
@@ -196,9 +195,7 @@ class HomeView extends GetView<HomeController> {
                           },
                           fit: BoxFit.cover,
                           alignment: Alignment.topCenter,
-                          placeholder: (context, url) => Container(
-                            color: AppColors.searchBar,
-                          ),
+                          placeholder: (context, url) => MangaShimmer.fill(),
                           errorWidget: (context, url, error) => Container(
                             color: AppColors.searchBar,
                             child: const Center(child: MangaPlusLogo(size: 68)),
@@ -331,10 +328,7 @@ class HomeView extends GetView<HomeController> {
       );
 
   Widget _buildHeroImageSkeleton() {
-    return Shimmer.fromColors(
-      direction: ShimmerDirection.ltr,
-      baseColor: AppColors.searchBar,
-      highlightColor: AppColors.searchBar,
+    return MangaShimmer(
       child: Column(
         children: [
           Container(
@@ -440,9 +434,7 @@ class KomikCardsSection extends GetView<HomeController> {
   }
 
   Widget _buildLoadingSkeleton() {
-    return Shimmer.fromColors(
-      baseColor: AppColors.searchBar,
-      highlightColor: AppColors.searchBar,
+    return MangaShimmer(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         child: SingleChildScrollView(
@@ -451,7 +443,7 @@ class KomikCardsSection extends GetView<HomeController> {
             children: [
               // History section skeleton
               Container(
-                height: 140,
+                height: 390,
                 margin: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),

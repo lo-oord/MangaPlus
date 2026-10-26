@@ -6,6 +6,7 @@ import 'package:mangaplus/app/data/models/app_notification.dart';
 import 'package:mangaplus/app/modules/notifications/controllers/notifications_controller.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
+import 'package:mangaplus/app/widgets/manga_shimmer.dart';
 
 class NotificationsView extends GetView<NotificationsController> {
   const NotificationsView({super.key});
@@ -31,8 +32,8 @@ class NotificationsView extends GetView<NotificationsController> {
             ],
           ),
           body: Obx(() {
-            if (controller.isLoading.value) {
-              return BrandState(title: 'جارٍ تحميل الإشعارات'.tr, loading: true);
+            if (controller.isLoading.value && controller.notifications.isEmpty) {
+              return _buildLoadingSkeleton();
             }
             if (controller.hasError.value) {
               return BrandState(
@@ -196,6 +197,7 @@ class NotificationsView extends GetView<NotificationsController> {
                     : CachedNetworkImage(
                         imageUrl: item.imageUrl,
                         fit: BoxFit.cover,
+                        placeholder: (_, __) => MangaShimmer.fill(),
                         errorWidget: (_, __, ___) => Container(
                           color: AppColors.primary.withValues(alpha: .13),
                           child: Icon(Icons.notifications_active_rounded, color: AppColors.primary, size: 22),
@@ -224,6 +226,49 @@ class NotificationsView extends GetView<NotificationsController> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+      itemCount: 5,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (context, index) => Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: MangaShimmer(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              MangaShimmer.shape(
+                width: 48,
+                height: 60,
+                borderRadius: BorderRadius.circular(13),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    MangaShimmer.shape(width: 150, height: 13, radius: 5),
+                    const SizedBox(height: 9),
+                    MangaShimmer.shape(width: double.infinity, height: 10, radius: 5),
+                    const SizedBox(height: 7),
+                    MangaShimmer.shape(width: 210, height: 10, radius: 5),
+                    const SizedBox(height: 10),
+                    MangaShimmer.shape(width: 80, height: 9, radius: 5),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

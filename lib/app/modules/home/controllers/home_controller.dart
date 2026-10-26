@@ -47,19 +47,23 @@ class HomeController extends GetxController {
   Future<void> _loadHomeData() async {
     _homeRequestId++;
     isLoading(true);
-    canLoadMore(true);
     isLoadingMore(false);
-    _loadedPage = 0;
-    heroComics.clear();
-    comicData.value = ComicData(
-      comicsList: const [],
-      page: 1,
-      genres: const [],
-      status: '',
-      type: 'manga',
-      orderby: '',
-      source: '',
-    );
+    final hasCurrentContent = heroComics.isNotEmpty ||
+        comicData.value.comicsList.isNotEmpty;
+    if (!hasCurrentContent) {
+      canLoadMore(true);
+      _loadedPage = 0;
+      heroComics.clear();
+      comicData.value = ComicData(
+        comicsList: const [],
+        page: 1,
+        genres: const [],
+        status: '',
+        type: 'manga',
+        orderby: '',
+        source: '',
+      );
+    }
     await fetchComics(page: 1);
     isLoading(false);
   }
@@ -129,7 +133,9 @@ class HomeController extends GetxController {
           type: AppNoticeType.error,
         );
       }
-      canLoadMore(false);
+      if (page != 1 || comicData.value.comicsList.isEmpty) {
+        canLoadMore(false);
+      }
     }
   }
 

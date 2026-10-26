@@ -7,6 +7,7 @@ import 'package:mangaplus/app/data/models/reading_stats.dart';
 import 'package:mangaplus/app/data/services/reading_stats_service.dart';
 import 'package:mangaplus/app/modules/profile/controllers/reading_stats_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
+import 'package:mangaplus/app/widgets/manga_shimmer.dart';
 
 class ReadingStatsPanel extends StatefulWidget {
   const ReadingStatsPanel({super.key});
@@ -838,6 +839,8 @@ class _ReadingStatsPanelState extends State<ReadingStatsPanel> {
                           : Image.network(
                               work.coverImage,
                               fit: BoxFit.cover,
+                              loadingBuilder: (context, child, progress) =>
+                                  progress == null ? child : MangaShimmer.fill(),
                               errorBuilder: (_, __, ___) => ColoredBox(
                                 color: AppColors.primary.withValues(alpha: .12),
                                 child: Icon(Icons.menu_book_rounded, size: 18, color: AppColors.primary),

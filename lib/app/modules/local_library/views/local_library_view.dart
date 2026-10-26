@@ -8,6 +8,7 @@ import 'package:mangaplus/app/modules/local_library/controllers/local_library_co
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
+import 'package:mangaplus/app/widgets/manga_shimmer.dart';
 
 class LocalLibraryView extends GetView<LocalLibraryController> {
   const LocalLibraryView({super.key});
@@ -121,8 +122,7 @@ class LocalLibraryView extends GetView<LocalLibraryController> {
                               imageUrl: group.coverImage,
                               cacheManager: MangaCoverCacheManager.instance,
                               fit: BoxFit.cover,
-                              placeholder: (_, __) =>
-                                  const MangaPlusLogo(size: 42),
+                              placeholder: (_, __) => MangaShimmer.fill(),
                               errorWidget: (_, __, ___) =>
                                   const MangaPlusLogo(size: 42),
                             ),

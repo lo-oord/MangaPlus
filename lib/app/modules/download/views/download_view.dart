@@ -7,6 +7,7 @@ import 'package:mangaplus/app/data/models/download_task.dart';
 import 'package:mangaplus/app/modules/download/controllers/download_controller.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
+import 'package:mangaplus/app/widgets/manga_shimmer.dart';
 
 class DownloadView extends GetView<DownloadController> {
   const DownloadView({super.key});
@@ -67,8 +68,7 @@ class DownloadView extends GetView<DownloadController> {
                           imageUrl: task.coverImage,
                           cacheManager: MangaCoverCacheManager.instance,
                           fit: BoxFit.cover,
-                          placeholder: (_, __) =>
-                              const MangaPlusLogo(size: 34),
+                          placeholder: (_, __) => MangaShimmer.fill(),
                           errorWidget: (_, __, ___) =>
                               const MangaPlusLogo(size: 34),
                         ),

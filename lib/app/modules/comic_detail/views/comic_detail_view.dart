@@ -16,6 +16,7 @@ import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
+import 'package:mangaplus/app/widgets/manga_shimmer.dart';
 
 class ComicDetailView extends GetView<ComicDetailController> {
   const ComicDetailView({super.key});
@@ -25,10 +26,8 @@ class ComicDetailView extends GetView<ComicDetailController> {
     return ThemeAwareBuilder(builder: (context) => Obx(() {
       final loading = controller.isLoading.value;
       final comic = controller.comicDetailData.value.comicDetail;
-      if (loading) {
-        return const Scaffold(
-          body: Center(child: MangaPlusLoader(size: 68)),
-        );
+      if (loading && comic.title.isEmpty) {
+        return _buildLoadingSkeleton();
       }
       if (comic.title.isEmpty) {
         final issue = controller.loadIssue.value;
@@ -55,6 +54,145 @@ class ComicDetailView extends GetView<ComicDetailController> {
         ),
       );
     }));
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: MangaShimmer(
+        child: CustomScrollView(
+          slivers: [
+            SliverAppBar(
+              pinned: true,
+              expandedHeight: 350,
+              toolbarHeight: 62,
+              backgroundColor: AppColors.background,
+              automaticallyImplyLeading: false,
+              leading: const SizedBox.shrink(),
+              flexibleSpace: FlexibleSpaceBar(
+                background: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    MangaShimmer.shape(width: double.infinity, height: 350),
+                    Positioned(
+                      left: 18,
+                      right: 18,
+                      bottom: 20,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          MangaShimmer.shape(
+                            width: 112,
+                            height: 162,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                MangaShimmer.shape(width: 170, height: 18, radius: 6),
+                                const SizedBox(height: 10),
+                                MangaShimmer.shape(width: 110, height: 12, radius: 5),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    MangaShimmer.shape(width: 48, height: 22, radius: 11),
+                                    const SizedBox(width: 7),
+                                    MangaShimmer.shape(width: 52, height: 22, radius: 11),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: MangaShimmer.shape(height: 54, radius: 16)),
+                        const SizedBox(width: 10),
+                        Expanded(child: MangaShimmer.shape(height: 54, radius: 16)),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    MangaShimmer.shape(width: 140, height: 16, radius: 5),
+                    const SizedBox(height: 10),
+                    MangaShimmer.shape(width: double.infinity, height: 12, radius: 5),
+                    const SizedBox(height: 8),
+                    MangaShimmer.shape(width: double.infinity, height: 12, radius: 5),
+                    const SizedBox(height: 8),
+                    MangaShimmer.shape(width: 210, height: 12, radius: 5),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        MangaShimmer.shape(width: 74, height: 30, radius: 15),
+                        const SizedBox(width: 8),
+                        MangaShimmer.shape(width: 82, height: 30, radius: 15),
+                        const SizedBox(width: 8),
+                        MangaShimmer.shape(width: 68, height: 30, radius: 15),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 8, 18, 26),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    MangaShimmer.shape(width: 110, height: 17, radius: 5),
+                    const SizedBox(height: 14),
+                    for (var index = 0; index < 5; index++) ...[
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.card,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppColors.divider),
+                        ),
+                        child: Row(
+                          children: [
+                            MangaShimmer.shape(width: 32, height: 32, radius: 16),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  MangaShimmer.shape(width: 190, height: 12, radius: 5),
+                                  const SizedBox(height: 8),
+                                  MangaShimmer.shape(width: 115, height: 10, radius: 5),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            MangaShimmer.shape(width: 18, height: 18, radius: 9),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Chapter? _targetChapter(ComicDetail comic) {
@@ -311,7 +449,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
         httpHeaders: _imageHeaders(imagePath),
         fit: fit,
         alignment: alignment,
-        placeholder: (_, __) => Container(color: AppColors.card),
+        placeholder: (_, __) => MangaShimmer.fill(),
         errorWidget: (_, __, ___) => Center(
           child: MangaPlusLogo(size: logoSize),
         ),

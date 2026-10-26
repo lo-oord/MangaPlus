@@ -6,6 +6,7 @@ import 'package:mangaplus/app/core/cache/manga_cover_cache_manager.dart';
 import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/services/bookmark_state_service.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/manga_shimmer.dart';
 
 class CustomCardNormal extends StatelessWidget {
   final String title;
@@ -79,13 +80,7 @@ class CustomCardNormal extends StatelessWidget {
                 memCacheWidth: (width * 3).round(),
                 maxWidthDiskCache: 720,
                 fit: BoxFit.cover,
-                placeholder: (context, url) => Container(
-                  width: width,
-                  height: coverHeight,
-                  color: AppColors.searchBar,
-                  alignment: Alignment.center,
-                  child: const MangaPlusLogo(size: 52),
-                ),
+                placeholder: (context, url) => MangaShimmer.fill(),
                 errorWidget: (context, url, error) => Container(
                   width: width,
                   height: coverHeight,

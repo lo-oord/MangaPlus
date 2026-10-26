@@ -9,6 +9,7 @@ import 'package:mangaplus/app/modules/history/controllers/history_controller.dar
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
+import 'package:mangaplus/app/widgets/manga_shimmer.dart';
 
 class HistoryView extends GetView<HistoryController> {
   const HistoryView({super.key});
@@ -78,12 +79,7 @@ class HistoryView extends GetView<HistoryController> {
                   width: 85,
                   height: 114,
                   fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    width: 80,
-                    height: 100,
-                    color: AppColors.background,
-                    child: const Center(child: MangaPlusLogo(size: 48)),
-                  ),
+                  placeholder: (context, url) => MangaShimmer.fill(),
                   errorWidget: (context, url, error) => Container(
                     width: 80,
                     height: 100,
