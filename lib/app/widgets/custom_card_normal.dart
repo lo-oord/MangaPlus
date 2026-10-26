@@ -80,6 +80,40 @@ class CustomCardNormal extends StatelessWidget {
                 memCacheWidth: (width * 3).round(),
                 maxWidthDiskCache: 720,
                 fit: BoxFit.cover,
+                imageBuilder: (context, imageProvider) => Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image(
+                      image: imageProvider,
+                      width: width,
+                      height: coverHeight,
+                      fit: BoxFit.cover,
+                    ),
+                    Positioned(
+                      top: 6,
+                      left: 6,
+                      child: Material(
+                        color: Colors.black.withValues(alpha: .62),
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          tooltip: 'معاينة الغلاف'.tr,
+                          visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints.tightFor(
+                            width: 34,
+                            height: 34,
+                          ),
+                          padding: EdgeInsets.zero,
+                          onPressed: () => _showCoverPreview(context, imageProvider),
+                          icon: const Icon(
+                            Icons.open_in_full_rounded,
+                            size: 17,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
                 placeholder: (context, url) => MangaShimmer.fill(),
                 errorWidget: (context, url, error) => Container(
                   width: width,
@@ -191,6 +225,58 @@ class CustomCardNormal extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+
+  void _showCoverPreview(
+    BuildContext context,
+    ImageProvider<Object> imageProvider,
+  ) {
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'إغلاق معاينة الغلاف'.tr,
+      barrierColor: Colors.black.withValues(alpha: .92),
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (dialogContext, _, __) => SafeArea(
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Center(
+                child: InteractiveViewer(
+                  minScale: .8,
+                  maxScale: 4,
+                  child: Image(
+                    image: imageProvider,
+                    width: MediaQuery.sizeOf(dialogContext).width,
+                    height: MediaQuery.sizeOf(dialogContext).height,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 4,
+              left: 8,
+              child: IconButton(
+                tooltip: 'إغلاق'.tr,
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                icon: const Icon(Icons.close_rounded, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+      transitionBuilder: (context, animation, secondaryAnimation, child) =>
+          FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: .96, end: 1).animate(
+            CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+          ),
+          child: child,
+        ),
+      ),
     );
   }
 

@@ -162,7 +162,10 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   bool _speechSessionActive = false;
   final novelSpeechCurrentParagraph = (-1).obs;
   final novelSpeechCurrentWord = ''.obs;
+  final novelSpeechCurrentWordStart = (-1).obs;
+  final novelSpeechCurrentWordEnd = (-1).obs;
   final List<int> _speechChunkParagraphIndexes = <int>[];
+  final List<int> _speechChunkParagraphOffsets = <int>[];
   bool endNoticeShown = false;
   bool _isLoadingChapterNavigation = false;
   int _chapterLoadGeneration = 0;
@@ -1021,8 +1024,13 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     });
     _flutterTts.setCompletionHandler(_onSpeechChunkCompleted);
     _flutterTts.setProgressHandler((String text, int start, int end, String word) {
-      if (!_speechSessionActive || word.trim().isEmpty) return;
+      if (!_speechSessionActive || novelSpeechPaused.value || word.trim().isEmpty) return;
       novelSpeechCurrentWord.value = word.trim();
+      final chunkOffset = _speechChunkIndex < _speechChunkParagraphOffsets.length
+          ? _speechChunkParagraphOffsets[_speechChunkIndex]
+          : 0;
+      novelSpeechCurrentWordStart.value = chunkOffset + start;
+      novelSpeechCurrentWordEnd.value = chunkOffset + end;
     });
     _flutterTts.setCancelHandler(() {
       if (_speechSessionActive) return;
@@ -1082,6 +1090,8 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
             _speechChunkParagraphIndexes[_speechChunkIndex];
       }
       novelSpeechCurrentWord.value = '';
+      novelSpeechCurrentWordStart.value = -1;
+      novelSpeechCurrentWordEnd.value = -1;
       final result = await _flutterTts.speak(_speechChunks[_speechChunkIndex]);
       if ((result is num && result != 1) || result == false || result == '0') {
         _failNovelSpeech();
@@ -1098,6 +1108,8 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     novelSpeechPaused.value = false;
     novelSpeechCurrentParagraph.value = -1;
     novelSpeechCurrentWord.value = '';
+    novelSpeechCurrentWordStart.value = -1;
+    novelSpeechCurrentWordEnd.value = -1;
     AppFeedback.show(
       title: 'تعذر تشغيل القراءة الصوتية'.tr,
       message: 'تحقق من تثبيت صوت اللغة المختارة على الجهاز'.tr,
@@ -1107,23 +1119,32 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   List<String> _splitSpeechText(String value) {
     final chunks = <String>[];
     _speechChunkParagraphIndexes.clear();
+    _speechChunkParagraphOffsets.clear();
     final paragraphs = _splitNovelParagraphs(value);
     for (var paragraphIndex = 0; paragraphIndex < paragraphs.length; paragraphIndex++) {
       final buffer = StringBuffer();
-      for (final word in paragraphs[paragraphIndex].split(RegExp(r'\s+'))) {
-        if (word.isEmpty) continue;
+      var chunkStartOffset = -1;
+      for (final match in RegExp(r'\S+').allMatches(paragraphs[paragraphIndex])) {
+        final word = match.group(0)!;
         final extraLength = word.length + (buffer.isEmpty ? 0 : 1);
         if (buffer.length + extraLength > 2500 && buffer.isNotEmpty) {
           chunks.add(buffer.toString());
           _speechChunkParagraphIndexes.add(paragraphIndex);
+          _speechChunkParagraphOffsets.add(chunkStartOffset);
           buffer.clear();
+          chunkStartOffset = -1;
         }
-        if (buffer.isNotEmpty) buffer.write(' ');
+        if (buffer.isEmpty) {
+          chunkStartOffset = match.start;
+        } else {
+          buffer.write(' ');
+        }
         buffer.write(word);
       }
       if (buffer.isNotEmpty) {
         chunks.add(buffer.toString());
         _speechChunkParagraphIndexes.add(paragraphIndex);
+        _speechChunkParagraphOffsets.add(chunkStartOffset);
       }
     }
     return chunks;
@@ -1141,6 +1162,8 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     novelSpeechPaused.value = false;
     novelSpeechCurrentParagraph.value = -1;
     novelSpeechCurrentWord.value = '';
+    novelSpeechCurrentWordStart.value = -1;
+    novelSpeechCurrentWordEnd.value = -1;
   }
 
   Future<void> stopNovelSpeech() async {
@@ -1149,9 +1172,12 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     novelSpeechPaused.value = false;
     _speechChunks = [];
     _speechChunkParagraphIndexes.clear();
+    _speechChunkParagraphOffsets.clear();
     _speechChunkIndex = 0;
     novelSpeechCurrentParagraph.value = -1;
     novelSpeechCurrentWord.value = '';
+    novelSpeechCurrentWordStart.value = -1;
+    novelSpeechCurrentWordEnd.value = -1;
     try {
       await _flutterTts.stop();
     } catch (_) {}

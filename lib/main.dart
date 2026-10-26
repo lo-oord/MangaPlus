@@ -207,6 +207,8 @@ void main() async {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeModePreference.fromStorage(savedTheme),
+      themeAnimationDuration: const Duration(milliseconds: 260),
+      themeAnimationCurve: Curves.easeInOutCubic,
       defaultTransition: Transition.fadeIn,
       transitionDuration: const Duration(milliseconds: 260),
       translations: AppTranslations(),

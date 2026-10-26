@@ -105,7 +105,7 @@ class ChapterView extends GetView<ChapterController> {
                 }
               },
               itemBuilder: (context, index) =>
-                  _buildPagedImage(context, chapter.images[index]),
+                  _buildPageCurlImage(context, index, chapter.images[index]),
             ),
           ),
         );
@@ -188,6 +188,8 @@ class ChapterView extends GetView<ChapterController> {
       final family = controller.novelFontFamily.value;
       final speechParagraph = controller.novelSpeechCurrentParagraph.value;
       final speechWord = controller.novelSpeechCurrentWord.value;
+      final speechWordStart = controller.novelSpeechCurrentWordStart.value;
+      final speechWordEnd = controller.novelSpeechCurrentWordEnd.value;
       final speechPlaying = controller.novelSpeechPlaying.value;
       final speechActive = speechPlaying || controller.novelSpeechPaused.value;
       return FutureBuilder<List<String>>(
@@ -306,10 +308,35 @@ class ChapterView extends GetView<ChapterController> {
                       itemBuilder: (context, index) {
                         final isCurrent = speechActive && index == speechParagraph;
                         final paragraph = paragraphs[index];
-                        final wordStart = isCurrent && speechWord.isNotEmpty
-                            ? paragraph.toLowerCase().indexOf(speechWord.toLowerCase())
-                            : -1;
-                        final wordEnd = wordStart < 0 ? -1 : wordStart + speechWord.length;
+                        var wordStart = -1;
+                        var wordEnd = -1;
+                        if (isCurrent && speechWord.isNotEmpty) {
+                          if (speechWordStart >= 0 &&
+                              speechWordEnd > speechWordStart &&
+                              speechWordEnd <= paragraph.length &&
+                              paragraph
+                                      .substring(speechWordStart, speechWordEnd)
+                                      .toLowerCase() ==
+                                  speechWord.toLowerCase()) {
+                            wordStart = speechWordStart;
+                            wordEnd = speechWordEnd;
+                          } else {
+                            final safeStart = speechWordStart
+                                .clamp(0, paragraph.length)
+                                .toInt();
+                            wordStart = paragraph
+                                .toLowerCase()
+                                .indexOf(speechWord.toLowerCase(), safeStart);
+                            if (wordStart < 0) {
+                              wordStart = paragraph
+                                  .toLowerCase()
+                                  .indexOf(speechWord.toLowerCase());
+                            }
+                            if (wordStart >= 0) {
+                              wordEnd = wordStart + speechWord.length;
+                            }
+                          }
+                        }
                         final baseStyle = TextStyle(
                           color: foreground,
                           fontSize: controller.novelFontSize.value,
@@ -1239,6 +1266,65 @@ class ChapterView extends GetView<ChapterController> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
       ),
       isScrollControlled: true,
+    );
+  }
+
+  Widget _buildPageCurlImage(
+    BuildContext context,
+    int index,
+    String imageUrl,
+  ) {
+    final pageController = controller.pageController;
+    return AnimatedBuilder(
+      animation: pageController,
+      child: _buildPagedImage(context, imageUrl),
+      builder: (context, child) {
+        if (MediaQuery.disableAnimationsOf(context)) {
+          return child ?? const SizedBox.shrink();
+        }
+        final page = pageController.hasClients
+            ? pageController.page ?? controller.currentPage.value.toDouble()
+            : controller.currentPage.value.toDouble();
+        final distance = (index - page).clamp(-1.0, 1.0).toDouble();
+        final rtl = controller.readingDirection.value == 'rtl';
+        final angle = distance * .18 * (rtl ? -1 : 1);
+        final transform = Matrix4.identity()
+          ..setEntry(3, 2, .0012)
+          ..rotateY(angle);
+        final foldAmount = (distance.abs() * .14).clamp(0.0, .14).toDouble();
+        return RepaintBoundary(
+          child: Transform(
+            alignment: angle >= 0 ? Alignment.centerRight : Alignment.centerLeft,
+            transform: transform,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                child ?? const SizedBox.shrink(),
+                if (foldAmount > 0)
+                  IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: angle >= 0
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
+                          end: angle >= 0
+                              ? Alignment.centerLeft
+                              : Alignment.centerRight,
+                          colors: [
+                            Colors.black.withValues(alpha: foldAmount),
+                            Colors.transparent,
+                          ],
+                          stops: const [0, .45],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
