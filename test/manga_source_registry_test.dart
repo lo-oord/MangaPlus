@@ -52,12 +52,13 @@ void main() {
 }
 
 class _FakeSource extends ContentSource {
-  _FakeSource({required this.id, required this.delay, required this.item});
+  _FakeSource({required this.id, required this.delay, required Map<String, dynamic> item})
+      : resultItem = item;
 
   @override
   final String id;
   final Duration delay;
-  final Map<String, dynamic> item;
+  final Map<String, dynamic> resultItem;
 
   @override
   String get name => id;
@@ -68,7 +69,7 @@ class _FakeSource extends ContentSource {
   @override
   Future<List<Map<String, dynamic>>> search(String query) async {
     await Future<void>.delayed(delay);
-    return [item];
+    return [resultItem];
   }
   @override
   Future<List<Map<String, dynamic>>> latest({int page = 1}) async => const [];
