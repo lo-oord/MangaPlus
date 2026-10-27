@@ -314,7 +314,7 @@ class HijalaSource extends ContentSource {
     if (uri == null || (host != 'hijala.com' && !host.endsWith('.hijala.com'))) {
       return '';
     }
-    return uri.replace(scheme: 'https', host: 'hijala.com', fragment: '').toString();
+    return uri.replace(scheme: 'https', host: 'hijala.com').toString().split('#').first;
   }
 
   String _secureImageUrl(String rawUrl) {
