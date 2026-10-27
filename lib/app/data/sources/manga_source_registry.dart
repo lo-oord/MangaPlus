@@ -14,6 +14,7 @@ import 'cenele_source.dart';
 import 'mangadar_source.dart';
 import 'kolnovel_source.dart';
 import 'procomic_source.dart';
+import 'hijala_source.dart';
 import 'search_relevance.dart';
 import 'source_base.dart';
 
@@ -36,6 +37,7 @@ class MangaSourceRegistry {
   static final MangaDarSource mangaDar = MangaDarSource();
   static final KolNovelSource kolNovel = KolNovelSource();
   static final ProComicSource proComic = ProComicSource();
+  static final HijalaSource hijala = HijalaSource();
 
   /// Team X is intentionally excluded from the multi-source home feed contract;
   /// the home screen calls it directly through [ComicService.fetchComics].
@@ -56,6 +58,7 @@ class MangaSourceRegistry {
         mangaDar,
         kolNovel,
         proComic,
+        hijala,
       ];
 
   static ContentSource? forUrl(String url) {
