@@ -51,7 +51,7 @@ void main() {
           <li data-num="1"><div class="eph-num"><a href="/solo-leveling-1/"><span class="chapternum">فصل 1</span><span class="chapterdate">مارس 1, 2026</span></a></div></li>
         </ul></div>
       ''',
-    })]);
+    }));
 
     final detail = await source.details('http://www.hijala.com/solo-leveling/');
 
@@ -82,7 +82,7 @@ void main() {
           <li data-num="1"><a href="/solo-leveling-1/"><span class="chapternum">فصل 1</span></a></li>
         </ul></div>
       ''',
-      '/solo-leveling-2/': '''
+          '/solo-leveling-2/': '''
         <div class="readercontent"><h1>Solo Leveling 2</h1>
           <div id="readerarea">
             <img src="https://hijala.com/wp-content/uploads/manga/ab12/01.webp">
@@ -91,7 +91,7 @@ void main() {
         </div>
         <aside><img src="https://hijala.com/wp-content/uploads/sidebar.webp"></aside>
       ''',
-    })]);
+    }));
     await source.details('https://hijala.com/solo-leveling/');
 
     final chapter = await source.chapterImages('http://hijala.com/solo-leveling-2/');

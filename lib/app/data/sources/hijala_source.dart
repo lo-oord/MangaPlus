@@ -248,7 +248,9 @@ class HijalaSource extends ContentSource {
         anchor.querySelector('.chapternum'),
       ).ifEmpty(mangaHtmlText(anchor));
       if (title.isEmpty) continue;
-      final number = row.attributes['data-num']?.trim().ifEmpty('') ??
+      final number = row.attributes['data-num']
+              ?.trim()
+              .ifEmpty(_numberFromText(title)) ??
           _numberFromText(title);
       final date = mangaHtmlText(anchor.querySelector('.chapterdate'));
       items.add({
