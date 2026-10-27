@@ -30,9 +30,15 @@ import 'app/routes/app_pages.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  DartPluginRegistrant.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await AppNotificationService().recordRemoteMessage(message);
-  showFlutterNotification(message);
+  // Android displays notification-payload messages itself while the app is
+  // backgrounded. Only render data-only messages locally to avoid duplicates.
+  if (message.notification == null) {
+    await setupFlutterNotifications(languageCode: 'ar_SA');
+    showFlutterNotification(message);
+  }
   // If you're going to use other Firebase services in the background, such as Firestore,
   // make sure you call `initializeApp` before using other Firebase services.
   debugPrint('Handling a background message ${message.messageId}');
@@ -102,17 +108,19 @@ Future<void> setupFlutterNotifications({required String languageCode}) async {
 }
 
 void showFlutterNotification(RemoteMessage message) {
-  RemoteNotification? notification = message.notification;
-  AndroidNotification? android = message.notification?.android;
-  if (notification != null && android != null && !kIsWeb) {
+  final notification = message.notification;
+  final title = '${notification?.title ?? message.data['title'] ?? ''}'.trim();
+  final body =
+      '${notification?.body ?? message.data['body'] ?? message.data['message'] ?? ''}'.trim();
+  if ((title.isNotEmpty || body.isNotEmpty) && !kIsWeb) {
     debugPrint("NOTIF RECEIVED:");
-    debugPrint("Title: ${notification.title}");
-    debugPrint("Body: ${notification.body}");
+    debugPrint("Title: $title");
+    debugPrint("Body: $body");
 
     flutterLocalNotificationsPlugin.show(
-      notification.hashCode,
-      notification.title,
-      notification.body,
+      (message.messageId?.hashCode ?? DateTime.now().millisecondsSinceEpoch).abs(),
+      title,
+      body,
       NotificationDetails(
         android: AndroidNotificationDetails(
           channel.id,
@@ -122,6 +130,11 @@ void showFlutterNotification(RemoteMessage message) {
           color: const Color(0xff5b9bd5),
           importance: Importance.high,
           priority: Priority.high,
+        ),
+        iOS: const DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
         ),
       ),
     );
