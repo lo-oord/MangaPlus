@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -15,14 +17,16 @@ void main() {
 
   test('SeaNovel search, details and chapter content work', () async {
     final source = SeanovelSource(client: MockClient((request) async {
-      if (request.url.path == '/api/search-index') return http.Response(_index, 200);
+      if (request.url.path == '/api/search-index') {
+        return http.Response.bytes(utf8.encode(_index), 200);
+      }
       if (request.url.path == '/api/novel/the-greatest-sinner/chapters') {
-        return http.Response(_chapters, 200);
+        return http.Response.bytes(utf8.encode(_chapters), 200);
       }
       if (request.url.path.contains('/chapters/326')) {
-        return http.Response(_chapter, 200);
+        return http.Response.bytes(utf8.encode(_chapter), 200);
       }
-      return http.Response(_novel, 200);
+      return http.Response.bytes(utf8.encode(_novel), 200);
     }));
 
     final results = await source.search('greatest sinner');

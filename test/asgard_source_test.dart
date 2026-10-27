@@ -44,7 +44,7 @@ void main() {
 const _seriesPage = '''
 <html><body>
 <h1>Shadow Slave</h1>
-<a href="/manga/shadow-slave"><img alt="Shadow Slave" src="/media/covers/cover.jpg"></a>
+<a href="/manga/shadow-slave"><h3>Shadow Slave</h3><img alt="Shadow Slave" src="/media/covers/cover.jpg"></a>
 <a href="/manga/shadow-slave/31">الفصل 31</a>
 <a href="/manga/shadow-slave/30-old">الفصل 30</a>
 </body></html>
