@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -16,9 +18,9 @@ void main() {
   test('parses Asgard search, full chapters, cover and reader page ids', () async {
     final source = AsgardSource(client: MockClient((request) async {
       if (request.url.path.endsWith('/manga/shadow-slave/31')) {
-        return http.Response(_chapterPage, 200);
+        return http.Response.bytes(utf8.encode(_chapterPage), 200);
       }
-      return http.Response(_seriesPage, 200);
+      return http.Response.bytes(utf8.encode(_seriesPage), 200);
     }));
 
     final result = await source.search('Shadow Slave');
