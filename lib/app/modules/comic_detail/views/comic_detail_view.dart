@@ -653,6 +653,9 @@ class _SourceLogo extends StatelessWidget {
     }
     if (value.contains('procomic')) return 'https://procomic.pro/favicon.svg';
     if (value.contains('asgard')) return 'https://asgardscans.com/asgard.png';
+    if (value.contains('seanovel') || value.contains('بحرالروايات')) {
+      return 'https://seanovel.org/logo.webp';
+    }
     return null;
   }
 

@@ -16,6 +16,7 @@ import 'kolnovel_source.dart';
 import 'procomic_source.dart';
 import 'hijala_source.dart';
 import 'asgard_source.dart';
+import 'seanovel_source.dart';
 import 'search_relevance.dart';
 import 'source_base.dart';
 
@@ -40,6 +41,7 @@ class MangaSourceRegistry {
   static final ProComicSource proComic = ProComicSource();
   static final HijalaSource hijala = HijalaSource();
   static final AsgardSource asgard = AsgardSource();
+  static final SeanovelSource seaNovel = SeanovelSource();
 
   /// Team X is intentionally excluded from the multi-source home feed contract;
   /// the home screen calls it directly through [ComicService.fetchComics].
@@ -62,6 +64,7 @@ class MangaSourceRegistry {
         proComic,
         hijala,
         asgard,
+        seaNovel,
       ];
 
   static ContentSource? forUrl(String url) {
