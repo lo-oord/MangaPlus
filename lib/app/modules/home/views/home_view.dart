@@ -406,6 +406,7 @@ class KomikCardsSection extends GetView<HomeController> {
                 (context, index) {
                   final comic = comics[index];
                   return GestureDetector(
+                    key: ValueKey<String>('home-${comic.comicId}'),
                     onTap: () => Get.toNamed(
                       Routes.COMIC_DETAIL,
                       arguments: comic.comicId,

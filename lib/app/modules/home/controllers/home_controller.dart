@@ -100,13 +100,9 @@ class HomeController extends GetxController {
           ...comicData.value.comicsList,
           ...incoming.where((comic) => existing.add(comic.comicId)),
         ];
-        combined.sort((left, right) {
-          final leftDate = DateTime.tryParse(left.latestChapterDate.trim());
-          final rightDate = DateTime.tryParse(right.latestChapterDate.trim());
-          if (leftDate == null) return rightDate == null ? 0 : 1;
-          if (rightDate == null) return -1;
-          return rightDate.compareTo(leftDate);
-        });
+        // Page 1 is already ordered by the feed service. Once the user has
+        // started scrolling, never reorder the existing prefix: doing so
+        // moves visible cards when page 2+ arrives and breaks scroll position.
         comicData.value = ComicData(
           comicsList: combined,
           pagination: loaded.pagination,
@@ -143,13 +139,8 @@ class HomeController extends GetxController {
       final updated = comicData.value.comicsList
           .map((item) => replacements[item.comicId] ?? item)
           .toList(growable: false);
-      updated.sort((left, right) {
-        final leftDate = DateTime.tryParse(left.latestChapterDate.trim());
-        final rightDate = DateTime.tryParse(right.latestChapterDate.trim());
-        if (leftDate == null) return rightDate == null ? 0 : 1;
-        if (rightDate == null) return -1;
-        return rightDate.compareTo(leftDate);
-      });
+      // Date enrichment updates metadata only. Keep the original order so a
+      // background response cannot move cards while the user is scrolling.
       final current = comicData.value;
       comicData.value = ComicData(
         comicsList: updated,
