@@ -51,15 +51,75 @@ class ComicService {
       image: '${item['image_url'] ?? ''}',
       type: '${item['type'] ?? 'manga'}',
       chapter: chapter,
-      rating: '${item['rating'] ?? ''}',
-      status: item['status']?.toString() ?? '',
+      rating: _cardRating(item),
+      status: _cardStatus(item),
       latestChapterDate: '${item['latest_chapter_date'] ?? ''}',
       genres: item['genres'] is List
           ? (item['genres'] as List).map((value) => value.toString()).toList()
           : const [],
-      totalChapters: '${item['total_chapters'] ?? ''}',
+      totalChapters: _cardChapterCount(item),
       source: '${item['source'] ?? item['source_id'] ?? ''}',
     );
+  }
+
+  static String _cardRating(Map<String, dynamic> item) =>
+      SourceValues.rating(item);
+
+  static String _cardStatus(Map<String, dynamic> item) {
+    final value = _nestedCardValue(item, const [
+      'status',
+      'state',
+      'progress',
+      'publication_status',
+      'publicationStatus',
+      'series_status',
+      'seriesStatus',
+    ]);
+    if (value is Map) {
+      return '${value['name'] ?? value['title'] ?? value['label'] ?? value['value'] ?? ''}'.trim();
+    }
+    return value?.toString().trim() ?? '';
+  }
+
+  static String _cardChapterCount(Map<String, dynamic> item) {
+    final value = _nestedCardValue(item, const [
+      'total_chapters',
+      'totalChapters',
+      'chapter_count',
+      'chapterCount',
+      'chapters_count',
+      'chaptersCount',
+      'number_of_chapters',
+      'numberOfChapters',
+      'chapters',
+    ]);
+    if (value is List) return '${value.length}';
+    if (value == null) return '';
+    return value.toString().trim();
+  }
+
+  static dynamic _nestedCardValue(
+    Map<String, dynamic> item,
+    List<String> keys,
+  ) {
+    for (final key in keys) {
+      final value = _findCardValue(item, key, 0);
+      if (value != null && value.toString().trim().isNotEmpty) return value;
+    }
+    return null;
+  }
+
+  static dynamic _findCardValue(dynamic value, String key, int depth) {
+    if (depth > 3 || value == null) return null;
+    if (value is Map) {
+      if (value.containsKey(key)) return value[key];
+      for (final container in const ['data', 'details', 'stats', 'statistics', 'metadata']) {
+        if (!value.containsKey(container)) continue;
+        final found = _findCardValue(value[container], key, depth + 1);
+        if (found != null) return found;
+      }
+    }
+    return null;
   }
 
   ComicData _comicData(List<Map<String, dynamic>> items, {
