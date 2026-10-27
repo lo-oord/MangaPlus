@@ -246,20 +246,40 @@ class KolNovelSource extends ContentSource {
     }
 
     collect(baseDocument);
-    final volumeElement =
-        baseDocument.querySelector('details[data-kol-chapter-volume]');
-    if (volumeElement != null) {
-      // KolNovel uses an empty data-kol-chapter-volume for its default volume.
-      // The attribute's presence still means the chapter list must be fetched.
-      final latestVolume =
-          volumeElement.attributes['data-kol-chapter-volume'] ?? '';
-      final uri = Uri.parse(seriesUrl).replace(
-        queryParameters: {'chapter_volume': latestVolume, 'chapter_page': '1'},
-      );
-      try {
-        collect(await _document(uri.toString()));
-      } catch (_) {
-        // The base page still contains the first and last chapter shortcuts.
+    // The series page contains one lazy chapter list per volume. Loading only
+    // the first details element silently drops most chapters.
+    final volumes = baseDocument.querySelectorAll(
+      'details[data-kol-chapter-volume]',
+    );
+    for (final volumeElement in volumes) {
+      final volume = volumeElement.attributes['data-kol-chapter-volume'] ?? '';
+      var page = 1;
+      while (true) {
+        final uri = Uri.parse(seriesUrl).replace(
+          queryParameters: {
+            'chapter_volume': volume,
+            'chapter_page': '$page',
+          },
+        );
+        Document? loaded;
+        try {
+          loaded = await _document(uri.toString());
+          collect(loaded);
+        } catch (_) {
+          // Keep chapters collected from the base page and other volumes.
+          break;
+        }
+        final document = loaded;
+        if (document == null) break;
+        final nextPage = document
+            .querySelectorAll('a[data-kol-volume-more-older][href]')
+            .map((link) => Uri.tryParse(link.attributes['href'] ?? '')
+                ?.queryParameters['chapter_page'])
+            .map((value) => int.tryParse(value ?? ''))
+            .whereType<int>()
+            .fold<int?>(null, (max, value) => max == null || value > max ? value : max);
+        if (nextPage == null || nextPage <= page) break;
+        page = nextPage;
       }
     }
     chapters.sort((left, right) =>

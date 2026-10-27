@@ -117,11 +117,16 @@ class ProComicSource extends ContentSource {
         ? (raw['coverImageApp'] as Map)['desktop'] ?? (raw['coverImageApp'] as Map)['mobile']
         : raw['coverImageApp'];
     final image = _image(
-      _firstText([
+      _firstImageText([
         raw['coverImage'],
         raw['cover_image'],
+        raw['coverUrl'],
+        raw['cover_url'],
+        raw['image'],
+        raw['image_url'],
         metadata['coverImage'],
         metadata['cover_image'],
+        metadata['coverUrl'],
         raw['thumbnail'],
         appCover,
       ]),
@@ -189,6 +194,26 @@ class ProComicSource extends ContentSource {
     for (final value in values) {
       final text = _text(value);
       if (text.isNotEmpty && text != 'null') return text;
+    }
+    return '';
+  }
+  String _firstImageText(Iterable<dynamic> values) {
+    for (final value in values) {
+      if (value is Map) {
+        final nested = _firstImageText(value.values);
+        if (nested.isNotEmpty) return nested;
+        continue;
+      }
+      if (value is List) {
+        final nested = _firstImageText(value);
+        if (nested.isNotEmpty) return nested;
+        continue;
+      }
+      final text = _text(value);
+      if (text.isNotEmpty && text != 'null' &&
+          (text.startsWith('http') || text.startsWith('/'))) {
+        return text;
+      }
     }
     return '';
   }

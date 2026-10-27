@@ -61,7 +61,7 @@ class HijalaSource extends ContentSource {
   }) async {
     final safePage = page < 1 ? 1 : page;
     final uri = Uri.parse(_site).replace(
-      path: safePage == 1 ? '/' : '/page/$safePage/',
+      path: safePage == 1 ? '/manga/' : '/manga/page/$safePage/',
       queryParameters: query.trim().isEmpty ? null : {'s': query.trim()},
     );
     return _cards(await _document(uri.toString()));
@@ -145,9 +145,11 @@ class HijalaSource extends ContentSource {
     final document = await _document(chapterUrl);
     final seen = <String>{};
     final pages = <String>[];
-    for (final image in document.querySelectorAll(
-      '#readerarea img[src], #readerarea img[data-src], #readerarea img[data-lazy-src]',
-    )) {
+    final readerImages = document.querySelectorAll(
+      '#readerarea img[src], #readerarea img[data-src], '
+      '#readerarea img[data-lazy-src], .readercontent #readerarea img',
+    );
+    for (final image in readerImages) {
       final pageUrl = _secureImageUrl(mangaImageUrl(image, _site));
       if (pageUrl.isEmpty ||
           pageUrl.contains('/readerarea.svg') ||

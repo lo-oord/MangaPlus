@@ -8,7 +8,7 @@ import 'package:mangaplus/app/data/sources/hijala_source.dart';
 void main() {
   test('search extracts Hijala title, link and cover from the actual card shape', () async {
     final client = _FixtureClient({
-      '/': '''
+      '/manga/': '''
         <div class="listupd"><div class="bs"><div class="bsx">
           <a href="https://hijala.com/solo-leveling/">
             <div class="limit"><img src="https://hijala.com/wp-content/uploads/cover.webp" alt="Solo Leveling"></div>

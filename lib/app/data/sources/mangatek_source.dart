@@ -77,7 +77,10 @@ class MangaTekSource extends ContentSource {
     final result = _item(
       title,
       'mangatek://series?slug=${Uri.encodeQueryComponent(slug)}',
-      _coverUrl(manga['cover_image'] ?? manga['cover']),
+      _coverUrl(_firstImageValue(manga, const [
+        'cover_image', 'cover', 'cover_url', 'coverUrl',
+        'image', 'image_url', 'poster',
+      ])),
       type: _typeFromData(manga),
     );
     result.addAll({
@@ -137,7 +140,10 @@ class MangaTekSource extends ContentSource {
     return _item(
       '${manga['title'] ?? ''}',
       'mangatek://series?slug=${Uri.encodeQueryComponent(slug)}',
-      _coverUrl(manga['cover_image'] ?? manga['cover']),
+      _coverUrl(_firstImageValue(manga, const [
+        'cover_image', 'cover', 'cover_url', 'coverUrl',
+        'image', 'image_url', 'poster',
+      ])),
       type: _typeFromData(manga),
     )..addAll({
         'description': description,
@@ -291,7 +297,10 @@ class MangaTekSource extends ContentSource {
     final actualSlug = '${data['slug'] ?? slug}';
     final chapters = _chapters(data['MangaChapters'] ?? data['chapters'], actualSlug);
     final description = '${data['description'] ?? data['description_cool'] ?? data['description_sid'] ?? ''}';
-    final cover = _coverUrl(data['cover_image'] ?? data['cover']);
+    final cover = _coverUrl(_firstImageValue(data, const [
+      'cover_image', 'cover', 'cover_url', 'coverUrl',
+      'image', 'image_url', 'poster',
+    ]));
     return _item(
       '${data['title_ar'] ?? data['title'] ?? ''}',
       'mangatek://series?slug=${Uri.encodeQueryComponent(actualSlug)}',
@@ -376,5 +385,24 @@ class MangaTekSource extends ContentSource {
     final parsed = Uri.tryParse(raw);
     if (parsed?.hasScheme == true) return raw;
     return mangaAbsoluteUrl('https://api.mangatek.com/', raw);
+  }
+
+  dynamic _firstImageValue(Map<String, dynamic> data, List<String> keys) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value is Map) {
+        final nested = _firstImageValue(Map<String, dynamic>.from(value), const [
+          'url', 'src', 'original', 'large', 'desktop', 'mobile',
+        ]);
+        if (nested != null && '$nested'.trim().isNotEmpty) return nested;
+      } else if (value is List) {
+        for (final entry in value) {
+          if ('$entry'.trim().isNotEmpty) return entry;
+        }
+      } else if (value != null && '$value'.trim().isNotEmpty && value != 'null') {
+        return value;
+      }
+    }
+    return '';
   }
 }
