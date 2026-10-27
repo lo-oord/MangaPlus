@@ -644,9 +644,6 @@ class _SourceLogo extends StatelessWidget {
       return 'https://lavascans.com/wp-content/uploads/2024/09/2024-09-28-10-58-25-1727564305679-192x192.png';
     }
     if (value.contains('mangatek')) return null;
-    if (value.contains('teamx') || value.contains('olympus')) {
-      return 'https://olympustaff.com/images/TeamX.png';
-    }
     if (value.contains('mknov')) return 'https://mknov.com/logo.png';
     if (value.contains('cenele')) {
       return 'https://cenele.com/wp-content/uploads/2026/08/cropped-%D9%81%D8%B6%D8%A7%D8%A1-%D8%B1%D9%88%D8%A7%D9%8A%D8%A7%D8%AA.png';
@@ -655,7 +652,7 @@ class _SourceLogo extends StatelessWidget {
       return 'https://mangadar.com/wp-content/uploads/2026/04/Logo.png';
     }
     if (value.contains('procomic')) return 'https://procomic.pro/favicon.svg';
-    if (value.contains('waveteamy')) return 'https://waveteamy.com/favicon.ico';
+    if (value.contains('asgard')) return 'https://asgardscans.com/asgard.png';
     return null;
   }
 
