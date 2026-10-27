@@ -26,6 +26,12 @@ class ChapterView extends GetView<ChapterController> {
       final images = controller.chapterData.value.chapter.images;
       if (images.isNotEmpty && !controller.isOffline.value) {
         _preloadImages(context, images);
+        if (controller.continuousNavigation.value) {
+          // Warm both boundaries as soon as chapter navigation is available.
+          // This keeps continuous scroll from waiting at either chapter edge.
+          _preloadAdjacentChapterImages(context);
+          _preloadAdjacentChapterImages(context, previous: true);
+        }
       }
     });
 
@@ -1426,7 +1432,7 @@ class ChapterView extends GetView<ChapterController> {
     BuildContext context,
     List<String> imageUrls, {
     int start = 0,
-    int count = 1,
+    int count = 3,
   }) async {
     if (!context.mounted) return;
     final urls = imageUrls
@@ -1460,12 +1466,17 @@ class ChapterView extends GetView<ChapterController> {
     if (adjacentChapter == null) return;
     unawaited(controller.prefetchChapter(adjacentChapter).then((data) {
       if (!context.mounted || data == null || controller.isNovel) return;
-      final start = previous
-          ? (data.chapter.images.length - 1)
-              .clamp(0, data.chapter.images.length)
-              .toInt()
-          : 0;
-      _preloadImages(context, data.chapter.images, start: start, count: 1);
+      const start = 0;
+      // Precache every page in the adjacent chapter. The chapter data itself
+      // is already cached by ComicService, so crossing the boundary becomes
+      // an in-memory list update instead of a network wait.
+      final count = data.chapter.images.length;
+      _preloadImages(
+        context,
+        data.chapter.images,
+        start: start,
+        count: count,
+      );
     }));
   }
 
