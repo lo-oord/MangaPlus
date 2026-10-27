@@ -65,6 +65,56 @@ class ComicService {
   static String _cardRating(Map<String, dynamic> item) =>
       SourceValues.rating(item);
 
+  static String _detailImage(Map<String, dynamic> raw) {
+    for (final key in const [
+      'image_url',
+      'image',
+      'cover_image',
+      'coverImage',
+      'cover_url',
+      'coverUrl',
+      'cover',
+      'thumbnail',
+      'poster',
+    ]) {
+      final value = _findCardValue(raw, key, 0);
+      final image = _imageText(value, 0);
+      if (image.isNotEmpty) return image;
+    }
+    return '';
+  }
+
+  static String _imageText(dynamic value, int depth) {
+    if (depth > 4 || value == null) return '';
+    if (value is String) {
+      final text = value.trim();
+      return text.startsWith('http') || text.startsWith('/') ? text : '';
+    }
+    if (value is List) {
+      for (final entry in value) {
+        final image = _imageText(entry, depth + 1);
+        if (image.isNotEmpty) return image;
+      }
+      return '';
+    }
+    if (value is Map) {
+      for (final key in const [
+        'desktop',
+        'mobile',
+        'card',
+        'url',
+        'src',
+        'image',
+        'cover',
+      ]) {
+        if (!value.containsKey(key)) continue;
+        final image = _imageText(value[key], depth + 1);
+        if (image.isNotEmpty) return image;
+      }
+    }
+    return '';
+  }
+
   static String _cardStatus(Map<String, dynamic> item) {
     final value = _nestedCardValue(item, const [
       'status',
@@ -342,7 +392,7 @@ class ComicService {
         : <String>[];
     final detail = ComicDetail(
       comicId: '${raw['url'] ?? comicId}',
-      coverImage: '${raw['image_url'] ?? raw['image'] ?? ''}',
+      coverImage: _detailImage(raw),
       title: '${raw['title'] ?? ''}',
       nativeTitle: '${raw['native_title'] ?? ''}',
       genres: genres,

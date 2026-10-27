@@ -28,6 +28,25 @@ void main() {
       expect(requests.last.queryParameters, containsPair('chapter_page', '1'));
     },
   );
+
+  test('reads chapter text from the current KolNovel reader container', () async {
+    final source = KolNovelSource(client: MockClient((request) async {
+      return http.Response('''
+        <html><body>
+          <h1 class="kol-chapter-context__title">الفصل 1</h1>
+          <div class="kol-chapter-reading"><p>محتوى الفصل الحالي</p></div>
+          <a aria-label="التالي" href="/novel-2/">التالي</a>
+        </body></html>
+      ''', 200, headers: _htmlHeaders);
+    }));
+
+    final chapter = await source.chapterContent(
+      'https://kolnovel.com/novel-1/',
+    );
+
+    expect(chapter?['content'], contains('محتوى الفصل الحالي'));
+    expect(chapter?['next_chapter'], 'https://kolnovel.com/novel-2/');
+  });
 }
 
 const _htmlHeaders = {'content-type': 'text/html; charset=utf-8'};

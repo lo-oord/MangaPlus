@@ -147,13 +147,20 @@ class KolNovelSource extends ContentSource {
       throw Exception('KolNovel: رابط الفصل غير صالح.');
     }
     final document = await _document(chapterUrl);
+    final contentElement = document.querySelector(
+      '.epcontent.entry-content, .epcontent, '
+      '.kol-chapter-reading, [data-kol-chapter-reading], '
+      '.kol-chapter-content, .reading-content, article .entry-content',
+    );
     final content = mangaHtmlToReadableText(
-      document.querySelector('.epcontent.entry-content')?.innerHtml,
+      contentElement?.innerHtml,
     );
     if (content.trim().isEmpty) {
       throw Exception('KolNovel: لم يتم العثور على نص الفصل.');
     }
-    final title = mangaHtmlText(document.querySelector('.kol-chapter-context__title'));
+    final title = mangaHtmlText(document.querySelector(
+      '.kol-chapter-context__title, [data-kol-chapter-title], h1.entry-title, h1',
+    ));
     final previous = _navigation(document, 'السابق');
     final next = _navigation(document, 'التالي');
     return {
@@ -300,7 +307,11 @@ class KolNovelSource extends ContentSource {
 
   String _navigation(Document document, String label) {
     for (final link in document.querySelectorAll('a')) {
-      if (mangaHtmlText(link) == label) return mangaAbsoluteUrl(_site, link.attributes['href']);
+      final text = mangaHtmlText(link);
+      final aria = link.attributes['aria-label']?.trim() ?? '';
+      if (text == label || aria == label || text.contains(label) || aria.contains(label)) {
+        return mangaAbsoluteUrl(_site, link.attributes['href']);
+      }
     }
     return '';
   }
