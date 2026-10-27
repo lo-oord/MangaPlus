@@ -115,15 +115,24 @@ class ProComicSource extends ContentSource {
     ).timeout(_timeout);
     if (response.statusCode < 200 || response.statusCode >= 300) throw Exception('ProComic: فشل تحميل الفصل (${response.statusCode}).');
     final html = utf8.decode(response.bodyBytes, allowMalformed: true).replaceAll(r'\/', '/');
-    final images = <String>[];
+    final appImages = <String>[];
+    final cdnImages = <String>[];
     final chapterId = _chapterId(url);
     final pattern = RegExp(r'https://(?:cdn\d+|app)\.procomic\.pro/[^"\\\s<>]+?\.(?:avif|webp|jpg|jpeg|png)', caseSensitive: false);
     for (final match in pattern.allMatches(html)) {
       final image = match.group(0)!;
       final isChapterImage = chapterId.isNotEmpty &&
           image.contains('/$chapterId/');
-      if (!images.contains(image) && isChapterImage) images.add(image);
+      if (!isChapterImage) continue;
+      if (image.contains('/chapters/')) {
+        if (!appImages.contains(image)) appImages.add(image);
+      } else if (!cdnImages.contains(image)) {
+        cdnImages.add(image);
+      }
     }
+    final images = appImages.length > 1
+        ? appImages
+        : [...appImages, ...cdnImages];
     if (images.isEmpty) return null;
     return {'title': 'الفصل ${_chapterNumber(url)}', 'chapter_number': _chapterNumber(url), 'pages': images, 'images': images.map((e) => {'url': e}).toList(), 'url': url};
   }
