@@ -106,6 +106,25 @@ void main() {
     expect(chapter['chapters'], hasLength(2));
   });
 
+  test('reader accepts the current reading-content image container', () async {
+    final source = HijalaSource(client: _FixtureClient({
+      '/solo-leveling-3/': '''
+        <div class="reading-content">
+          <img src="https://hijala.com/wp-content/uploads/hijala.png">
+          <img src="http://hijala.com/wp-content/uploads/manga/ab12/03.webp">
+        </div>
+      ''',
+    }));
+
+    final chapter = await source.chapterImages(
+      'https://hijala.com/solo-leveling-3/',
+    );
+
+    expect(chapter?['pages'], [
+      'https://hijala.com/wp-content/uploads/manga/ab12/03.webp',
+    ]);
+  });
+
   test('Hijala handles its own pages but not unrelated domains', () {
     final source = HijalaSource(client: _FixtureClient(const {}));
     expect(source.handles('https://www.hijala.com/solo-leveling/'), isTrue);

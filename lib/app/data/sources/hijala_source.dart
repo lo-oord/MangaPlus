@@ -147,12 +147,17 @@ class HijalaSource extends ContentSource {
     final pages = <String>[];
     final readerImages = document.querySelectorAll(
       '#readerarea img[src], #readerarea img[data-src], '
-      '#readerarea img[data-lazy-src], .readercontent #readerarea img',
+      '#readerarea img[data-lazy-src], .readercontent #readerarea img, '
+      '.readercontent img[src], .readercontent img[data-src], '
+      '.reading-content img[src], .reading-content img[data-src], '
+      '.wp-manga-chapter-img img[src], .page-break img[src]',
     );
     for (final image in readerImages) {
       final pageUrl = _secureImageUrl(mangaImageUrl(image, _site));
       if (pageUrl.isEmpty ||
           pageUrl.contains('/readerarea.svg') ||
+          pageUrl.contains('/hijala.png') ||
+          pageUrl.contains('/logo') ||
           !seen.add(pageUrl)) {
         continue;
       }

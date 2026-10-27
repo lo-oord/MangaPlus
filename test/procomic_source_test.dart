@@ -64,6 +64,37 @@ void main() {
     ]);
   });
 
+  test('reads current ProComic RSC image URLs and nested cover fields', () async {
+    final client = MockClient((request) async {
+      if (request.url.path.contains('/chapter/')) {
+        return http.Response(_currentReaderPage, 200, headers: _htmlHeaders);
+      }
+      return http.Response(jsonEncode({
+        'id': 744,
+        'title': 'Shadow Slave',
+        'slug': 'shadow-slave',
+        'type': 'novel',
+        'metadata': {
+          'appCardImage': 'https://app.procomic.pro/series-cards-app/744/card.webp',
+        },
+      }), 200, headers: _jsonHeaders);
+    });
+    final source = ProComicSource(client: client);
+
+    final details = await source.details(
+      'https://procomic.pro/ar/series/novel/744/shadow-slave',
+    );
+    final chapter = await source.chapterImages(
+      'https://procomic.pro/ar/chapter/shadow-slave-3-50319',
+    );
+
+    expect(details['image_url'], 'https://app.procomic.pro/series-cards-app/744/card.webp');
+    expect(chapter?['pages'], [
+      'https://app.procomic.pro/chapters/744/50319/p1/page-1.avif',
+      'https://cdn2.procomic.pro/744/50319/page-2.webp',
+    ]);
+  });
+
   test('reads ProComic novel chapters as text', () async {
     Uri? requestedUri;
     final client = MockClient((request) async {
@@ -135,6 +166,10 @@ const _readerPage = '''
   <img src="https://app.procomic.pro/chapters/686/50319/p1/page-1.avif">
   <img src="https://cdn3.procomic.pro/chapters/686/50319/p2/page-2.webp">
 </body></html>
+''';
+
+const _currentReaderPage = r'''
+<script>"images":["https:\/\/cdn2.procomic.pro\/744\/50319\/page-2.webp"],"appImages":[{"desktop":"https:\/\/app.procomic.pro\/chapters\/744\/50319\/p1\/page-1.avif"}]</script>
 ''';
 
 const _novelReaderPage = '''

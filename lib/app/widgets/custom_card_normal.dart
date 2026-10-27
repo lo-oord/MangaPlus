@@ -207,9 +207,15 @@ class CustomCardNormal extends StatelessWidget {
   }
 
   Map<String, String> _imageHeaders(String url) {
-    final isKawaii = Uri.tryParse(url)?.host.toLowerCase() == 'manga-cdn.kawaii-anime.com';
+    final host = Uri.tryParse(url)?.host.toLowerCase() ?? '';
+    final isKawaii = host == 'manga-cdn.kawaii-anime.com';
+    final isProComic = host == 'procomic.pro' || host.endsWith('.procomic.pro');
     return {
-      'Referer': isKawaii ? 'https://kawaiimanga.org/' : 'https://olympustaff.com/',
+      'Referer': isKawaii
+          ? 'https://kawaiimanga.org/'
+          : isProComic
+              ? 'https://procomic.pro/'
+              : 'https://olympustaff.com/',
       'User-Agent':
           'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
     };

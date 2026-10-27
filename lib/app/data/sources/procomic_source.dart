@@ -105,14 +105,24 @@ class ProComicSource extends ContentSource {
 
   @override
   Future<Map<String, dynamic>?> chapterImages(String url) async {
-    final response = await _client.get(Uri.parse(url), headers: {..._headers, 'Accept': 'text/html'}).timeout(_timeout);
+    final response = await _client.get(
+      Uri.parse(url),
+      headers: {
+        ..._headers,
+        'Accept': 'text/html,application/xhtml+xml',
+        'Referer': '$_site/',
+      },
+    ).timeout(_timeout);
     if (response.statusCode < 200 || response.statusCode >= 300) throw Exception('ProComic: فشل تحميل الفصل (${response.statusCode}).');
-    final html = utf8.decode(response.bodyBytes, allowMalformed: true);
+    final html = utf8.decode(response.bodyBytes, allowMalformed: true).replaceAll(r'\/', '/');
     final images = <String>[];
-    final pattern = RegExp(r'https://(?:cdn\d+|app)\.procomic\.pro/[^"\\\s]+?\.(?:avif|webp|jpg|jpeg|png)', caseSensitive: false);
+    final chapterId = _chapterId(url);
+    final pattern = RegExp(r'https://(?:cdn\d+|app)\.procomic\.pro/[^"\\\s<>]+?\.(?:avif|webp|jpg|jpeg|png)', caseSensitive: false);
     for (final match in pattern.allMatches(html)) {
       final image = match.group(0)!;
-      if (!images.contains(image) && (image.contains('/chapters/') || image.contains('/${_contentId(url)}/'))) images.add(image);
+      final isChapterImage = chapterId.isNotEmpty &&
+          image.contains('/$chapterId/');
+      if (!images.contains(image) && isChapterImage) images.add(image);
     }
     if (images.isEmpty) return null;
     return {'title': 'الفصل ${_chapterNumber(url)}', 'chapter_number': _chapterNumber(url), 'pages': images, 'images': images.map((e) => {'url': e}).toList(), 'url': url};
@@ -168,6 +178,12 @@ class ProComicSource extends ContentSource {
         metadata['coverImage'],
         metadata['cover_image'],
         metadata['coverUrl'],
+        metadata['appCoverImage'],
+        metadata['appCardImage'],
+        metadata['socialImage'],
+        raw['appCoverImage'],
+        raw['appCardImage'],
+        raw['socialImage'],
         raw['thumbnail'],
         appCover,
       ]),
@@ -233,6 +249,7 @@ class ProComicSource extends ContentSource {
     return int.tryParse(RegExp(r'(?:-|/)(\d+)(?:/?$)').firstMatch(value)?.group(1) ?? '') ?? 0;
   }
   String _chapterNumber(String value) => RegExp(r'-([0-9]+)-[0-9]+/?$').firstMatch(value)?.group(1) ?? '';
+  String _chapterId(String value) => RegExp(r'-[0-9]+-([0-9]+)/?$').firstMatch(value)?.group(1) ?? '';
   double _chapterValue(dynamic value) => double.tryParse('$value') ?? -1;
   String _firstText(Iterable<dynamic> values) {
     for (final value in values) {

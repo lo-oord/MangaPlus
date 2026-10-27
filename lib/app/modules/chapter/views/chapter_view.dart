@@ -1485,12 +1485,19 @@ class ChapterView extends GetView<ChapterController> {
     final isMangaDar = uri?.host == 'storage.mangadar.com' ||
         uri?.host.endsWith('.storage.mangadar.com') == true ||
         uri?.host == 'mangadar.com';
+    final host = uri?.host.toLowerCase() ?? '';
+    final isProComic = host == 'procomic.pro' || host.endsWith('.procomic.pro');
+    final isHijala = host == 'hijala.com' || host.endsWith('.hijala.com');
     return {
-      'Referer': isMangaDar
-          ? 'https://mangadar.com/'
-          : uri == null || uri.host.isEmpty
-          ? 'https://olympustaff.com/'
-          : '${uri.scheme}://${uri.host}/',
+      'Referer': isProComic
+          ? 'https://procomic.pro/'
+          : isHijala
+              ? 'https://hijala.com/'
+              : isMangaDar
+                  ? 'https://mangadar.com/'
+                  : uri == null || uri.host.isEmpty
+                      ? 'https://olympustaff.com/'
+                      : '${uri.scheme}://${uri.host}/',
       'User-Agent':
           'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
     };
