@@ -7,6 +7,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/data/models/chapter.dart';
+import 'package:mangaplus/app/core/utils/chapter_reference_identity.dart';
 import 'package:mangaplus/app/data/models/history.dart';
 import 'package:mangaplus/app/data/services/reading_stats_service.dart';
 import 'package:mangaplus/app/data/services/app_data_service.dart';
@@ -250,24 +251,18 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     return availableChapters;
   }
 
-  bool _sameChapterReference(String left, String right) {
-    if (left == right) return true;
-    final leftUri = Uri.tryParse(left);
-    final rightUri = Uri.tryParse(right);
-    if (leftUri == null || rightUri == null) return false;
-    return leftUri.scheme == rightUri.scheme &&
-        leftUri.host == rightUri.host &&
-        leftUri.path == rightUri.path &&
-        leftUri.query == rightUri.query;
-  }
+  bool _sameChapterReference(String left, String right) =>
+      ChapterReferenceIdentity.matches(
+        left,
+        right,
+        baseReference: chapterId,
+      );
 
-  String _chapterIdentity(String reference) {
-    final value = reference.trim();
-    final uri = Uri.tryParse(value);
-    if (uri == null) return value.replaceFirst(RegExp(r'/+$'), '');
-    final path = uri.path.replaceFirst(RegExp(r'/+$'), '');
-    return '${uri.scheme.toLowerCase()}|${uri.host.toLowerCase()}|$path|${uri.query}';
-  }
+  String _chapterIdentity(String reference) =>
+      ChapterReferenceIdentity.identity(
+        reference,
+        baseReference: chapterId,
+      );
 
   bool _containsCurrentChapter(List<ChapterElement> chapters) => chapters.any(
         (item) => _sameChapterReference(item.chapterId, chapterId) ||
