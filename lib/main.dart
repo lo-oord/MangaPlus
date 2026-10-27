@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -19,6 +20,8 @@ import 'package:mangaplus/app/data/services/notification_presentation.dart';
 import 'package:mangaplus/app/data/services/app_notification_service.dart';
 import 'package:mangaplus/app/data/services/chapter_update_service.dart';
 import 'package:mangaplus/app/data/services/download_manager_service.dart';
+import 'package:mangaplus/app/data/services/account_sync_service.dart';
+import 'package:mangaplus/app/data/services/reading_stats_service.dart';
 import 'package:mangaplus/app/core/translations/app_translations.dart';
 
 import 'package:mangaplus/firebase_options.dart';
@@ -128,6 +131,26 @@ void showFlutterNotification(RemoteMessage message) {
 /// Initialize the [FlutterLocalNotificationsPlugin] package.
 late FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin;
 
+StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+StreamSubscription<User?>? _syncAuthSubscription;
+
+void _syncPendingReadingData() {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null || user.isAnonymous) return;
+  unawaited(AccountSyncService().syncLocalData());
+  if (user.emailVerified && Get.isRegistered<ReadingStatsService>()) {
+    unawaited(Get.find<ReadingStatsService>().syncOwner(user.uid).catchError(
+      (Object error) => debugPrint('Unable to sync pending reading statistics: $error'),
+    ));
+  }
+}
+
+void _handleConnectivity(List<ConnectivityResult> results) {
+  if (results.any((result) => result != ConnectivityResult.none)) {
+    _syncPendingReadingData();
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   LicenseRegistry.addLicense(() async* {
@@ -160,6 +183,21 @@ void main() async {
     DeviceOrientation.portraitUp,
   ]);
   await GetStorage.init();
+  if (!kIsWeb) {
+    if (!Get.isRegistered<ReadingStatsService>()) {
+      Get.put<ReadingStatsService>(ReadingStatsService(), permanent: true);
+    }
+    _connectivitySubscription ??= Connectivity().onConnectivityChanged.listen(
+      _handleConnectivity,
+      onError: (Object error) => debugPrint('Connectivity monitor failed: $error'),
+    );
+    _syncAuthSubscription ??= FirebaseAuth.instance.userChanges().listen((user) {
+      if (user != null && !user.isAnonymous) _syncPendingReadingData();
+    });
+    unawaited(Connectivity().checkConnectivity().then(_handleConnectivity).catchError(
+      (Object error) => debugPrint('Unable to read connectivity state: $error'),
+    ));
+  }
   await Get.putAsync<DownloadManagerService>(
     () async => DownloadManagerService().init(),
     permanent: true,

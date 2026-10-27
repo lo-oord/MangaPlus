@@ -69,24 +69,28 @@ class AccountSyncService {
     final user = _auth.currentUser;
     if (ref == null || user == null) return;
     final profile = await _firestore.collection('userProfiles').doc(user.uid).get();
-    if (!force && profile.data()?['syncFavorites'] == false) return;
+    final syncFavorites = force || profile.data()?['syncFavorites'] != false;
 
     final localBookmarks = _mapValue(_storage.read('bookmarks'));
     final localHistory = _mapValue(_storage.read('reading_history'));
     final localReadChapters = _mapValue(_storage.read('readChapters'));
     final snapshot = await ref.get();
     final remote = snapshot.data() ?? const <String, dynamic>{};
-    final remoteReadChapters = _mapValue(remote['readChapters']);
-    final deletedBookmarks = _mergeDeletionMaps(
-      _mapValue(remote['deletedBookmarks']),
-      _mapValue(_storage.read('deletedBookmarks_${user.uid}')),
-    );
-    final mergedBookmarks = _mergeBookmarks(
-      _mapValue(remote['bookmarks']), localBookmarks, deletedBookmarks);
+    final remoteBookmarks = _mapValue(remote['bookmarks']);
+    final remoteDeletedBookmarks = _mapValue(remote['deletedBookmarks']);
+    final deletedBookmarks = syncFavorites
+        ? _mergeDeletionMaps(
+            remoteDeletedBookmarks,
+            _mapValue(_storage.read('deletedBookmarks_${user.uid}')),
+          )
+        : remoteDeletedBookmarks;
+    final mergedBookmarks = syncFavorites
+        ? _mergeBookmarks(remoteBookmarks, localBookmarks, deletedBookmarks)
+        : remoteBookmarks;
     final mergedHistory = _mergeMaps(
       _mapValue(remote['history']), localHistory, dateField: 'lastRead');
     final mergedReadChapters = _mergeReadChapters(
-      remoteReadChapters, localReadChapters);
+      _mapValue(remote['readChapters']), localReadChapters);
 
     // لا نكتب أو نعيد ملء التخزين المحلي إذا تغيّر الحساب أثناء انتظار الشبكة.
     if (_auth.currentUser?.uid != user.uid) return;
@@ -98,10 +102,12 @@ class AccountSyncService {
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
     if (_auth.currentUser?.uid != user.uid) return;
-    await _storage.write('bookmarks', mergedBookmarks);
+    if (syncFavorites) {
+      await _storage.write('bookmarks', mergedBookmarks);
+      await _storage.write('deletedBookmarks_${user.uid}', deletedBookmarks);
+    }
     await _storage.write('reading_history', mergedHistory);
     await _storage.write('readChapters', mergedReadChapters);
-    await _storage.write('deletedBookmarks_${user.uid}', deletedBookmarks);
   }
 
   Future<void> removeBookmark(String comicId) async {

@@ -529,6 +529,16 @@ class DownloadManagerService extends GetxService {
                             ? 'ملغى'
                             : 'قيد الانتظار';
     final percent = (task.progress * 100).round();
+    final isTerminal = task.status == DownloadTaskStatus.completed ||
+        task.status == DownloadTaskStatus.failed ||
+        task.status == DownloadTaskStatus.partiallyCompleted ||
+        task.status == DownloadTaskStatus.cancelled;
+    final finalStatus = task.status == DownloadTaskStatus.completed
+        ? 'تم التنزيل'
+        : task.status == DownloadTaskStatus.failed ||
+                task.status == DownloadTaskStatus.partiallyCompleted
+            ? 'فشل'
+            : status;
     final actions = <AndroidNotificationAction>[];
     if (task.status == DownloadTaskStatus.downloading) {
       actions.add(const AndroidNotificationAction('pause', 'إيقاف مؤقت'));
@@ -551,7 +561,9 @@ class DownloadManagerService extends GetxService {
     await _notifications.show(
       task.id.hashCode,
       task.comicTitle,
-      '${chapterLabel == null ? '' : 'الفصل الحالي: $chapterLabel • '}${task.completedCount}/${task.totalChapters} • $status • $percent%',
+      isTerminal
+          ? '${task.completedCount}/${task.totalChapters} • $finalStatus'
+          : '${chapterLabel == null ? '' : 'الفصل الحالي: $chapterLabel • '}${task.completedCount}/${task.totalChapters} • $status • $percent%',
       NotificationDetails(
         android: AndroidNotificationDetails(
           _channelId,
@@ -561,9 +573,9 @@ class DownloadManagerService extends GetxService {
           priority: Priority.low,
           onlyAlertOnce: true,
           largeIcon: coverPath == null ? null : FilePathAndroidBitmap(coverPath),
-          showProgress: task.status != DownloadTaskStatus.cancelled,
+          showProgress: !isTerminal,
           maxProgress: 100,
-          progress: percent,
+          progress: isTerminal ? 0 : percent,
           ongoing: task.status == DownloadTaskStatus.downloading,
           autoCancel: task.status != DownloadTaskStatus.downloading,
 
