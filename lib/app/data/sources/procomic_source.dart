@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:html/parser.dart' as html_parser;
 import 'package:http/http.dart' as http;
 
+import 'manga_html_utils.dart';
 import 'source_base.dart';
 import 'source_values.dart';
 
@@ -61,6 +62,46 @@ class ProComicSource extends ContentSource {
   }
 
   @override Future<Map<String, dynamic>?> streams(String url) async => null;
+
+  @override
+  Future<Map<String, dynamic>?> chapterContent(String url) async {
+    final response = await _client.get(
+      Uri.parse(url),
+      headers: {..._headers, 'Accept': 'text/html'},
+    ).timeout(_timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('ProComic: فشل تحميل فصل الرواية (${response.statusCode}).');
+    }
+    final document = html_parser.parse(
+      utf8.decode(response.bodyBytes, allowMalformed: true),
+    );
+    final content = document.querySelector(
+      '.chapter-text__content, [class*="chapter-text"]',
+    );
+    final text = mangaHtmlToReadableText(content?.innerHtml);
+    if (text.isEmpty) {
+      throw Exception('ProComic: لم يتم العثور على نص فصل الرواية.');
+    }
+    final chapterLinks = document.querySelectorAll('a[href*="/chapter/"]');
+    String navigation(String label) {
+      for (final link in chapterLinks) {
+        final value = _text(link.attributes['aria-label']);
+        final title = _text(link.text);
+        if (value == label || title.contains(label)) {
+          return Uri.parse(url).resolve(link.attributes['href'] ?? '').toString();
+        }
+      }
+      return '';
+    }
+    return {
+      'title': _text(document.querySelector('h1')?.text),
+      'content': text,
+      'chapter_number': _chapterNumber(url),
+      'previous_chapter': navigation('السابق'),
+      'next_chapter': navigation('التالي'),
+      'url': url,
+    };
+  }
 
   @override
   Future<Map<String, dynamic>?> chapterImages(String url) async {
@@ -173,6 +214,9 @@ class ProComicSource extends ContentSource {
     final id = _int(raw['id']);
     final slug = _text(raw['slug']);
     if (type.isEmpty || id <= 0 || slug.isEmpty) return '';
+    if (type.toLowerCase() == 'novel') {
+      return '$_site/ar/${Uri.encodeComponent(slug)}-$id';
+    }
     return '$_site/ar/series/${Uri.encodeComponent(type)}/$id/${Uri.encodeComponent(slug)}';
   }
 

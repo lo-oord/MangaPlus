@@ -64,6 +64,21 @@ void main() {
     ]);
   });
 
+  test('reads ProComic novel chapters as text', () async {
+    Uri? requestedUri;
+    final client = MockClient((request) async {
+      requestedUri = request.url;
+      return http.Response(_novelReaderPage, 200, headers: _htmlHeaders);
+    });
+    final source = ProComicSource(client: client);
+    final chapter = await source.chapterContent(
+      'https://procomic.pro/ar/chapter/the-strongest-son-in-law-1-25357',
+    );
+    expect(requestedUri?.path, contains('/ar/chapter/'));
+    expect(chapter?['chapter_number'], '1');
+    expect(chapter?['content'], contains('بداية الفصل'));
+  });
+
   test('loads details using the current ProComic series route', () async {
     final requestedPaths = <String>[];
     final client = MockClient((request) async {
@@ -119,5 +134,17 @@ const _readerPage = '''
 <html><body>
   <img src="https://app.procomic.pro/chapters/686/50319/p1/page-1.avif">
   <img src="https://cdn3.procomic.pro/chapters/686/50319/p2/page-2.webp">
+</body></html>
+''';
+
+const _novelReaderPage = '''
+<html><body>
+  <main>
+    <h1>الفصل 1</h1>
+    <div class="chapter-text__content prose">
+      <div><p>بداية الفصل</p></div>
+      <div><p>هذا نص الرواية.</p></div>
+    </div>
+  </main>
 </body></html>
 ''';
