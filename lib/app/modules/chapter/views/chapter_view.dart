@@ -597,6 +597,27 @@ class ChapterView extends GetView<ChapterController> {
                         ),
                       ),
                     ),
+                    if (controller.isNovel) ...[
+                      _readerIconButton(
+                        icon: Icons.chevron_left_rounded,
+                        tooltip: 'الفصل السابق'.tr,
+                        onPressed: controller.previousChapterId != null
+                            ? () => controller.navigateToChapter(
+                                  controller.previousChapterId,
+                                  reverse: true,
+                                )
+                            : null,
+                      ),
+                      _readerIconButton(
+                        icon: Icons.chevron_right_rounded,
+                        tooltip: 'الفصل التالي'.tr,
+                        onPressed: controller.nextChapterId != null
+                            ? () => controller.navigateToChapter(
+                                  controller.nextChapterId,
+                                )
+                            : null,
+                      ),
+                    ],
                   ],
                 ),
               ),
