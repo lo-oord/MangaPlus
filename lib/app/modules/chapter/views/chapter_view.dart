@@ -430,9 +430,16 @@ class ChapterView extends GetView<ChapterController> {
         curve: Curves.easeOutCubic,
       );
     } else if (isNextPage) {
-      controller.navigateToChapter(controller.nextChapterId);
+      controller.navigateToChapter(
+        controller.nextChapterId,
+        joinContinuousStream: true,
+      );
     } else {
-      controller.navigateToChapter(controller.previousChapterId, reverse: true);
+      controller.navigateToChapter(
+        controller.previousChapterId,
+        reverse: true,
+        joinContinuousStream: true,
+      );
     }
   }
 
@@ -590,23 +597,6 @@ class ChapterView extends GetView<ChapterController> {
                         ),
                       ),
                     ),
-                    _readerIconButton(
-                      icon: Icons.chevron_left_rounded,
-                      tooltip: 'الفصل السابق'.tr,
-                      onPressed: controller.previousChapterId != null
-                          ? () => controller.navigateToChapter(
-                                controller.previousChapterId,
-                                reverse: true,
-                              )
-                          : null,
-                    ),
-                    _readerIconButton(
-                      icon: Icons.chevron_right_rounded,
-                      tooltip: 'الفصل التالي'.tr,
-                      onPressed: controller.nextChapterId != null
-                          ? () => controller.navigateToChapter(controller.nextChapterId)
-                          : null,
-                    ),
                   ],
                 ),
               ),
@@ -717,17 +707,6 @@ class ChapterView extends GetView<ChapterController> {
                       _fitChoice('height', 'ملاءمة الارتفاع'.tr),
                       _fitChoice('natural', 'الحجم الطبيعي'.tr),
                     ],
-                  ),
-                  const SizedBox(height: 10),
-                  SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    value: controller.continuousNavigation.value,
-                    onChanged: controller.setContinuousNavigation,
-                    title: Text('التنقل المتصل بين الفصول'.tr,
-                        style: TextStyle(color: AppColors.textPrimary)),
-                    subtitle: Text('الانتقال التلقائي عند نهاية الفصل'.tr,
-                        style: TextStyle(color: AppColors.textSecondary)),
-                    activeColor: AppColors.primary,
                   ),
                 ],
               ),
@@ -1247,8 +1226,12 @@ class ChapterView extends GetView<ChapterController> {
     );
   }
 
+  bool _isLocalReaderPage(String imageReference) =>
+      imageReference.startsWith('/');
+
   Widget _buildPagedImage(BuildContext context, String imageUrl) {
     return Obx(() {
+      final isLocalPage = _isLocalReaderPage(imageUrl);
       final selectedFit = controller.readerFit.value;
       final decodeWidth = selectedFit == 'natural'
           ? null
@@ -1260,7 +1243,7 @@ class ChapterView extends GetView<ChapterController> {
           : selectedFit == 'natural'
               ? BoxFit.none
               : BoxFit.contain;
-      final Widget image = controller.isOffline.value
+      final Widget image = isLocalPage
           ? Image.file(
               File(imageUrl),
               width: double.infinity,
@@ -1337,13 +1320,14 @@ class ChapterView extends GetView<ChapterController> {
       color: Colors.black,
       child: Obx(
         () {
+          final isLocalPage = _isLocalReaderPage(imageUrl);
           final selectedFit = controller.readerFit.value;
           final decodeWidth = selectedFit == 'natural'
               ? null
               : (MediaQuery.sizeOf(context).width *
                       MediaQuery.devicePixelRatioOf(context))
                   .round();
-          return controller.isOffline.value
+          return isLocalPage
               ? Image.file(
                   File(imageUrl),
                   width: double.infinity,
@@ -1438,6 +1422,7 @@ class ChapterView extends GetView<ChapterController> {
     final urls = imageUrls
         .skip(start)
         .take(count)
+        .where((url) => !_isLocalReaderPage(url))
         .where(_preloadedImages.add)
         .toList(growable: false);
     await Future.wait(urls.map((url) async {
