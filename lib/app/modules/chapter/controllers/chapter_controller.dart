@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/data/models/chapter.dart';
 import 'package:mangaplus/app/core/utils/chapter_reference_identity.dart';
+import 'package:mangaplus/app/core/utils/reader_stream_merge.dart';
 import 'package:mangaplus/app/data/models/history.dart';
 import 'package:mangaplus/app/data/services/reading_stats_service.dart';
 import 'package:mangaplus/app/data/services/app_data_service.dart';
@@ -28,6 +29,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   final GetStorage _storage = GetStorage();
   final List<ChapterElement> _argumentChapterNavigation = [];
   final List<ChapterElement> _fallbackChapterNavigation = [];
+  List<ReaderChapterPageRange> _readerChapterPageRanges = [];
   final Set<String> _prefetchingChapters = <String>{};
   final chapterNavigationRevision = 0.obs;
   List<ChapterElement>? _availableChaptersCache;
@@ -277,6 +279,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     String id, {
     bool keepCurrentContent = false,
     bool startAtEnd = false,
+    bool restoreSavedPosition = true,
   }) async {
     final generation = ++_chapterLoadGeneration;
     try {
@@ -284,7 +287,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
       hasError(false);
       loadIssue.value = null;
       endNoticeShown = false;
-      if (!keepCurrentContent || !hasReadableContent) {
+      if (restoreSavedPosition && (!keepCurrentContent || !hasReadableContent)) {
         _restoreReaderPosition(id);
       }
 
@@ -387,10 +390,21 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
         );
       }
 
-      if (keepCurrentContent) _restoreReaderPosition(id);
+      if (restoreSavedPosition && keepCurrentContent) _restoreReaderPosition(id);
       final pageCount = chapterData.value.chapter.images.length;
       if (startAtEnd) _suppressEndBoundaryOnce = true;
       if (pageCount > 0) {
+        if (restoreSavedPosition) {
+          _readerChapterPageRanges = [
+            ReaderChapterPageRange(
+              chapterId: chapterData.value.chapter.chapterId.isEmpty
+                  ? id
+                  : chapterData.value.chapter.chapterId,
+              startIndex: 0,
+              pageCount: pageCount,
+            ),
+          ];
+        }
         currentPage.value = startAtEnd
             ? pageCount - 1
             : currentPage.value.clamp(0, pageCount - 1).toInt();
@@ -577,6 +591,9 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     final previousData = chapterData.value;
     final previousOffline = isOffline.value;
     final previousImages = localImages.toList(growable: false);
+    final previousPageRanges = List<ReaderChapterPageRange>.of(
+      _readerChapterPageRanges,
+    );
     final previousPage = currentPage.value;
     final previousOffset = _scrollController?.hasClients == true
         ? _scrollController!.offset
@@ -585,9 +602,8 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
         ? _scrollController!.position.maxScrollExtent
         : 0.0;
     final keepContinuousStream = joinContinuousStream &&
-        readerMode.value == 'scroll' &&
+        (readerMode.value == 'scroll' || readerMode.value == 'paged') &&
         continuousNavigation.value &&
-        !isOffline.value &&
         !isNovel &&
         previousData.chapter.images.isNotEmpty;
     final nextTitle = _chapterTitleFor(reference);
@@ -619,19 +635,29 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
         reference,
         keepCurrentContent: false,
         startAtEnd: reverse && !keepContinuousStream,
+        restoreSavedPosition: !keepContinuousStream,
       );
       if (!hasError.value && hasReadableContent && keepContinuousStream) {
         final adjacent = chapterData.value;
         final oldChapter = previousData.chapter;
         final newChapter = adjacent.chapter;
-        final images = reverse
-            ? <String>[...newChapter.images, ...oldChapter.images]
-            : <String>[...oldChapter.images, ...newChapter.images];
+        final mergedStream = mergeReaderStreamPages(
+          currentPages: oldChapter.images,
+          adjacentPages: newChapter.images,
+          currentRanges: previousPageRanges,
+          adjacentChapterId: newChapter.chapterId.isEmpty
+              ? reference
+              : newChapter.chapterId,
+          currentPage: previousPage,
+          prepend: reverse,
+          pagedReader: readerMode.value == 'paged',
+        );
+        _readerChapterPageRanges = mergedStream.chapterRanges;
         chapterData.value = ChapterData(
           chapter: DataChapter(
             chapterId: newChapter.chapterId.isEmpty ? reference : newChapter.chapterId,
             title: newChapter.title.isEmpty ? nextTitle : newChapter.title,
-            images: List<String>.unmodifiable(images),
+            images: mergedStream.pages,
             previousChapter: reverse
                 ? newChapter.previousChapter
                 : oldChapter.previousChapter,
@@ -644,18 +670,21 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
           ),
           source: adjacent.source.isEmpty ? previousData.source : adjacent.source,
         );
-        if (reverse) {
+        if (reverse && readerMode.value == 'scroll') {
           _continuousPrependPending = true;
           _continuousPrependBaseExtent = previousScrollExtent;
           _continuousPrependOffset = previousOffset;
           _pendingScrollRestore = null;
-        } else {
-          _pendingScrollRestore = previousOffset;
+        } else if (readerMode.value == 'scroll') {
           _continuousPrependPending = false;
+          _pendingScrollRestore = previousOffset;
+        } else {
+          _continuousPrependPending = false;
+          _continuousPrependBaseExtent = 0;
+          _continuousPrependOffset = 0;
+          _pendingScrollRestore = null;
         }
-        currentPage.value = reverse
-            ? oldChapter.images.length
-            : (oldChapter.images.length - 1).clamp(0, images.length - 1);
+        currentPage.value = mergedStream.currentPage;
       }
       if (hasError.value || !hasReadableContent) {
         final issue = loadIssue.value;
@@ -792,16 +821,21 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
       '${arguments['comicId'] ?? ''}::$id';
 
   Future<void> _persistReaderPosition(int page, {double? scrollOffset}) async {
-    final currentChapterId = chapterData.value.chapter.chapterId.isEmpty
-        ? chapterId
-        : chapterData.value.chapter.chapterId;
+    final pageRange = _readerChapterPageRanges.firstWhereOrNull(
+      (range) => range.contains(page),
+    );
+    final currentChapterId = pageRange?.chapterId ??
+        (chapterData.value.chapter.chapterId.isEmpty
+            ? chapterId
+            : chapterData.value.chapter.chapterId);
+    final chapterPage = pageRange == null ? page : page - pageRange.startIndex;
     final key = _readerPositionKey(currentChapterId);
     final stored = _storage.read('readerPositions');
     final positions = stored is Map
         ? Map<String, dynamic>.from(stored)
         : <String, dynamic>{};
     positions[key] = {
-      'page': page,
+      'page': chapterPage,
       'offset': scrollOffset ?? _restoredScrollOffset,
     };
     await _storage.write('readerPositions', positions);
@@ -843,7 +877,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     final scroll = _scrollController;
     if (scroll?.hasClients != true) return;
     final position = scroll!.position;
-    if (_continuousPrependPending) {
+    if (_continuousPrependPending && readerMode.value == 'scroll') {
       final addedExtent =
           (position.maxScrollExtent - _continuousPrependBaseExtent).clamp(0.0, double.infinity);
       final target = (_continuousPrependOffset + addedExtent)
@@ -878,8 +912,9 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
         _storage.read<String>(_readerSettingKey('direction')) ??
             _storage.read<String>('reader_direction') ??
             'rtl';
-    continuousNavigation.value =
-        _storage.read<bool>('reader_continuous_navigation') ?? true;
+    continuousNavigation.value = isNovel
+        ? _storage.read<bool>('reader_continuous_navigation') ?? true
+        : true;
     novelFontSize.value =
         (_storage.read<num>(_readerSettingKey('novel_font_size')) ?? 19).toDouble();
     novelFontFamily.value =
@@ -1219,6 +1254,12 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
 
   Future<void> setReaderMode(String value) async {
     if (value != 'scroll' && value != 'paged') return;
+    if (readerMode.value != value) {
+      _continuousPrependPending = false;
+      _continuousPrependBaseExtent = 0;
+      _continuousPrependOffset = 0;
+      _pendingScrollRestore = null;
+    }
     readerMode.value = value;
     if (value == 'paged' && _pageController?.hasClients == true) {
       _pageController!.jumpToPage(currentPage.value);
@@ -1242,6 +1283,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   }
 
   Future<void> setContinuousNavigation(bool value) async {
+    if (!isNovel) value = true;
     continuousNavigation.value = value;
     await _storage.write('reader_continuous_navigation', value);
     if (!value) return;
@@ -1287,7 +1329,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     }
     final next = nextChapterId;
     if (next != null) {
-      navigateToChapter(next);
+      navigateToChapter(next, joinContinuousStream: true);
     } else if (!_isLoadingChapterNavigation) {
       _showEndNoticeOnce();
     }
