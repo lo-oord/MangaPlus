@@ -616,5 +616,9 @@ const Map<String, String> enUS = {
   'الحد الأدنى لليوم النشط بالدقائق': 'Minimum active-day threshold (minutes)',
   'يُستخدم هذا الحد لحساب أيام النشاط والسلاسل': 'Used to calculate active days and reading streaks',
   'هذا الشهر': 'This month',
+  'كل المصادر': 'All sources',
+  'اختيار مصدر المانجا': 'Choose manga source',
+  'مصدر العرض': 'Content source',
+  'اختر مصدراً لعرض أحدث المانجا وتصنيفاتها': 'Choose a source for latest manga and its genres',
   'سيُحذف سجل الإحصاءات من هذا الجهاز فقط. إذا كانت هناك نسخة سحابية سابقة فلن تُحذف، وقد تعود عند تفعيل المزامنة لاحقًا. لن تُحذف المفضلة أو سجل القراءة المعتاد.': 'Reading statistics will be deleted from this device only. Any existing cloud copy will remain and may return if syncing is enabled later. Favorites and regular reading history will remain.',
 };

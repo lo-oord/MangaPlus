@@ -15,7 +15,54 @@ class GenreService extends GetxService {
   final TeamXSource _source;
   final Iterable<ContentSource> _sources;
 
-  Future<GenreData> fetchGenres() async {
+  Future<GenreData> fetchGenres({String? sourceId}) async {
+    final selectedId = sourceId?.trim() ?? '';
+    if (selectedId.isNotEmpty && selectedId != 'all') {
+      final source = _findSource(selectedId);
+      if (source == null || source.kind != 'manga') {
+        return GenreData(genres: const [], source: '');
+      }
+      final names = <String, Genre>{};
+      if (source is TeamXSource) {
+        try {
+          for (final entry in await source.genres()) {
+            final name = '${entry['name'] ?? ''}'.trim();
+            final value = '${entry['value'] ?? ''}'.trim();
+            if (name.isNotEmpty && value.isNotEmpty) {
+              names.putIfAbsent(_normalizeGenre(name), () => Genre(
+                    name: localizeContentGenre(name),
+                    seriesCount: 0,
+                    link: value,
+                  ));
+            }
+          }
+        } catch (_) {}
+      } else {
+        try {
+          final catalog = await source.catalog(page: 1)
+              .timeout(const Duration(seconds: 12));
+          for (final item in catalog) {
+            final tags = item['genres'];
+            if (tags is! List) continue;
+            for (final tag in tags) {
+              final name = tag is Map
+                  ? '${tag['name'] ?? tag['title'] ?? ''}'.trim()
+                  : '$tag'.trim();
+              if (name.isEmpty) continue;
+              names.putIfAbsent(_normalizeGenre(name), () => Genre(
+                    name: localizeContentGenre(name),
+                    seriesCount: 0,
+                    link: name,
+                  ));
+            }
+          }
+        } catch (_) {}
+      }
+      return GenreData(
+        genres: names.values.toList(growable: false),
+        source: source.name,
+      );
+    }
     final entriesRequest = _source.genres();
     final taggedSources = _sources.where((source) => source.id != _source.id);
     final batchesRequest = Future.wait(taggedSources.map((source) async {
@@ -61,7 +108,21 @@ class GenreService extends GetxService {
     );
   }
 
-  Future<ComicData> fetchGenreDetail(String genre, {int page = 1, String genreName = ''}) async {
+  Future<ComicData> fetchGenreDetail(
+    String genre, {
+    int page = 1,
+    String genreName = '',
+    String? sourceId,
+  }) async {
+    final selectedId = sourceId?.trim() ?? '';
+    if (selectedId.isNotEmpty && selectedId != 'all') {
+      return _fetchSourceGenreDetail(
+        genre,
+        page: page,
+        genreName: genreName,
+        source: _findSource(selectedId),
+      );
+    }
     final normalizedGenre = _normalizeGenre(genreName.isEmpty ? genre : genreName);
     final sources = _sources.where((source) => source.id != _source.id);
     final teamXRequest = _source
@@ -130,6 +191,84 @@ class GenreService extends GetxService {
         nextPage: hasMore ? page + 1 : null,
       ),
       source: 'Manga sources',
+      page: page,
+      genres: [genre],
+      status: '',
+      type: 'manga',
+      orderby: '',
+    );
+  }
+
+  ContentSource? _findSource(String id) {
+    if (_source.id == id) return _source;
+    for (final source in _sources) {
+      if (source.id == id) return source;
+    }
+    return null;
+  }
+
+  Future<ComicData> _fetchSourceGenreDetail(
+    String genre, {
+    required int page,
+    required String genreName,
+    required ContentSource? source,
+  }) async {
+    if (source == null || source.kind != 'manga') {
+      return ComicData(
+        comicsList: const [], source: '', page: page, genres: [genre],
+        status: '', type: 'manga', orderby: '',
+      );
+    }
+    List<Map<String, dynamic>> items;
+    int? nextPage;
+    if (source is TeamXSource) {
+      final result = await source.catalogPage(genre: genre, page: page)
+          .timeout(const Duration(seconds: 15));
+      items = result.items;
+      nextPage = result.nextPage;
+    } else {
+      final normalizedGenre = _normalizeGenre(genreName.isEmpty ? genre : genreName);
+      final catalog = await source.catalog(page: page)
+          .timeout(const Duration(seconds: 12));
+      final matching = <Map<String, dynamic>>[];
+      var detailsRequested = 0;
+      for (final item in catalog) {
+        var candidate = item;
+        var tags = candidate['genres'];
+        if ((tags is! List || tags.isEmpty) && detailsRequested < 8) {
+          detailsRequested++;
+          try {
+            candidate = {
+              ...item,
+              ...await source.details('${item['url'] ?? ''}')
+                  .timeout(const Duration(seconds: 8)),
+            };
+            tags = candidate['genres'];
+          } catch (_) {
+            continue;
+          }
+        }
+        if (tags is List && tags.any((tag) => _normalizeGenre(
+              tag is Map ? '${tag['name'] ?? tag['title'] ?? ''}' : '$tag',
+            ) == normalizedGenre)) {
+          matching.add({
+            ...candidate,
+            'source_id': candidate['source_id'] ?? source.id,
+            'source': candidate['source'] ?? source.name,
+          });
+        }
+      }
+      items = matching;
+      if (catalog.isNotEmpty) nextPage = page + 1;
+    }
+    return ComicData(
+      comicsList: items.map(ComicService.mapComicItem).toList(growable: false),
+      pagination: Pagination(
+        currentPage: page,
+        prevPage: page > 1 ? page - 1 : null,
+        nextPage: nextPage,
+      ),
+      source: source.name,
       page: page,
       genres: [genre],
       status: '',

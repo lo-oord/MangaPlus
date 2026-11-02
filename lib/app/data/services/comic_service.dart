@@ -11,9 +11,11 @@ class ComicService {
   ComicService({
     TeamXSource? source,
     ContentSource? Function(String url)? sourceResolver,
+    ContentSource? Function(String id)? sourceById,
     Duration detailRequestTimeout = const Duration(seconds: 20),
   })  : _teamX = source ?? MangaSourceRegistry.teamX,
         _sourceResolver = sourceResolver ?? MangaSourceRegistry.forUrl,
+        _sourceById = sourceById ?? MangaSourceRegistry.byId,
         _detailRequestTimeout = detailRequestTimeout;
   static const Duration _detailCacheTtl = Duration(minutes: 15);
   static const Duration _chapterCacheTtl = Duration(minutes: 15);
@@ -26,6 +28,7 @@ class ComicService {
 
   final TeamXSource _teamX;
   final ContentSource? Function(String url) _sourceResolver;
+  final ContentSource? Function(String id) _sourceById;
   final Duration _detailRequestTimeout;
   final _azora = MangaSourceRegistry.azora;
   final _mknov = MangaSourceRegistry.mknov;
@@ -185,8 +188,39 @@ class ComicService {
         orderby: '',
       );
 
-  /// Home/latest combines Team X and Azora into one date-ordered feed.
-  Future<ComicData> fetchComics({int page = 1}) async {
+  /// Home/latest combines Team X and Azora by default, or loads one selected source.
+  Future<ComicData> fetchComics({int page = 1, String? sourceId}) async {
+    final selectedId = sourceId?.trim() ?? '';
+    if (selectedId.isNotEmpty && selectedId != 'all') {
+      final source = _sourceById(selectedId);
+      if (source == null || source.kind != 'manga') {
+        throw StateError('لم يتم العثور على مصدر مانجا صالح.');
+      }
+      final rawItems = await source.latest(page: page);
+      final taggedItems = rawItems.map((item) => {
+            ...item,
+            'source_id': item['source_id'] ?? source.id,
+            'source': item['source'] ?? source.name,
+          }).toList(growable: false);
+      final indexedItems = taggedItems.asMap().entries.toList();
+      indexedItems.sort((leftEntry, rightEntry) {
+        final left = DateTime.tryParse(
+          '${leftEntry.value['latest_chapter_date'] ?? ''}'.trim(),
+        );
+        final right = DateTime.tryParse(
+          '${rightEntry.value['latest_chapter_date'] ?? ''}'.trim(),
+        );
+        if (left == null) return right == null ? leftEntry.key.compareTo(rightEntry.key) : 1;
+        if (right == null) return -1;
+        final byDate = right.compareTo(left);
+        return byDate == 0 ? leftEntry.key.compareTo(rightEntry.key) : byDate;
+      });
+      return _comicData(
+        indexedItems.map((entry) => entry.value).toList(growable: false),
+        page: page,
+        source: source.name,
+      );
+    }
     final results = await Future.wait([
       _teamX.latest(page: page).catchError((_) => <Map<String, dynamic>>[]),
       _azora.latest(page: page).catchError((_) => <Map<String, dynamic>>[]),

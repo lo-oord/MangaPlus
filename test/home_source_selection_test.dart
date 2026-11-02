@@ -1,0 +1,87 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mangaplus/app/data/services/comic_service.dart';
+import 'package:mangaplus/app/data/services/genre_service.dart';
+import 'package:mangaplus/app/data/sources/source_base.dart';
+import 'package:mangaplus/app/data/sources/team_x_source.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+
+void main() {
+  test('latest feed is loaded and date-sorted from the chosen manga source', () async {
+    final source = _CatalogSource('picked', [
+      _work('Older', '2026-01-01T10:00:00Z', ['أكشن']),
+      _work('Newest', '2026-02-01T10:00:00Z', ['دراما']),
+    ]);
+    final service = ComicService(sourceById: (id) => id == source.id ? source : null);
+
+    final result = await service.fetchComics(sourceId: source.id);
+
+    expect(result.source, source.name);
+    expect(result.comicsList.map((item) => item.title).toList(), ['Newest', 'Older']);
+    expect(result.comicsList.map((item) => item.source).toSet(), {source.name});
+  });
+
+  test('source-specific genres and genre results exclude other sources', () async {
+    final picked = _CatalogSource('picked', [
+      _work('Picked action', '', ['أكشن']),
+      _work('Picked fantasy', '', ['فانتازيا']),
+    ]);
+    final other = _CatalogSource('other', [
+      _work('Other action', '', ['أكشن']),
+      _work('Other romance', '', ['رومانسية']),
+    ]);
+    final teamX = TeamXSource(
+      client: MockClient((_) async => http.Response('unavailable', 503)),
+    );
+    final service = GenreService(source: teamX, sources: [teamX, picked, other]);
+
+    final genres = await service.fetchGenres(sourceId: picked.id);
+    final results = await service.fetchGenreDetail(
+      'أكشن',
+      genreName: 'أكشن',
+      sourceId: picked.id,
+    );
+
+    expect(genres.source, picked.name);
+    expect(genres.genres.map((genre) => genre.link).toSet(), {'أكشن', 'فانتازيا'});
+    expect(results.source, picked.name);
+    expect(results.comicsList.map((comic) => comic.title), ['Picked action']);
+  });
+}
+
+Map<String, dynamic> _work(String title, String date, List<String> genres) => {
+      'title': title,
+      'url': 'https://$title.example/series/$title',
+      'image_url': '',
+      'type': 'manga',
+      'latest_chapter_date': date,
+      'latest_chapter_number': 12,
+      'rating': '8.4',
+      'genres': genres,
+    };
+
+class _CatalogSource extends ContentSource {
+  _CatalogSource(this.id, this.works);
+
+  @override
+  final String id;
+  final List<Map<String, dynamic>> works;
+
+  @override
+  String get name => 'Source $id';
+  @override
+  String get kind => 'manga';
+  @override
+  List<String> get hosts => const ['example.test'];
+  @override
+  Future<List<Map<String, dynamic>>> search(String query) async => works;
+  @override
+  Future<List<Map<String, dynamic>>> latest({int page = 1}) async => works;
+  @override
+  Future<List<Map<String, dynamic>>> catalog({int page = 1}) async => works;
+  @override
+  Future<Map<String, dynamic>> details(String url) async =>
+      works.firstWhere((work) => work['url'] == url);
+  @override
+  Future<Map<String, dynamic>?> streams(String url) async => null;
+}

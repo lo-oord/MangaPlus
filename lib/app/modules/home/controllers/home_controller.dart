@@ -2,7 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/data/models/comic.dart';
+import 'package:mangaplus/app/data/sources/manga_source_registry.dart';
+import 'package:mangaplus/app/data/sources/source_base.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
 import 'package:mangaplus/app/data/services/genre_service.dart';
 import 'package:mangaplus/app/modules/genre/controllers/genre_controller.dart';
@@ -14,6 +17,8 @@ class HomeController extends GetxController {
   final ComicService _comicService = ComicService();
   final GenreService _genreService = GenreService();
   final GenreController genreController = Get.find();
+  final RxString selectedSourceId =
+      (GetStorage().read<String>('home_source_id') ?? 'all').obs;
   final PageController pageController = PageController(initialPage: 0);
   final ScrollController scrollController = ScrollController();
   final currentPage = 0.obs;
@@ -31,9 +36,36 @@ class HomeController extends GetxController {
   final genreLoadMoreError = false.obs;
   final genreHasMore = true.obs;
   int _genrePage = 1;
+  int _genreRequestId = 0;
   int _loadedPage = 0;
   int _homeRequestId = 0;
   final List<Map<String, String>> heroComics = <Map<String, String>>[];
+
+  List<ContentSource> get availableSources => MangaSourceRegistry.mangaSources;
+
+  String get selectedSourceName {
+    if (selectedSourceId.value == 'all') return 'كل المصادر';
+    return MangaSourceRegistry.byId(selectedSourceId.value)?.name ?? 'كل المصادر';
+  }
+
+  Future<void> selectSource(String sourceId) async {
+    if (sourceId == selectedSourceId.value) return;
+    _genreRequestId++;
+    selectedSourceId.value = sourceId;
+    showGenrePage(false);
+    genreComics.clear();
+    isGenreLoading(false);
+    isGenreLoadingMore(false);
+    genreHasError(false);
+    genreLoadMoreError(false);
+    genreHasMore(true);
+    final reload = _loadHomeData();
+    await GetStorage().write('home_source_id', sourceId);
+    unawaited(genreController.fetchGenres(
+      sourceId: sourceId == 'all' ? null : sourceId,
+    ));
+    await reload;
+  }
 
   final comicData = ComicData(
     comicsList: [],
@@ -48,7 +80,7 @@ class HomeController extends GetxController {
   final isLoading = true.obs;
 
   Future<void> _loadHomeData() async {
-    _homeRequestId++;
+    final requestId = ++_homeRequestId;
     if (pageController.hasClients) pageController.jumpToPage(0);
     currentPage(0);
     isLoading(true);
@@ -68,6 +100,7 @@ class HomeController extends GetxController {
       source: '',
     );
     await fetchComics(page: 1);
+    if (isClosed || requestId != _homeRequestId) return;
     isLoading(false);
   }
 
@@ -76,7 +109,10 @@ class HomeController extends GetxController {
   Future<void> fetchComics({int page = 1}) async {
     final requestId = _homeRequestId;
     try {
-      final loaded = await _comicService.fetchComics(page: page);
+      final loaded = await _comicService.fetchComics(
+        page: page,
+        sourceId: selectedSourceId.value == 'all' ? null : selectedSourceId.value,
+      );
       if (isClosed || requestId != _homeRequestId) return;
       final incoming = loaded.comicsList;
       if (page == 1) {
@@ -129,6 +165,7 @@ class HomeController extends GetxController {
         }
       }
     } catch (error) {
+      if (isClosed || requestId != _homeRequestId) return;
       debugPrint('Team X latest feed failed (page $page): $error');
       if (page == 1) {
         homeLoadFailed(true);
@@ -211,6 +248,7 @@ class HomeController extends GetxController {
 
   Future<void> openGenre(String filter, String name) async {
     if (filter.trim().isEmpty) return;
+    _genreRequestId++;
     selectedGenreFilter.value = filter;
     selectedGenreName.value = name;
     showGenrePage(true);
@@ -221,7 +259,10 @@ class HomeController extends GetxController {
     await _loadGenrePage(1);
   }
 
-  void closeGenre() => showGenrePage(false);
+  void closeGenre() {
+    _genreRequestId++;
+    showGenrePage(false);
+  }
 
   Future<void> loadMoreGenre() async {
     if (!genreHasMore.value || isGenreLoadingMore.value || isGenreLoading.value) {
@@ -236,6 +277,7 @@ class HomeController extends GetxController {
   }
 
   Future<void> _loadGenrePage(int page) async {
+    final requestId = _genreRequestId;
     if (page == 1) {
       isGenreLoading(true);
       genreHasError(false);
@@ -248,7 +290,9 @@ class HomeController extends GetxController {
         selectedGenreFilter.value,
         page: page,
         genreName: selectedGenreName.value,
+        sourceId: selectedSourceId.value == 'all' ? null : selectedSourceId.value,
       );
+      if (isClosed || requestId != _genreRequestId) return;
       if (page == 1) {
         genreComics.assignAll(data.comicsList);
       } else {
@@ -261,14 +305,17 @@ class HomeController extends GetxController {
       genreHasMore(data.pagination?.nextPage != null);
       genreLoadMoreError(false);
     } catch (error) {
+      if (isClosed || requestId != _genreRequestId) return;
       debugPrint('Team X inline genre request failed: $error');
       if (page == 1) genreHasError(true);
       else genreLoadMoreError(true);
     } finally {
-      if (page == 1) {
-        isGenreLoading(false);
-      } else {
-        isGenreLoadingMore(false);
+      if (!isClosed && requestId == _genreRequestId) {
+        if (page == 1) {
+          isGenreLoading(false);
+        } else {
+          isGenreLoadingMore(false);
+        }
       }
     }
   }
@@ -287,6 +334,11 @@ class HomeController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    if (selectedSourceId.value != 'all' &&
+        !availableSources.any((source) => source.id == selectedSourceId.value)) {
+      selectedSourceId.value = 'all';
+      GetStorage().write('home_source_id', 'all');
+    }
     scrollController.addListener(_checkScrollPosition);
     _loadHomeData();
   }

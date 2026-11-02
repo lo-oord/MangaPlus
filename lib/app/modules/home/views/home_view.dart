@@ -19,6 +19,24 @@ class HomeView extends GetView<HomeController> {
   Widget build(BuildContext context) {
     return ThemeAwareBuilder(builder: (context) => Scaffold(
       backgroundColor: AppColors.background,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: Obx(
+        () => FloatingActionButton.extended(
+          heroTag: 'home-source-picker',
+          tooltip: 'اختيار مصدر المانجا'.tr,
+          onPressed: () => _showSourcePicker(context),
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          elevation: 8,
+          icon: const Icon(Icons.travel_explore_rounded),
+          label: Text(
+            controller.selectedSourceName.tr,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+      ),
       body: Obx(() {
         if (controller.showGenrePage.value) return _buildInlineGenrePage();
         if (controller.isLoading.value) {
@@ -55,6 +73,144 @@ class HomeView extends GetView<HomeController> {
         );
       }),
     ));
+  }
+
+  void _showSourcePicker(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final sources = controller.availableSources;
+        final height = MediaQuery.sizeOf(sheetContext).height * 0.72;
+        return SafeArea(
+          top: false,
+          child: Container(
+            height: height.clamp(360.0, 620.0).toDouble(),
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              border: Border.all(color: AppColors.divider.withValues(alpha: 0.7)),
+            ),
+            child: Column(
+              children: [
+                const SizedBox(height: 10),
+                Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: Icon(Icons.travel_explore_rounded, color: AppColors.primary),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'مصدر العرض'.tr,
+                              style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              'اختر مصدراً لعرض أحدث المانجا وتصنيفاتها'.tr,
+                              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Divider(height: 1, color: AppColors.divider.withValues(alpha: 0.7)),
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
+                    itemCount: sources.length + 1,
+                    separatorBuilder: (_, __) => const SizedBox(height: 5),
+                    itemBuilder: (context, index) {
+                      final isAll = index == 0;
+                      final source = isAll ? null : sources[index - 1];
+                      final id = isAll ? 'all' : source!.id;
+                      final name = isAll ? 'كل المصادر'.tr : source!.name;
+                      final selected = controller.selectedSourceId.value == id;
+                      return Material(
+                        color: selected
+                            ? AppColors.primary.withValues(alpha: 0.10)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(17),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(17),
+                          onTap: () {
+                            Navigator.of(sheetContext).pop();
+                            controller.selectSource(id);
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 42,
+                                  height: 42,
+                                  decoration: BoxDecoration(
+                                    color: selected
+                                        ? AppColors.primary.withValues(alpha: 0.16)
+                                        : AppColors.searchBar,
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Icon(
+                                    isAll ? Icons.auto_awesome_mosaic_rounded : Icons.menu_book_rounded,
+                                    color: selected ? AppColors.primary : AppColors.icon,
+                                    size: 21,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontSize: 14,
+                                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                if (selected)
+                                  Icon(Icons.check_circle_rounded, color: AppColors.primary, size: 22),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildInlineGenrePage() => SafeArea(

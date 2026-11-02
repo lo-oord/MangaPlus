@@ -11,15 +11,20 @@ class GenreController extends GetxController {
     source: '',
   ).obs;
   RxBool isLoading = false.obs;
+  int _requestId = 0;
 
-  Future<void> fetchGenres() async {
+  Future<void> fetchGenres({String? sourceId}) async {
+    final requestId = ++_requestId;
     try {
       isLoading(true);
-      genreData.value = await _genreService.fetchGenres();
+      final loaded = await _genreService.fetchGenres(sourceId: sourceId);
+      if (isClosed || requestId != _requestId) return;
+      genreData.value = loaded;
     } catch (e) {
+      if (isClosed || requestId != _requestId) return;
       AppFeedback.show(title: 'خطأ'.tr, message: 'تعذر تحميل التصنيفات. تحقق من اتصال الإنترنت وحاول مجددًا.'.tr, type: AppNoticeType.error);
     } finally {
-      isLoading(false);
+      if (!isClosed && requestId == _requestId) isLoading(false);
     }
   }
 

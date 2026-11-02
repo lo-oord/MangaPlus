@@ -43,6 +43,17 @@ class MangaSourceRegistry {
   static final AsgardSource asgard = AsgardSource();
   static final SeanovelSource seaNovel = SeanovelSource();
 
+  static List<ContentSource> get mangaSources => searchableSources
+      .where((source) => source.kind == 'manga')
+      .toList(growable: false);
+
+  static ContentSource? byId(String id) {
+    for (final source in searchableSources) {
+      if (source.id == id) return source;
+    }
+    return null;
+  }
+
   /// Team X is intentionally excluded from the multi-source home feed contract;
   /// the home screen calls it directly through [ComicService.fetchComics].
   static List<ContentSource> get searchableSources => [
