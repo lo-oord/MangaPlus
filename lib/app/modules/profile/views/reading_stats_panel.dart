@@ -7,6 +7,7 @@ import 'package:mangaplus/app/data/models/reading_stats.dart';
 import 'package:mangaplus/app/data/services/reading_stats_service.dart';
 import 'package:mangaplus/app/modules/profile/controllers/reading_stats_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
+import 'package:mangaplus/app/widgets/brand_state.dart';
 
 class ReadingStatsPanel extends StatefulWidget {
   const ReadingStatsPanel({super.key});
@@ -90,11 +91,7 @@ class _ReadingStatsPanelState extends State<ReadingStatsPanel> {
                 child: controller.isLoading.value
                     ? const Padding(
                         padding: EdgeInsets.all(22),
-                        child: SizedBox(
-                          height: 24,
-                          width: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
+                        child: MangaPlusLoader(size: 38),
                       )
                     : _dashboard(controller),
               ),

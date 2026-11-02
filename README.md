@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/images/mangaplus_logo.png" alt="MangaPlus" width="150" />
+  <img src="assets/images/mangaplus_logo.png" alt="شعار MangaPlus الجديد" width="120" />
   <h1>MangaPlus</h1>
   <p>تطبيق أندرويد حديث لقراءة المانغا والمانهوا والروايات بواجهة عربية وإنجليزية.</p>
   <p>

@@ -1274,7 +1274,7 @@ class ChapterView extends GetView<ChapterController> {
               filterQuality: FilterQuality.medium,
               gaplessPlayback: true,
               errorBuilder: (context, error, stackTrace) => const Center(
-                child: Icon(Icons.broken_image_outlined, color: Colors.white70),
+                child: MangaPlusLogo(size: 56),
               ),
             )
           : CachedNetworkImage(
@@ -1307,7 +1307,7 @@ class ChapterView extends GetView<ChapterController> {
                   return Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(issue.icon, color: AppColors.primary, size: 42),
+                      const MangaPlusLogo(size: 56),
                       const SizedBox(height: 8),
                       Text(issue.titleKey.tr,
                           style: TextStyle(color: AppColors.textPrimary)),
@@ -1358,7 +1358,7 @@ class ChapterView extends GetView<ChapterController> {
                   alignment: Alignment.topCenter,
                   gaplessPlayback: true,
                 errorBuilder: (context, error, stackTrace) => const Center(
-                  child: Icon(Icons.broken_image_outlined, color: Colors.white70),
+                  child: MangaPlusLogo(size: 56),
                 ),
               )
               : CachedNetworkImage(
@@ -1404,7 +1404,7 @@ class ChapterView extends GetView<ChapterController> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(issue.icon, size: 42, color: AppColors.primary),
+                        const MangaPlusLogo(size: 56),
                         const SizedBox(height: 10),
                         Text(
                           issue.titleKey.tr,

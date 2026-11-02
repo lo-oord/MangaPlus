@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 
+const _mangaPlusLogoAsset = 'assets/images/mangaplus_logo.png';
+
 class MangaPlusLoader extends StatelessWidget {
   const MangaPlusLoader({super.key, this.size = 68, this.progress});
 
@@ -25,19 +27,36 @@ class MangaPlusLoader extends StatelessWidget {
               backgroundColor: AppColors.divider.withValues(alpha: 0.65),
             ),
           ),
-          if (value == null)
-            Icon(
-              Icons.menu_book_rounded,
-              size: size * 0.34,
-              color: AppColors.primary.withValues(alpha: 0.9),
-            )
-          else
-            Text(
-              '${(value * 100).round()}%',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: size * 0.21,
-                fontWeight: FontWeight.w800,
+          Padding(
+            padding: EdgeInsets.all(size * 0.27),
+            child: Image.asset(
+              _mangaPlusLogoAsset,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+              errorBuilder: (context, error, stackTrace) => Icon(
+                Icons.auto_stories_rounded,
+                size: size * 0.34,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+          if (value != null)
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '${(value * 100).round()}%',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: size * 0.15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
             ),
         ],
@@ -54,10 +73,11 @@ class MangaPlusLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Image.asset(
-      'assets/images/mangaplus_logo.png',
+      _mangaPlusLogoAsset,
       width: size,
       height: size,
       fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
       errorBuilder: (context, error, stackTrace) => Icon(
         Icons.auto_stories_rounded,
         size: size * 0.62,
@@ -101,9 +121,7 @@ class BrandState extends StatelessWidget {
               children: [
                 loading
                     ? MangaPlusLoader(size: 68, progress: progress)
-                    : icon == null
-                        ? const MangaPlusLogo(size: 68)
-                        : Icon(icon, size: 58, color: AppColors.primary),
+                    : const MangaPlusLogo(size: 68),
                 const SizedBox(height: 18),
                 Text(
                   title,

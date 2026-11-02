@@ -119,7 +119,7 @@ class _SplashViewState extends State<SplashView>
                         Image.asset(
                           'assets/images/mangaplus_logo.png',
                           width: 154,
-                          height: 130,
+                          height: 186,
                           fit: BoxFit.contain,
                           filterQuality: FilterQuality.high,
                           gaplessPlayback: true,

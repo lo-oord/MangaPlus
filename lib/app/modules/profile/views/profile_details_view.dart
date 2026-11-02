@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/data/models/user_profile.dart';
 import 'package:mangaplus/app/modules/profile/controllers/profile_controller.dart';
+import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 class ProfileDetailsView extends GetView<ProfileController> {
@@ -25,7 +26,7 @@ class ProfileDetailsView extends GetView<ProfileController> {
             final account = controller.accountProfile.value;
             final registered = account != null && !account.isGuest;
             if (controller.accountLoading.value) {
-              return const Center(child: CircularProgressIndicator());
+              return const Center(child: MangaPlusLoader(size: 68));
             }
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
