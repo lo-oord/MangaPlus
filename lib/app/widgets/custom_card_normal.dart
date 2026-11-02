@@ -32,7 +32,17 @@ class CustomCardNormal extends StatelessWidget {
   });
 
   String _relativeDate() {
-    final parsed = DateTime.tryParse(releaseDate.trim());
+    final value = releaseDate.trim();
+    DateTime? parsed = DateTime.tryParse(value) ??
+        DateTime.tryParse(value.replaceAll('/', '-'));
+    if (parsed == null) {
+      final timestamp = int.tryParse(value);
+      if (timestamp != null && value.length == 10) {
+        parsed = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000);
+      } else if (timestamp != null && value.length == 13) {
+        parsed = DateTime.fromMillisecondsSinceEpoch(timestamp);
+      }
+    }
     if (parsed == null) return '';
     final date = parsed.toLocal();
     final now = DateTime.now();
@@ -79,19 +89,46 @@ class CustomCardNormal extends StatelessWidget {
                 memCacheWidth: (width * 3).round(),
                 maxWidthDiskCache: 720,
                 fit: BoxFit.cover,
+                fadeInDuration: const Duration(milliseconds: 180),
+                imageBuilder: (context, imageProvider) => Image(
+                  image: imageProvider,
+                  width: width,
+                  height: coverHeight,
+                  fit: BoxFit.cover,
+                  filterQuality: FilterQuality.high,
+                  gaplessPlayback: true,
+                ),
                 placeholder: (context, url) => Container(
                   width: width,
                   height: coverHeight,
                   color: AppColors.searchBar,
                   alignment: Alignment.center,
-                  child: const MangaPlusLogo(size: 52),
+                  child: MangaPlusCoverState(
+                    message: 'جارٍ تحميل الغلاف'.tr,
+                    markSize: width < 100 ? 38 : 48,
+                  ),
+                ),
+                progressIndicatorBuilder: (context, url, progress) => Container(
+                  width: width,
+                  height: coverHeight,
+                  color: AppColors.searchBar,
+                  alignment: Alignment.center,
+                  child: MangaPlusCoverState(
+                    message: 'جارٍ تحميل الغلاف'.tr,
+                    progress: progress.progress,
+                    markSize: width < 100 ? 38 : 48,
+                  ),
                 ),
                 errorWidget: (context, url, error) => Container(
                   width: width,
                   height: coverHeight,
                   color: AppColors.searchBar,
                   alignment: Alignment.center,
-                  child: const MangaPlusLogo(size: 52),
+                  child: MangaPlusCoverState(
+                    message: 'تعذر تحميل الغلاف'.tr,
+                    failed: true,
+                    markSize: width < 100 ? 38 : 48,
+                  ),
                 ),
               ),
             ),
@@ -107,7 +144,11 @@ class CustomCardNormal extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    'الفصل@value'.trParams({'value': chapter}),
+                    'الفصل@value'.trParams({
+                      'value': chapter.trim().isEmpty
+                          ? 'غير متاح'.tr
+                          : chapter.trim(),
+                    }),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -154,47 +195,53 @@ class CustomCardNormal extends StatelessWidget {
             ),
           ),
         ),
-        if (rating.trim().isNotEmpty || status.trim().isNotEmpty) ...[
-          const SizedBox(height: 5),
-          SizedBox(
-            width: width,
-            child: Row(
-              children: [
-                if (rating.trim().isNotEmpty) ...[
-                  const Icon(Icons.star_rounded, size: 13, color: Color(0xfff2b94b)),
-                  const SizedBox(width: 2),
-                  Text(rating.trim(), style: TextStyle(color: AppColors.textPrimary, fontSize: 10, fontWeight: FontWeight.w800)),
-                  if (status.trim().isNotEmpty) const SizedBox(width: 7),
-                ],
-                if (status.trim().isNotEmpty)
-                  Expanded(
-                    child: Text(
-                      localizeContentStatus(status),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: _statusColor(status), fontSize: 9.5, fontWeight: FontWeight.w700),
+        const SizedBox(height: 5),
+        SizedBox(
+          width: width,
+          child: Row(
+            children: [
+              const Icon(Icons.star_rounded, size: 13, color: Color(0xfff2b94b)),
+              const SizedBox(width: 2),
+              Text(
+                rating.trim().isEmpty ? 'غير متاح'.tr : rating.trim(),
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if (status.trim().isNotEmpty) ...[
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    localizeContentStatus(status),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: _statusColor(status),
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
+                ),
               ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 3),
+        SizedBox(
+          width: width,
+          child: Text(
+            relativeDate.isEmpty ? 'غير متاح'.tr : relativeDate,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w500,
             ),
           ),
-        ],
-        if (relativeDate.isNotEmpty) ...[
-          const SizedBox(height: 3),
-          SizedBox(
-            width: width,
-            child: Text(
-              relativeDate,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 9.5,
-                fontWeight: FontWeight.w500,
-              ),
-              ),
-          ),
-        ],
+        ),
       ],
     );
   }

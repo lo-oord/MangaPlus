@@ -19,6 +19,8 @@ class HomeController extends GetxController {
   final currentPage = 0.obs;
   final canLoadMore = true.obs;
   final isLoadingMore = false.obs;
+  final loadMoreError = false.obs;
+  final homeLoadFailed = false.obs;
   final showGenrePage = false.obs;
   final selectedGenreName = ''.obs;
   final selectedGenreFilter = ''.obs;
@@ -26,6 +28,7 @@ class HomeController extends GetxController {
   final isGenreLoading = false.obs;
   final isGenreLoadingMore = false.obs;
   final genreHasError = false.obs;
+  final genreLoadMoreError = false.obs;
   final genreHasMore = true.obs;
   int _genrePage = 1;
   int _loadedPage = 0;
@@ -46,9 +49,13 @@ class HomeController extends GetxController {
 
   Future<void> _loadHomeData() async {
     _homeRequestId++;
+    if (pageController.hasClients) pageController.jumpToPage(0);
+    currentPage(0);
     isLoading(true);
     canLoadMore(true);
     isLoadingMore(false);
+    loadMoreError(false);
+    homeLoadFailed(false);
     _loadedPage = 0;
     heroComics.clear();
     comicData.value = ComicData(
@@ -89,7 +96,8 @@ class HomeController extends GetxController {
                     'status': comic.status ?? '',
                     'releaseDate': comic.latestChapterDate,
                   }));
-        unawaited(_enrichHomeDates(requestId));
+        homeLoadFailed(false);
+        unawaited(_enrichHomeDates(requestId, startIndex: 0, updateHero: true));
         canLoadMore(incoming.isNotEmpty);
       } else {
         final existing = comicData.value.comicsList
@@ -115,24 +123,39 @@ class HomeController extends GetxController {
         );
         _loadedPage = page;
         canLoadMore(combined.length > previousLength);
+        loadMoreError(false);
+        if (combined.length > previousLength) {
+          unawaited(_enrichHomeDates(requestId, startIndex: previousLength));
+        }
       }
     } catch (error) {
       debugPrint('Team X latest feed failed (page $page): $error');
       if (page == 1) {
+        homeLoadFailed(true);
         AppFeedback.show(
           title: 'خطأ'.tr,
           message: 'تعذر تحميل المحتوى'.tr,
           type: AppNoticeType.error,
         );
+        canLoadMore(false);
+      } else {
+        // Keep the same page retryable, without triggering automatic retries on scroll.
+        loadMoreError(true);
+        canLoadMore(true);
       }
-      canLoadMore(false);
     }
   }
 
-  Future<void> _enrichHomeDates(int requestId) async {
+  Future<void> _enrichHomeDates(
+    int requestId, {
+    required int startIndex,
+    bool updateHero = false,
+  }) async {
     try {
+      final snapshot = comicData.value.comicsList;
+      if (startIndex >= snapshot.length) return;
       final enriched = await _comicService.enrichLatestChapterDates(
-        comicData.value.comicsList,
+        snapshot.skip(startIndex).take(12).toList(growable: false),
       );
       if (isClosed || requestId != _homeRequestId || enriched.isEmpty) return;
       final replacements = {for (final item in enriched) item.comicId: item};
@@ -152,20 +175,22 @@ class HomeController extends GetxController {
         type: current.type,
         orderby: current.orderby,
       );
-      heroComics
-        ..clear()
-        ..addAll(updated
-            .where((comic) => comic.image.isNotEmpty)
-            .take(4)
-            .map((comic) => {
-                  'comicId': comic.comicId,
-                  'title': comic.title,
-                  'subtitle': comic.chapter,
-                  'image': comic.image,
-                  'rating': comic.rating,
-                  'status': comic.status ?? '',
-                  'releaseDate': comic.latestChapterDate,
-                }));
+      if (updateHero) {
+        heroComics
+          ..clear()
+          ..addAll(updated
+              .where((comic) => comic.image.isNotEmpty)
+              .take(4)
+              .map((comic) => {
+                    'comicId': comic.comicId,
+                    'title': comic.title,
+                    'subtitle': comic.chapter,
+                    'image': comic.image,
+                    'rating': comic.rating,
+                    'status': comic.status ?? '',
+                    'releaseDate': comic.latestChapterDate,
+                  }));
+      }
     } catch (error) {
       debugPrint('Background Team X date enrichment failed: $error');
     }
@@ -173,9 +198,15 @@ class HomeController extends GetxController {
 
   Future<void> loadNextPage() async {
     if (isLoading.value || isLoadingMore.value || !canLoadMore.value) return;
+    loadMoreError(false);
     isLoadingMore(true);
     await fetchComics(page: _loadedPage + 1);
     isLoadingMore(false);
+  }
+
+  Future<void> retryNextPage() async {
+    if (!loadMoreError.value) return;
+    await loadNextPage();
   }
 
   Future<void> openGenre(String filter, String name) async {
@@ -186,6 +217,7 @@ class HomeController extends GetxController {
     _genrePage = 1;
     genreComics.clear();
     genreHasMore(true);
+    genreLoadMoreError(false);
     await _loadGenrePage(1);
   }
 
@@ -198,11 +230,17 @@ class HomeController extends GetxController {
     await _loadGenrePage(_genrePage + 1);
   }
 
+  Future<void> retryMoreGenre() async {
+    if (!genreLoadMoreError.value) return;
+    await _loadGenrePage(_genrePage + 1);
+  }
+
   Future<void> _loadGenrePage(int page) async {
     if (page == 1) {
       isGenreLoading(true);
       genreHasError(false);
     } else {
+      genreLoadMoreError(false);
       isGenreLoadingMore(true);
     }
     try {
@@ -221,9 +259,11 @@ class HomeController extends GetxController {
       }
       _genrePage = data.page ?? page;
       genreHasMore(data.pagination?.nextPage != null);
+      genreLoadMoreError(false);
     } catch (error) {
       debugPrint('Team X inline genre request failed: $error');
       if (page == 1) genreHasError(true);
+      else genreLoadMoreError(true);
     } finally {
       if (page == 1) {
         isGenreLoading(false);
@@ -237,7 +277,8 @@ class HomeController extends GetxController {
     if (!scrollController.hasClients ||
         isLoading.value ||
         isLoadingMore.value ||
-        !canLoadMore.value) {
+        !canLoadMore.value ||
+        loadMoreError.value) {
       return;
     }
     if (scrollController.position.extentAfter < 700) loadNextPage();

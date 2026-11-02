@@ -99,27 +99,22 @@ Future<void> setupFlutterNotifications({required String languageCode}) async {
       .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>()
       ?.createNotificationChannel(channel);
-  await flutterLocalNotificationsPlugin
-      .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>()
-      ?.requestNotificationsPermission();
 
   isFlutterLocalNotificationsInitialized = true;
 }
 
 void showFlutterNotification(RemoteMessage message) {
   final notification = message.notification;
-  final title = '${notification?.title ?? message.data['title'] ?? ''}'.trim();
-  final body =
-      '${notification?.body ?? message.data['body'] ?? message.data['message'] ?? ''}'.trim();
+  final title = '${notification?.title ?? message.data['title'] ?? message.data['notification_title'] ?? ''}'.trim();
+  final body = '${notification?.body ?? message.data['body'] ?? message.data['notification_body'] ?? message.data['message'] ?? message.data['text'] ?? ''}'.trim();
   if ((title.isNotEmpty || body.isNotEmpty) && !kIsWeb) {
     debugPrint("NOTIF RECEIVED:");
     debugPrint("Title: $title");
     debugPrint("Body: $body");
 
-    flutterLocalNotificationsPlugin.show(
+    unawaited(flutterLocalNotificationsPlugin.show(
       (message.messageId?.hashCode ?? DateTime.now().millisecondsSinceEpoch).abs(),
-      title,
+      title.isEmpty ? 'MangaPlus' : title,
       body,
       NotificationDetails(
         android: AndroidNotificationDetails(
@@ -137,7 +132,11 @@ void showFlutterNotification(RemoteMessage message) {
           presentSound: true,
         ),
       ),
-    );
+    ).catchError((Object error) {
+      debugPrint('Unable to show incoming push notification: $error');
+    }));
+  } else {
+    debugPrint('Received a push message without a displayable title or body.');
   }
 }
 
@@ -222,6 +221,10 @@ void main() async {
       ? const Locale('en', 'US')
       : const Locale('ar', 'SA');
 
+  if (!kIsWeb) {
+    await setupFlutterNotifications(languageCode: savedLanguage);
+  }
+
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   if (!kIsWeb) {
     await Workmanager().initialize(
@@ -235,9 +238,6 @@ void main() async {
     ChapterUpdateService(appNotificationService: notificationService),
     permanent: true,
   );
-  if (!kIsWeb) {
-    unawaited(notificationService.initialize().catchError((_) {}));
-  }
   if (!kIsWeb) {
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
       unawaited(notificationService.recordRemoteMessage(message));
@@ -275,7 +275,7 @@ void main() async {
   );
   if (!kIsWeb) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      setupFlutterNotifications(languageCode: savedLanguage).then((_) async {
+      notificationService.initialize().then((_) async {
         chapterUpdateService.attachNotificationPlugin(
           flutterLocalNotificationsPlugin,
           languageCode: savedLanguage,
@@ -291,7 +291,7 @@ void main() async {
           _handleLocalNotificationResponse(launchDetails!.notificationResponse!);
         }
       }).catchError((Object error) {
-        debugPrint('Unable to initialize local notifications: $error');
+        debugPrint('Unable to initialize push notifications: $error');
       });
       if (initialNotification != null) {
         Get.toNamed(Routes.NOTIFICATIONS);

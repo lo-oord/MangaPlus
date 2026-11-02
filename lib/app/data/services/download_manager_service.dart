@@ -100,12 +100,6 @@ class DownloadManagerService extends GetxService {
       importance: Importance.low,
     ));
     _notificationsReady = true;
-    final permissionRequest = android?.requestNotificationsPermission();
-    if (permissionRequest != null) {
-      unawaited(permissionRequest.then<void>((_) {}).catchError((Object error) {
-        debugPrint('Unable to request notification permission: $error');
-      }));
-    }
   }
 
   Future<String?> enqueue({

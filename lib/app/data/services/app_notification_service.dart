@@ -22,11 +22,33 @@ class AppNotificationService {
 
   Future<void> initialize() async {
     if (kIsWeb) return;
-    await _messaging.requestPermission(alert: true, badge: true, sound: true);
-    await _messaging.subscribeToTopic(topic);
-    final token = await _messaging.getToken();
-    if (token != null) await _saveToken(token);
-    _messaging.onTokenRefresh.listen(_saveToken);
+    try {
+      final settings = await _messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      debugPrint(
+        'FCM notification authorization: ${settings.authorizationStatus}',
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Unable to request FCM notification permission: $error\n$stackTrace');
+    }
+    try {
+      await _messaging.subscribeToTopic(topic);
+      final token = await _messaging.getToken();
+      if (token != null) await _saveToken(token);
+      _messaging.onTokenRefresh.listen((token) async {
+        await _saveToken(token);
+        try {
+          await _messaging.subscribeToTopic(topic);
+        } catch (error) {
+          debugPrint('Unable to restore FCM topic subscription: $error');
+        }
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Unable to initialize FCM topic subscription: $error\n$stackTrace');
+    }
   }
 
   Future<void> _saveToken(String token) async {

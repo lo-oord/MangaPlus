@@ -11,6 +11,7 @@ class GenreDetailController extends GetxController {
   final isLoading = true.obs;
   final isLoadingMore = false.obs;
   final hasError = false.obs;
+  final loadMoreError = false.obs;
   final currentPage = 1.obs;
   final hasMoreData = true.obs;
   final genreFilter = ''.obs;
@@ -18,10 +19,11 @@ class GenreDetailController extends GetxController {
 
   Future<void> fetchGenreDetail(String genre, {int page = 1}) async {
     try {
-      hasError(false);
       if (page == 1) {
+        hasError(false);
         isLoading(true);
       } else {
+        loadMoreError(false);
         isLoadingMore(true);
       }
       final data = await _genreService.fetchGenreDetail(
@@ -37,14 +39,19 @@ class GenreDetailController extends GetxController {
       }
       currentPage.value = data.page ?? page;
       hasMoreData.value = data.pagination?.nextPage != null;
+      loadMoreError(false);
     } catch (error) {
       debugPrint('Team X genre request failed: $error');
-      hasError(true);
-      AppFeedback.show(
-        title: 'خطأ'.tr,
-        message: 'تعذر تحميل قصص هذا التصنيف. تحقق من اتصال الإنترنت وحاول مجددًا.'.tr,
-        type: AppNoticeType.error,
-      );
+      if (page == 1) {
+        hasError(true);
+        AppFeedback.show(
+          title: 'خطأ'.tr,
+          message: 'تعذر تحميل قصص هذا التصنيف. تحقق من اتصال الإنترنت وحاول مجددًا.'.tr,
+          type: AppNoticeType.error,
+        );
+      } else {
+        loadMoreError(true);
+      }
     } finally {
       if (page == 1) {
         isLoading(false);
@@ -55,10 +62,13 @@ class GenreDetailController extends GetxController {
   }
 
   void fetchNextPage(String genre) {
-    if (hasMoreData.value && !isLoadingMore.value) {
+    if (hasMoreData.value && !isLoadingMore.value && !loadMoreError.value) {
       fetchGenreDetail(genre, page: currentPage.value + 1);
     }
   }
+
+  Future<void> retryNextPage() =>
+      fetchGenreDetail(genreFilter.value, page: currentPage.value + 1);
 
   void retry() => fetchGenreDetail(genreFilter.value);
 

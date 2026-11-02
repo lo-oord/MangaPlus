@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 
 const _mangaPlusLogoAsset = 'assets/images/mangaplus_logo.png';
@@ -87,6 +88,127 @@ class MangaPlusLogo extends StatelessWidget {
   }
 }
 
+class MangaPlusCoverState extends StatelessWidget {
+  const MangaPlusCoverState({
+    super.key,
+    required this.message,
+    this.progress,
+    this.failed = false,
+    this.markSize = 48,
+  });
+
+  final String message;
+  final double? progress;
+  final bool failed;
+  final double markSize;
+
+  @override
+  Widget build(BuildContext context) {
+    final mark = failed
+        ? Stack(
+            clipBehavior: Clip.none,
+            children: [
+              MangaPlusLogo(size: markSize),
+              Positioned(
+                right: -2,
+                bottom: -2,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.divider),
+                  ),
+                  child: Icon(
+                    Icons.image_not_supported_rounded,
+                    size: markSize * 0.34,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          )
+        : MangaPlusLoader(size: markSize, progress: progress);
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          mark,
+          const SizedBox(height: 6),
+          Text(
+            message,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: markSize * 0.2,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class MangaPlusRetryTile extends StatelessWidget {
+  const MangaPlusRetryTile({
+    super.key,
+    required this.title,
+    required this.loading,
+    required this.onRetry,
+  });
+
+  final String title;
+  final bool loading;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) return const Center(child: MangaPlusLoader(size: 42));
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.searchBar,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider.withValues(alpha: 0.7)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 10),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const MangaPlusLogo(size: 36),
+          const SizedBox(height: 6),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          TextButton.icon(
+            onPressed: onRetry,
+            style: TextButton.styleFrom(
+              minimumSize: const Size(0, 30),
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            icon: const Icon(Icons.refresh_rounded, size: 13),
+            label: Text(
+              'إعادة المحاولة'.tr,
+              maxLines: 1,
+              style: const TextStyle(fontSize: 9),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class BrandState extends StatelessWidget {
   const BrandState({
     super.key,
@@ -121,7 +243,39 @@ class BrandState extends StatelessWidget {
               children: [
                 loading
                     ? MangaPlusLoader(size: 68, progress: progress)
-                    : const MangaPlusLogo(size: 68),
+                    : Stack(
+                        clipBehavior: Clip.none,
+                        alignment: Alignment.center,
+                        children: [
+                          const MangaPlusLogo(size: 68),
+                          if (icon != null)
+                            Positioned(
+                              right: -5,
+                              bottom: -3,
+                              child: Container(
+                                width: 26,
+                                height: 26,
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.surface,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: AppColors.divider),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Color(0x18000000),
+                                      blurRadius: 6,
+                                      offset: Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  icon,
+                                  size: 15,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                 const SizedBox(height: 18),
                 Text(
                   title,

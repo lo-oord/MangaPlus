@@ -31,7 +31,15 @@ class HomeView extends GetView<HomeController> {
             controller.comicData.value.comicsList.isNotEmpty;
         if (!hasContent) {
           return BrandState(
-            title: 'تعذر تحميل المحتوى'.tr,
+            title: controller.homeLoadFailed.value
+                ? 'تعذر تحميل المحتوى'.tr
+                : 'لا توجد أعمال حديثة متاحة حالياً'.tr,
+            description: controller.homeLoadFailed.value
+                ? 'تحقق من اتصالك بالإنترنت ثم حاول مجدداً.'.tr
+                : 'ستظهر الأعمال هنا عند توفر تحديثات جديدة.'.tr,
+            icon: controller.homeLoadFailed.value
+                ? Icons.cloud_off_rounded
+                : Icons.auto_stories_rounded,
             actionLabel: 'إعادة المحاولة'.tr,
             onAction: controller.reload,
           );
@@ -106,7 +114,8 @@ class HomeView extends GetView<HomeController> {
                   onNotification: (notification) {
                     if (notification.metrics.extentAfter < 500 &&
                         controller.genreHasMore.value &&
-                        !controller.isGenreLoadingMore.value) {
+                        !controller.isGenreLoadingMore.value &&
+                        !controller.genreLoadMoreError.value) {
                       controller.loadMoreGenre();
                     }
                     return false;
@@ -122,11 +131,16 @@ class HomeView extends GetView<HomeController> {
                       mainAxisExtent: 236,
                     ),
                     itemCount: controller.genreComics.length +
-                        (controller.isGenreLoadingMore.value ? 1 : 0),
+                        (controller.isGenreLoadingMore.value ||
+                                controller.genreLoadMoreError.value
+                            ? 1
+                            : 0),
                     itemBuilder: (context, index) {
                       if (index >= controller.genreComics.length) {
-                        return Center(
-                          child: const MangaPlusLoader(size: 42),
+                        return _InlinePaginationTile(
+                          loading: controller.isGenreLoadingMore.value,
+                          title: 'تعذر تحميل بقية أعمال التصنيف'.tr,
+                          retry: controller.retryMoreGenre,
                         );
                       }
                       final comic = controller.genreComics[index];
@@ -135,14 +149,17 @@ class HomeView extends GetView<HomeController> {
                           Routes.COMIC_DETAIL,
                           arguments: comic.comicId,
                         ),
-                        child: CustomCardNormal(
-                          comicId: comic.comicId,
-                          title: comic.title,
-                          chapter: comic.chapter,
-                          imageUrl: comic.image,
-                          type: comic.type,
-                          rating: comic.rating,
-                          status: comic.status ?? '',
+                        child: LayoutBuilder(
+                          builder: (context, constraints) => CustomCardNormal(
+                            comicId: comic.comicId,
+                            title: comic.title,
+                            chapter: comic.chapter,
+                            imageUrl: comic.image,
+                            type: comic.type,
+                            rating: comic.rating,
+                            status: comic.status ?? '',
+                            width: constraints.maxWidth,
+                          ),
                         ),
                       );
                     },
@@ -167,6 +184,9 @@ class HomeView extends GetView<HomeController> {
             height: 404,
             child: PageView.builder(
               controller: controller.pageController,
+              allowImplicitScrolling: true,
+              pageSnapping: true,
+              physics: const PageScrollPhysics(),
               itemCount: controller.heroComics.length,
               onPageChanged: (value) => controller.currentPage.value = value,
               itemBuilder: (context, index) {
@@ -189,6 +209,7 @@ class HomeView extends GetView<HomeController> {
                                   MediaQuery.devicePixelRatioOf(context) *
                                   1.5)
                               .round(),
+                          fadeInDuration: const Duration(milliseconds: 180),
                           httpHeaders: const {
                             'Referer': 'https://olympustaff.com/',
                             'User-Agent':
@@ -196,12 +217,39 @@ class HomeView extends GetView<HomeController> {
                           },
                           fit: BoxFit.cover,
                           alignment: Alignment.topCenter,
+                          imageBuilder: (context, imageProvider) => Image(
+                            image: imageProvider,
+                            fit: BoxFit.cover,
+                            alignment: Alignment.topCenter,
+                            filterQuality: FilterQuality.high,
+                            gaplessPlayback: true,
+                          ),
                           placeholder: (context, url) => Container(
                             color: AppColors.searchBar,
+                            alignment: Alignment.center,
+                            child: MangaPlusCoverState(
+                              message: 'جارٍ تحميل الغلاف'.tr,
+                              markSize: 68,
+                            ),
+                          ),
+                          progressIndicatorBuilder: (context, url, progress) =>
+                              Container(
+                            color: AppColors.searchBar,
+                            alignment: Alignment.center,
+                            child: MangaPlusCoverState(
+                              message: 'جارٍ تحميل الغلاف'.tr,
+                              progress: progress.progress,
+                              markSize: 68,
+                            ),
                           ),
                           errorWidget: (context, url, error) => Container(
                             color: AppColors.searchBar,
-                            child: const Center(child: MangaPlusLogo(size: 68)),
+                            alignment: Alignment.center,
+                            child: MangaPlusCoverState(
+                              message: 'تعذر تحميل الغلاف'.tr,
+                              failed: true,
+                              markSize: 68,
+                            ),
                           ),
                         ),
                       ),
@@ -236,15 +284,18 @@ class HomeView extends GetView<HomeController> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              if ((comic['subtitle'] ?? '').trim().isNotEmpty)
-                                Text(
-                                  'الفصل@value'.trParams({'value': comic['subtitle']!}),
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                              Text(
+                                'الفصل@value'.trParams({
+                                  'value': (comic['subtitle'] ?? '').trim().isEmpty
+                                      ? 'غير متاح'.tr
+                                      : comic['subtitle']!,
+                                }),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
                                 ),
+                              ),
                               Text(
                                 comic['title']!.tr,
                                 maxLines: 2,
@@ -262,12 +313,26 @@ class HomeView extends GetView<HomeController> {
                                 spacing: 7,
                                 runSpacing: 7,
                                 children: [
-                                  if ((comic['rating'] ?? '').trim().isNotEmpty)
-                                    _heroBadge(Icons.star_rounded, comic['rating']!, accent: const Color(0xfff3c45c)),
-                                  if ((comic['status'] ?? '').trim().isNotEmpty)
-                                    _heroBadge(Icons.circle, localizeContentStatus(comic['status']!), dot: true),
-                                  if ((comic['releaseDate'] ?? '').trim().isNotEmpty)
-                                    _heroBadge(Icons.update_rounded, comic['releaseDate']!.split('T').first),
+                                  _heroBadge(
+                                    Icons.star_rounded,
+                                    (comic['rating'] ?? '').trim().isEmpty
+                                        ? 'غير متاح'.tr
+                                        : comic['rating']!,
+                                    accent: const Color(0xfff3c45c),
+                                  ),
+                                  _heroBadge(
+                                    Icons.circle,
+                                    (comic['status'] ?? '').trim().isEmpty
+                                        ? 'غير متاح'.tr
+                                        : localizeContentStatus(comic['status']!),
+                                    dot: true,
+                                  ),
+                                  _heroBadge(
+                                    Icons.update_rounded,
+                                    (comic['releaseDate'] ?? '').trim().isEmpty
+                                        ? 'غير متاح'.tr
+                                        : comic['releaseDate']!.split('T').first,
+                                  ),
                                 ],
                               ),
                               const SizedBox(height: 14),
@@ -362,13 +427,14 @@ class KomikCardsSection extends GetView<HomeController> {
     return Obx(() {
       if (controller.comicData.value.comicsList.isEmpty) {
         return SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Center(
-              child: Text(
-                'لا توجد قصص مصورة متاحة'.tr,
-                style: TextStyle(color: AppColors.textPrimary),
-              ),
+          child: SizedBox(
+            height: 250,
+            child: BrandState(
+              title: 'لا توجد أعمال حديثة متاحة حالياً'.tr,
+              description: 'ستظهر الأعمال هنا عند توفر تحديثات جديدة.'.tr,
+              icon: Icons.auto_stories_rounded,
+              actionLabel: 'تحديث'.tr,
+              onAction: controller.reload,
             ),
           ),
         );
@@ -411,20 +477,23 @@ class KomikCardsSection extends GetView<HomeController> {
                       Routes.COMIC_DETAIL,
                       arguments: comic.comicId,
                     ),
-                    child: CustomCardNormal(
-                      comicId: comic.comicId,
-                      title: comic.title,
-                      chapter: comic.chapter,
-                      imageUrl: comic.image,
-                      type: comic.type,
-                      releaseDate: comic.latestChapterDate,
-                      rating: comic.rating,
-                      status: comic.status ?? '',
+                    child: LayoutBuilder(
+                      builder: (context, constraints) => CustomCardNormal(
+                        comicId: comic.comicId,
+                        title: comic.title,
+                        chapter: comic.chapter,
+                        imageUrl: comic.image,
+                        type: comic.type,
+                        releaseDate: comic.latestChapterDate,
+                        rating: comic.rating,
+                        status: comic.status ?? '',
+                        width: constraints.maxWidth,
+                      ),
                     ),
                   );
                 },
                 childCount: comics.length,
-                addAutomaticKeepAlives: false,
+                addAutomaticKeepAlives: true,
               ),
             ),
           ),
@@ -433,6 +502,20 @@ class KomikCardsSection extends GetView<HomeController> {
               child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 20),
                 child: Center(child: MangaPlusLoader(size: 42)),
+              ),
+            ),
+          if (controller.loadMoreError.value)
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 240,
+                child: BrandState(
+                  title: 'تعذر تحميل المزيد من الأعمال'.tr,
+                  description:
+                      'تحقق من اتصالك ثم أعد المحاولة لمتابعة أحدث الفصول.'.tr,
+                  icon: Icons.wifi_off_rounded,
+                  actionLabel: 'إعادة المحاولة'.tr,
+                  onAction: controller.retryNextPage,
+                ),
               ),
             ),
         ],
@@ -692,6 +775,63 @@ class KomikCardsSection extends GetView<HomeController> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _InlinePaginationTile extends StatelessWidget {
+  const _InlinePaginationTile({
+    required this.loading,
+    required this.title,
+    required this.retry,
+  });
+
+  final bool loading;
+  final String title;
+  final VoidCallback retry;
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) return const Center(child: MangaPlusLoader(size: 42));
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.searchBar,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider.withValues(alpha: 0.7)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 10),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const MangaPlusLogo(size: 36),
+          const SizedBox(height: 6),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          TextButton.icon(
+            onPressed: retry,
+            style: TextButton.styleFrom(
+              minimumSize: const Size(0, 30),
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            icon: const Icon(Icons.refresh_rounded, size: 13),
+            label: Text(
+              'إعادة المحاولة'.tr,
+              maxLines: 1,
+              style: const TextStyle(fontSize: 9),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

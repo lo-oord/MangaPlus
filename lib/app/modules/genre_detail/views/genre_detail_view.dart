@@ -43,6 +43,10 @@ class GenreDetailView extends GetView<GenreDetailController> {
         if (controller.comicsList.isEmpty) {
           return BrandState(
             title: 'لا توجد قصص مصورة لهذا التصنيف'.tr,
+            description: 'جرّب تحديث الصفحة أو اختر تصنيفاً آخر.'.tr,
+            icon: Icons.auto_stories_rounded,
+            actionLabel: 'إعادة المحاولة'.tr,
+            onAction: controller.retry,
           );
         }
         return NotificationListener<ScrollNotification>(
@@ -50,7 +54,8 @@ class GenreDetailView extends GetView<GenreDetailController> {
             if (notification.metrics.pixels >=
                     notification.metrics.maxScrollExtent * 0.8 &&
                 controller.hasMoreData.value &&
-                !controller.isLoadingMore.value) {
+                !controller.isLoadingMore.value &&
+                !controller.loadMoreError.value) {
               controller.fetchNextPage(controller.genreFilter.value);
             }
             return false;
@@ -65,11 +70,16 @@ class GenreDetailView extends GetView<GenreDetailController> {
               mainAxisExtent: 236,
             ),
             itemCount: controller.comicsList.length +
-                (controller.isLoadingMore.value ? 1 : 0),
+                (controller.isLoadingMore.value ||
+                        controller.loadMoreError.value
+                    ? 1
+                    : 0),
             itemBuilder: (context, index) {
               if (index >= controller.comicsList.length) {
-                return Center(
-                  child: const MangaPlusLoader(size: 42),
+                return MangaPlusRetryTile(
+                  loading: controller.isLoadingMore.value,
+                  title: 'تعذر تحميل بقية أعمال التصنيف'.tr,
+                  onRetry: controller.retryNextPage,
                 );
               }
               final comic = controller.comicsList[index];
@@ -78,13 +88,16 @@ class GenreDetailView extends GetView<GenreDetailController> {
                   Routes.COMIC_DETAIL,
                   arguments: comic.comicId,
                 ),
-                child: CustomCardNormal(
-                  title: comic.title,
-                  chapter: comic.chapter,
-                  imageUrl: comic.image,
-                  type: comic.type,
-                  rating: comic.rating,
-                  status: comic.status ?? '',
+                child: LayoutBuilder(
+                  builder: (context, constraints) => CustomCardNormal(
+                    title: comic.title,
+                    chapter: comic.chapter,
+                    imageUrl: comic.image,
+                    type: comic.type,
+                    rating: comic.rating,
+                    status: comic.status ?? '',
+                    width: constraints.maxWidth,
+                  ),
                 ),
               );
             },
