@@ -7,7 +7,6 @@ import 'package:get/get.dart';
 import 'package:mangaplus/app/data/models/user_profile.dart';
 import 'package:mangaplus/app/data/services/account_sync_service.dart';
 import 'package:mangaplus/app/data/services/auth_service.dart';
-import 'package:mangaplus/app/widgets/app_feedback.dart';
 
 class AuthController extends GetxController {
   final AuthService service = Get.find<AuthService>();
@@ -445,10 +444,11 @@ class AuthController extends GetxController {
     return 'تعذر إكمال العملية. حاول مرة أخرى.';
   }
 
-  void _message(String title, String message) => AppFeedback.show(
-        title: title,
-        message: message,
-        type: title.startsWith('تم') ? AppNoticeType.success : AppNoticeType.error,
+  void _message(String title, String message) => Get.snackbar(
+        title,
+        message,
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 3),
       );
 }
 

@@ -16,10 +16,14 @@ class ProfileView extends GetView<ProfileController> {
   @override
   Widget build(BuildContext context) => ThemeAwareBuilder(builder: (context) => Scaffold(
         backgroundColor: AppColors.background,
-        body: SafeArea(
-          top: true,
-          bottom: false,
-          child: Obx(() {
+        appBar: AppBar(
+          title: Text('الإعدادات'.tr),
+          centerTitle: true,
+          backgroundColor: AppColors.background,
+          foregroundColor: AppColors.textPrimary,
+          elevation: 0,
+        ),
+        body: Obx(() {
           final account = controller.accountProfile.value;
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
@@ -133,8 +137,7 @@ class ProfileView extends GetView<ProfileController> {
               ]),
             ],
           );
-          }),
-        ),
+        }),
       ));
 
   Widget _profileHeader() {

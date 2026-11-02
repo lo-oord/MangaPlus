@@ -104,7 +104,50 @@ class MangaPlusCoverState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(child: MangaPlusLogo(size: markSize));
+    final mark = failed
+        ? Stack(
+            clipBehavior: Clip.none,
+            children: [
+              MangaPlusLogo(size: markSize),
+              Positioned(
+                right: -2,
+                bottom: -2,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.divider),
+                  ),
+                  child: Icon(
+                    Icons.image_not_supported_rounded,
+                    size: markSize * 0.34,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          )
+        : MangaPlusLoader(size: markSize, progress: progress);
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          mark,
+          const SizedBox(height: 6),
+          Text(
+            message,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: markSize * 0.2,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

@@ -19,13 +19,16 @@ class SearchView extends GetView<search_controller.SearchController> {
   Widget build(BuildContext context) {
     return ThemeAwareBuilder(builder: (context) => Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        top: true,
-        bottom: false,
-        child: Column(
-          children: [
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 0,
+        title: Text('بحث'.tr),
+      ),
+      body: Column(
+        children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: TextField(
               controller: controller.textController,
               onChanged: controller.searchComics,
@@ -38,36 +41,14 @@ class SearchView extends GetView<search_controller.SearchController> {
                 filled: true,
                 fillColor: AppColors.searchBar,
                 prefixIcon: Icon(Icons.search_rounded, color: AppColors.icon),
-                suffixIcon: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Obx(() {
-                      final selected = controller.contentFilter.value;
-                      return PopupMenuButton<String>(
-                        tooltip: 'تصفية النتائج'.tr,
-                        initialValue: selected,
-                        onSelected: controller.setContentFilter,
-                        icon: Icon(
-                          Icons.tune_rounded,
-                          color: selected == 'all' ? AppColors.icon : AppColors.primary,
-                        ),
-                        itemBuilder: (_) => [
-                          _filterMenuItem('all', 'الكل'.tr, selected),
-                          _filterMenuItem('manga', 'مانجا'.tr, selected),
-                          _filterMenuItem('novel', 'رواية'.tr, selected),
-                        ],
-                      );
-                    }),
-                    Obx(
-                      () => controller.query.value.isNotEmpty
-                          ? IconButton(
-                              tooltip: 'مسح البحث'.tr,
-                              icon: Icon(Icons.close_rounded, color: AppColors.icon),
-                              onPressed: controller.clearSearch,
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                  ],
+                suffixIcon: Obx(
+                  () => controller.query.value.isNotEmpty
+                      ? IconButton(
+                          tooltip: 'مسح البحث'.tr,
+                          icon: Icon(Icons.close_rounded, color: AppColors.icon),
+                          onPressed: controller.clearSearch,
+                        )
+                      : const SizedBox.shrink(),
                 ),
                 contentPadding: const EdgeInsets.symmetric(vertical: 15),
                 border: OutlineInputBorder(
@@ -84,6 +65,17 @@ class SearchView extends GetView<search_controller.SearchController> {
                 ),
               ),
             ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Obx(() => Wrap(
+                  spacing: 8,
+                  children: [
+                    _filterChoice('all', 'الكل'.tr),
+                    _filterChoice('manga', 'مانجا'.tr),
+                    _filterChoice('novel', 'رواية'.tr),
+                  ],
+                )),
           ),
           Expanded(
             child: Obx(() {
@@ -131,26 +123,27 @@ class SearchView extends GetView<search_controller.SearchController> {
               );
             }),
           ),
-          ],
-        ),
+        ],
       ),
     ));
   }
 
-  PopupMenuItem<String> _filterMenuItem(
-    String value,
-    String label,
-    String selected,
-  ) => PopupMenuItem<String>(
-      value: value,
-      child: Row(
-        children: [
-          Expanded(child: Text(label)),
-          if (selected == value)
-            Icon(Icons.check_rounded, size: 18, color: AppColors.primary),
-        ],
+  Widget _filterChoice(String value, String label) {
+    final selected = controller.contentFilter.value == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => controller.setContentFilter(value),
+      selectedColor: AppColors.primary.withValues(alpha: 0.18),
+      side: BorderSide(
+        color: selected ? AppColors.primary : AppColors.divider,
+      ),
+      labelStyle: TextStyle(
+        color: selected ? AppColors.primary : AppColors.textSecondary,
+        fontWeight: FontWeight.w700,
       ),
     );
+  }
 
   Widget _comicList({
     required String title,

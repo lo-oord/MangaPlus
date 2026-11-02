@@ -17,20 +17,20 @@ class AppFeedback {
     Get.snackbar(
       title,
       message,
-      snackPosition: SnackPosition.TOP,
+      snackPosition: SnackPosition.BOTTOM,
       backgroundColor: AppColors.card,
       colorText: AppColors.textPrimary,
-      borderRadius: 14,
-      margin: const EdgeInsets.fromLTRB(14, 52, 14, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      borderRadius: 18,
+      margin: const EdgeInsets.fromLTRB(14, 8, 14, 16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       duration: type == AppNoticeType.error
           ? const Duration(seconds: 4)
           : const Duration(milliseconds: 2800),
-      animationDuration: const Duration(milliseconds: 220),
+      animationDuration: const Duration(milliseconds: 260),
       forwardAnimationCurve: Curves.easeOutCubic,
       reverseAnimationCurve: Curves.easeInCubic,
       shouldIconPulse: false,
-      icon: const MangaPlusLogo(size: 22),
+      icon: const MangaPlusLogo(size: 28),
       titleText: Text(
         title,
         maxLines: 1,
@@ -42,18 +42,14 @@ class AppFeedback {
                   ? AppColors.success
                   : AppColors.primary,
           fontWeight: FontWeight.w700,
-          fontSize: 13,
+          fontSize: 14,
         ),
       ),
       messageText: Text(
         message,
-          maxLines: 2,
+        maxLines: 3,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: AppColors.textPrimary,
-          fontSize: 12,
-          height: 1.25,
-        ),
+        style: TextStyle(color: AppColors.textPrimary, height: 1.35),
       ),
     );
   }
