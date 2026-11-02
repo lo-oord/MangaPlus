@@ -24,6 +24,9 @@ List<String> _splitNovelParagraphs(String content) => content
     .toList(growable: false);
 
 class ChapterController extends GetxController with WidgetsBindingObserver {
+  static const novelChapterDividerToken =
+      '__MANGAPLUS_NOVEL_CHAPTER_DIVIDER__';
+
   final ComicService _comicService = ComicService();
   final FlutterTts _flutterTts = FlutterTts();
   final GetStorage _storage = GetStorage();
@@ -148,6 +151,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   final readerMode = 'scroll'.obs;
   final readingDirection = 'rtl'.obs;
   final continuousNavigation = true.obs;
+  final showChapterTitle = true.obs;
   final isNavigating = false.obs;
   final novelFontSize = 19.0.obs;
   final novelFontFamily = 'default'.obs;
@@ -168,6 +172,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   final List<int> _speechChunkParagraphIndexes = <int>[];
   bool endNoticeShown = false;
   bool _isLoadingChapterNavigation = false;
+  bool _novelStreamAppendOlder = false;
   int _chapterLoadGeneration = 0;
   bool _suppressEndBoundaryOnce = false;
   Offset? _readerPointerDownPosition;
@@ -220,6 +225,25 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   }
 
   bool get canUseChapterList => availableChapters.isNotEmpty;
+
+  List<ReaderChapterPageRange> get readerChapterPageRanges =>
+      List<ReaderChapterPageRange>.unmodifiable(_readerChapterPageRanges);
+
+  String chapterDividerTitle(String reference) {
+    final chapter = availableChapters.firstWhereOrNull(
+      (item) => _sameChapterReference(item.chapterId, reference) ||
+          _sameChapterReference(item.url, reference),
+    );
+    final title = chapter?.title.trim() ?? '';
+    final number = _chapterNumber(title) ?? _chapterNumber(reference);
+    if (number != null) {
+      final formatted = number == number.roundToDouble()
+          ? number.toInt().toString()
+          : number.toString();
+      return '${'الفصل'.tr} $formatted';
+    }
+    return title.isEmpty ? 'الفصل'.tr : title;
+  }
 
   bool isChapterRead(String id) {
     final revision = chapterNavigationRevision.value;
@@ -587,6 +611,15 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     isNavigating.value = true;
     final previousId = chapterId;
     final previousTitle = currentChapterTitle;
+    final currentNextAdjacentId = nextChapterId;
+    final previousAdjacentId = previousChapterId;
+    final appendingOlderNovelChapter = isNovel &&
+        !reverse &&
+        (_novelStreamAppendOlder ||
+            (currentNextAdjacentId == null &&
+                previousAdjacentId != null &&
+                _sameChapterReference(id?.toString() ?? '', previousAdjacentId)));
+    if (!joinContinuousStream && isNovel) _novelStreamAppendOlder = false;
     if (!joinContinuousStream) _continuousPrependPending = false;
     final previousData = chapterData.value;
     final previousOffline = isOffline.value;
@@ -604,8 +637,9 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     final keepContinuousStream = joinContinuousStream &&
         (readerMode.value == 'scroll' || readerMode.value == 'paged') &&
         continuousNavigation.value &&
-        !isNovel &&
-        previousData.chapter.images.isNotEmpty;
+        (isNovel
+            ? previousData.chapter.content.trim().isNotEmpty
+            : previousData.chapter.images.isNotEmpty);
     final nextTitle = _chapterTitleFor(reference);
     endNoticeShown = false;
     try {
@@ -641,35 +675,83 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
         final adjacent = chapterData.value;
         final oldChapter = previousData.chapter;
         final newChapter = adjacent.chapter;
-        final mergedStream = mergeReaderStreamPages(
-          currentPages: oldChapter.images,
-          adjacentPages: newChapter.images,
-          currentRanges: previousPageRanges,
-          adjacentChapterId: newChapter.chapterId.isEmpty
-              ? reference
-              : newChapter.chapterId,
-          currentPage: previousPage,
-          prepend: reverse,
-          pagedReader: readerMode.value == 'paged',
-        );
-        _readerChapterPageRanges = mergedStream.chapterRanges;
-        chapterData.value = ChapterData(
-          chapter: DataChapter(
-            chapterId: newChapter.chapterId.isEmpty ? reference : newChapter.chapterId,
-            title: newChapter.title.isEmpty ? nextTitle : newChapter.title,
-            images: mergedStream.pages,
-            previousChapter: reverse
-                ? newChapter.previousChapter
-                : oldChapter.previousChapter,
-            nextChapter: reverse
-                ? oldChapter.nextChapter
-                : newChapter.nextChapter,
-            chapters: newChapter.chapters.isNotEmpty
-                ? newChapter.chapters
-                : oldChapter.chapters,
-          ),
-          source: adjacent.source.isEmpty ? previousData.source : adjacent.source,
-        );
+        if (isNovel) {
+          const separator = '\n\n$novelChapterDividerToken\n\n';
+          final mergedContent = reverse
+              ? '${newChapter.content}$separator${oldChapter.content}'
+              : '${oldChapter.content}$separator${newChapter.content}';
+          chapterData.value = previousData;
+          final oldParagraphs = await paragraphsFor(oldChapter.content);
+          final adjacentParagraphs =
+              await compute(_splitNovelParagraphs, newChapter.content);
+          final mergedParagraphs = reverse
+              ? <String>[
+                  ...adjacentParagraphs,
+                  novelChapterDividerToken,
+                  ...oldParagraphs,
+                ]
+              : <String>[
+                  ...oldParagraphs,
+                  novelChapterDividerToken,
+                  ...adjacentParagraphs,
+                ];
+          _paragraphSource = mergedContent;
+          _paragraphsFuture = Future<List<String>>.value(mergedParagraphs);
+          if (!reverse) _novelStreamAppendOlder = appendingOlderNovelChapter;
+          chapterData.value = ChapterData(
+            chapter: DataChapter(
+              chapterId: newChapter.chapterId.isEmpty ? reference : newChapter.chapterId,
+              title: newChapter.title.isEmpty ? nextTitle : newChapter.title,
+              images: const [],
+              content: mergedContent,
+              previousChapter: reverse
+                  ? newChapter.previousChapter
+                  : appendingOlderNovelChapter
+                      ? oldChapter.nextChapter ?? ''
+                      : oldChapter.previousChapter,
+              nextChapter: reverse
+                  ? oldChapter.nextChapter
+                  : appendingOlderNovelChapter
+                      ? newChapter.previousChapter
+                      : newChapter.nextChapter,
+              chapters: newChapter.chapters.isNotEmpty
+                  ? newChapter.chapters
+                  : oldChapter.chapters,
+            ),
+            source: adjacent.source.isEmpty ? previousData.source : adjacent.source,
+          );
+        } else {
+          final mergedStream = mergeReaderStreamPages(
+            currentPages: oldChapter.images,
+            adjacentPages: newChapter.images,
+            currentRanges: previousPageRanges,
+            adjacentChapterId: newChapter.chapterId.isEmpty
+                ? reference
+                : newChapter.chapterId,
+            currentPage: previousPage,
+            prepend: reverse,
+            pagedReader: readerMode.value == 'paged',
+          );
+          _readerChapterPageRanges = mergedStream.chapterRanges;
+          chapterData.value = ChapterData(
+            chapter: DataChapter(
+              chapterId: newChapter.chapterId.isEmpty ? reference : newChapter.chapterId,
+              title: newChapter.title.isEmpty ? nextTitle : newChapter.title,
+              images: mergedStream.pages,
+              previousChapter: reverse
+                  ? newChapter.previousChapter
+                  : oldChapter.previousChapter,
+              nextChapter: reverse
+                  ? oldChapter.nextChapter
+                  : newChapter.nextChapter,
+              chapters: newChapter.chapters.isNotEmpty
+                  ? newChapter.chapters
+                  : oldChapter.chapters,
+            ),
+            source: adjacent.source.isEmpty ? previousData.source : adjacent.source,
+          );
+          currentPage.value = mergedStream.currentPage;
+        }
         if (reverse && readerMode.value == 'scroll') {
           _continuousPrependPending = true;
           _continuousPrependBaseExtent = previousScrollExtent;
@@ -684,7 +766,6 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
           _continuousPrependOffset = 0;
           _pendingScrollRestore = null;
         }
-        currentPage.value = mergedStream.currentPage;
       }
       if (hasError.value || !hasReadableContent) {
         final issue = loadIssue.value;
@@ -912,9 +993,9 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
         _storage.read<String>(_readerSettingKey('direction')) ??
             _storage.read<String>('reader_direction') ??
             'rtl';
-    continuousNavigation.value = isNovel
-        ? _storage.read<bool>('reader_continuous_navigation') ?? true
-        : true;
+    continuousNavigation.value = true;
+    showChapterTitle.value =
+        _storage.read<bool>(_readerSettingKey('show_chapter_title')) ?? true;
     novelFontSize.value =
         (_storage.read<num>(_readerSettingKey('novel_font_size')) ?? 19).toDouble();
     novelFontFamily.value =
@@ -1139,6 +1220,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     _speechChunkParagraphIndexes.clear();
     final paragraphs = _splitNovelParagraphs(value);
     for (var paragraphIndex = 0; paragraphIndex < paragraphs.length; paragraphIndex++) {
+      if (paragraphs[paragraphIndex] == novelChapterDividerToken) continue;
       final buffer = StringBuffer();
       for (final word in paragraphs[paragraphIndex].split(RegExp(r'\s+'))) {
         if (word.isEmpty) continue;
@@ -1283,15 +1365,19 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   }
 
   Future<void> setContinuousNavigation(bool value) async {
-    if (!isNovel) value = true;
-    continuousNavigation.value = value;
-    await _storage.write('reader_continuous_navigation', value);
+    continuousNavigation.value = true;
+    await _storage.write('reader_continuous_navigation', true);
     if (!value) return;
     if (readerMode.value == 'paged') {
       onPageChanged(currentPage.value);
     } else if (_scrollController?.hasClients == true) {
       unawaited(handleScroll(_scrollController!.position));
     }
+  }
+
+  Future<void> setShowChapterTitle(bool value) async {
+    showChapterTitle.value = value;
+    await _storage.write(_readerSettingKey('show_chapter_title'), value);
   }
 
   String _readerSettingKey(String setting) {
@@ -1374,7 +1460,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
       }
     }
     if (metrics.extentAfter > threshold) return;
-    final next = nextChapterId;
+    final next = nextChapterId ?? (isNovel ? previousChapterId : null);
     if (next != null) {
       navigateToChapter(next, joinContinuousStream: true);
     } else if (!_isLoadingChapterNavigation) {
