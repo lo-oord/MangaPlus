@@ -276,47 +276,51 @@ class HomeView extends GetView<HomeController> {
                     }
                     return false;
                   },
-                  child: GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-                    physics: const ClampingScrollPhysics(),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      crossAxisSpacing: 8,
-                      mainAxisSpacing: 10,
-                      mainAxisExtent: 236,
-                    ),
-                    itemCount: controller.genreComics.length +
-                        (controller.isGenreLoadingMore.value ||
-                                controller.genreLoadMoreError.value
-                            ? 1
-                            : 0),
-                    itemBuilder: (context, index) {
-                      if (index >= controller.genreComics.length) {
-                        return _InlinePaginationTile(
-                          loading: controller.isGenreLoadingMore.value,
-                          title: 'تعذر تحميل بقية أعمال التصنيف'.tr,
-                          retry: controller.retryMoreGenre,
-                        );
-                      }
-                      final comic = controller.genreComics[index];
-                      return GestureDetector(
-                        onTap: () => Get.toNamed(
-                          Routes.COMIC_DETAIL,
-                          arguments: comic.comicId,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final itemWidth = (constraints.maxWidth - 34) / 2;
+                      return GridView.builder(
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+                        physics: const ClampingScrollPhysics(),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                          mainAxisExtent: itemWidth * 1.25 + 54,
                         ),
-                        child: LayoutBuilder(
-                          builder: (context, constraints) => CustomCardNormal(
-                            comicId: comic.comicId,
-                            title: comic.title,
-                            chapter: comic.chapter,
-                            imageUrl: comic.image,
-                            type: comic.type,
-                            rating: comic.rating,
-                            status: comic.status ?? '',
-                            width: constraints.maxWidth,
-                          ),
-                        ),
+                        itemCount: controller.genreComics.length +
+                            (controller.isGenreLoadingMore.value ||
+                                    controller.genreLoadMoreError.value
+                                ? 1
+                                : 0),
+                        itemBuilder: (context, index) {
+                          if (index >= controller.genreComics.length) {
+                            return _InlinePaginationTile(
+                              loading: controller.isGenreLoadingMore.value,
+                              title: 'تعذر تحميل بقية أعمال التصنيف'.tr,
+                              retry: controller.retryMoreGenre,
+                            );
+                          }
+                          final comic = controller.genreComics[index];
+                          return GestureDetector(
+                            onTap: () => Get.toNamed(
+                              Routes.COMIC_DETAIL,
+                              arguments: comic.comicId,
+                            ),
+                            child: LayoutBuilder(
+                              builder: (context, constraints) => CustomCardNormal(
+                                comicId: comic.comicId,
+                                title: comic.title,
+                                chapter: comic.chapter,
+                                imageUrl: comic.image,
+                                type: comic.type,
+                                rating: comic.rating,
+                                status: comic.status ?? '',
+                                width: constraints.maxWidth,
+                              ),
+                            ),
+                          );
+                        },
                       );
                     },
                   ),
@@ -580,6 +584,8 @@ class KomikCardsSection extends GetView<HomeController> {
 
   @override
   Widget build(BuildContext context) {
+    final itemWidth = (MediaQuery.sizeOf(context).width - 50) / 2;
+    final cardExtent = itemWidth * 1.25 + 54;
     return Obx(() {
       if (controller.comicData.value.comicsList.isEmpty) {
         return SliverToBoxAdapter(
@@ -617,12 +623,12 @@ class KomikCardsSection extends GetView<HomeController> {
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
                 childAspectRatio: 0.75,
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 8,
-                mainAxisExtent: 240,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                mainAxisExtent: cardExtent,
               ),
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
@@ -794,11 +800,11 @@ class KomikCardsSection extends GetView<HomeController> {
                 physics: const NeverScrollableScrollPhysics(),
                 shrinkWrap: true,
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
+                  crossAxisCount: 2,
                   childAspectRatio: 0.75,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                  mainAxisExtent: 200,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  mainAxisExtent: 260,
                 ),
                 itemCount: 12,
                 itemBuilder: (context, index) {
@@ -843,10 +849,10 @@ class KomikCardsSection extends GetView<HomeController> {
           physics: const NeverScrollableScrollPhysics(),
           shrinkWrap: true,
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
+            crossAxisCount: 2,
             childAspectRatio: 0.75,
-            crossAxisSpacing: 8,
-            mainAxisExtent: 240,
+            crossAxisSpacing: 10,
+            mainAxisExtent: 300,
           ),
           itemCount: terbaruComics.length,
           itemBuilder: (context, index) {

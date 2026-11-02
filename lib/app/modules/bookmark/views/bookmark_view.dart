@@ -16,63 +16,13 @@ class BookmarkView extends GetView<BookmarkController> {
     return ThemeAwareBuilder(
       builder: (context) => Scaffold(
         backgroundColor: AppColors.background,
-        appBar: AppBar(
-          title: Text('الإشارات المرجعية'.tr),
-          centerTitle: true,
-          backgroundColor: AppColors.background,
-          foregroundColor: AppColors.textPrimary,
-          elevation: 0,
-          actions: [Obx(() {
-            if (controller.selectedBookmarkIds.isNotEmpty) {
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    tooltip: 'تحديد الكل'.tr,
-                    onPressed: controller.selectAllVisible,
-                    icon: const Icon(Icons.select_all_rounded),
-                  ),
-                  IconButton(
-                    tooltip: 'حذف المحدد'.tr,
-                    onPressed: _confirmDeleteSelected,
-                    icon: const Icon(Icons.delete_outline_rounded),
-                  ),
-                  IconButton(
-                    tooltip: 'إلغاء التحديد'.tr,
-                    onPressed: controller.clearSelection,
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                ],
-              );
-            }
-            final selectedOrder = controller.sortOrder.value;
-            return Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  tooltip: 'استيراد المفضلة'.tr,
-                  onPressed: _openImport,
-                  icon: const Icon(Icons.add_rounded),
-                ),
-                PopupMenuButton<BookmarkSortOrder>(
-                  initialValue: selectedOrder,
-                  tooltip: 'ترتيب'.tr,
-                  icon: Icon(Icons.sort_rounded, color: AppColors.textPrimary),
-                  onSelected: controller.setSortOrder,
-                  itemBuilder: (context) => [
-                    PopupMenuItem(value: BookmarkSortOrder.newest, child: Text('الأحدث إضافة'.tr)),
-                    PopupMenuItem(value: BookmarkSortOrder.oldest, child: Text('الأقدم إضافة'.tr)),
-                    PopupMenuItem(value: BookmarkSortOrder.titleAscending, child: Text('الاسم: أ إلى ي'.tr)),
-                    PopupMenuItem(value: BookmarkSortOrder.titleDescending, child: Text('الاسم: ي إلى أ'.tr)),
-                    PopupMenuItem(value: BookmarkSortOrder.ratingHighest, child: Text('أعلى تقييم'.tr)),
-                    PopupMenuItem(value: BookmarkSortOrder.ratingLowest, child: Text('أقل تقييم'.tr)),
-                  ],
-                ),
-              ],
-            );
-          })],
-        ),
-        body: Obx(() {
+        body: SafeArea(
+          top: true,
+          bottom: false,
+          child: Column(
+            children: [
+              _buildBookmarkToolbar(),
+              Expanded(child: Obx(() {
           if (controller.isLoading.value) {
             return BrandState(title: 'جارٍ تحميل المفضلة'.tr, loading: true);
           }
@@ -141,10 +91,68 @@ class BookmarkView extends GetView<BookmarkController> {
               ),
             ],
           );
-        }),
+              })),
+            ],
+          ),
+        ),
       ),
     );
   }
+
+  Widget _buildBookmarkToolbar() => SizedBox(
+        height: 48,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Obx(() {
+            if (controller.selectedBookmarkIds.isNotEmpty) {
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  IconButton(
+                    tooltip: 'تحديد الكل'.tr,
+                    onPressed: controller.selectAllVisible,
+                    icon: const Icon(Icons.select_all_rounded),
+                  ),
+                  IconButton(
+                    tooltip: 'حذف المحدد'.tr,
+                    onPressed: _confirmDeleteSelected,
+                    icon: const Icon(Icons.delete_outline_rounded),
+                  ),
+                  IconButton(
+                    tooltip: 'إلغاء التحديد'.tr,
+                    onPressed: controller.clearSelection,
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              );
+            }
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                IconButton(
+                  tooltip: 'استيراد المفضلة'.tr,
+                  onPressed: _openImport,
+                  icon: const Icon(Icons.add_rounded),
+                ),
+                PopupMenuButton<BookmarkSortOrder>(
+                  initialValue: controller.sortOrder.value,
+                  tooltip: 'ترتيب'.tr,
+                  icon: Icon(Icons.sort_rounded, color: AppColors.textPrimary),
+                  onSelected: controller.setSortOrder,
+                  itemBuilder: (context) => [
+                    PopupMenuItem(value: BookmarkSortOrder.newest, child: Text('الأحدث إضافة'.tr)),
+                    PopupMenuItem(value: BookmarkSortOrder.oldest, child: Text('الأقدم إضافة'.tr)),
+                    PopupMenuItem(value: BookmarkSortOrder.titleAscending, child: Text('الاسم: أ إلى ي'.tr)),
+                    PopupMenuItem(value: BookmarkSortOrder.titleDescending, child: Text('الاسم: ي إلى أ'.tr)),
+                    PopupMenuItem(value: BookmarkSortOrder.ratingHighest, child: Text('أعلى تقييم'.tr)),
+                    PopupMenuItem(value: BookmarkSortOrder.ratingLowest, child: Text('أقل تقييم'.tr)),
+                  ],
+                ),
+              ],
+            );
+          }),
+        ),
+      );
 
   Widget _typeFilterChip(BookmarkTypeFilter value, String label) => Obx(() {
         final selected = controller.typeFilter.value == value;

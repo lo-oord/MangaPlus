@@ -29,7 +29,7 @@ class MainController extends GetxController {
     try {
       await pageController.animateToPage(
         newIndex,
-        duration: const Duration(milliseconds: 420),
+        duration: const Duration(milliseconds: 360),
         curve: Curves.easeInOutCubic,
       );
     } catch (_) {

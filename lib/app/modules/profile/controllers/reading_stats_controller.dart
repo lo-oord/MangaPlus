@@ -7,6 +7,7 @@ import 'package:mangaplus/app/data/models/reading_stats.dart';
 import 'package:mangaplus/app/data/services/auth_service.dart';
 import 'package:mangaplus/app/data/services/chapter_update_service.dart';
 import 'package:mangaplus/app/data/services/reading_stats_service.dart';
+import 'package:mangaplus/app/widgets/app_feedback.dart';
 
 class ReadingAchievement {
   const ReadingAchievement({
@@ -441,11 +442,10 @@ class ReadingStatsController extends GetxController {
         languageCode: Get.locale?.languageCode == 'en' ? 'en_US' : 'ar_SA',
       );
       if (!scheduled) {
-        Get.snackbar(
-          'تعذر تفعيل الملخص الأسبوعي'.tr,
-          'اسمح بإشعارات التطبيق لتفعيل هذا الخيار'.tr,
-          snackPosition: SnackPosition.BOTTOM,
-          margin: const EdgeInsets.all(14),
+        AppFeedback.show(
+          title: 'تعذر تفعيل الملخص الأسبوعي'.tr,
+          message: 'اسمح بإشعارات التطبيق لتفعيل هذا الخيار'.tr,
+          type: AppNoticeType.error,
         );
         return;
       }
@@ -468,8 +468,11 @@ class ReadingStatsController extends GetxController {
       await _service.syncOwner(_ownerId);
       await _refreshSessions();
     } catch (_) {
-      Get.snackbar('تعذر المزامنة'.tr, 'ستُحفظ الإحصاءات محليًا وتتم إعادة المحاولة لاحقًا'.tr,
-          snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(14));
+      AppFeedback.show(
+        title: 'تعذر المزامنة'.tr,
+        message: 'ستُحفظ الإحصاءات محليًا وتتم إعادة المحاولة لاحقًا'.tr,
+        type: AppNoticeType.error,
+      );
     } finally {
       isSyncing(false);
     }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/modules/auth/controllers/auth_controller.dart';
+import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
@@ -305,10 +306,18 @@ class AuthView extends GetView<AuthController> {
               try {
                 final error = await controller.resetPasswordForEmail(emailController.text);
                 if (error != null) {
-                  Get.snackbar('تعذر الإرسال', error, snackPosition: SnackPosition.BOTTOM);
+                  AppFeedback.show(
+                    title: 'تعذر الإرسال',
+                    message: error,
+                    type: AppNoticeType.error,
+                  );
                 } else {
                   if (context.mounted) Navigator.of(context).pop();
-                  Get.snackbar('تم إرسال الرسالة', 'تحقق من بريدك الإلكتروني لإعادة تعيين كلمة المرور.', snackPosition: SnackPosition.BOTTOM);
+                  AppFeedback.show(
+                    title: 'تم إرسال الرسالة',
+                    message: 'تحقق من بريدك الإلكتروني لإعادة تعيين كلمة المرور.',
+                    type: AppNoticeType.success,
+                  );
                 }
               } finally {
                 if (context.mounted) setState(() => busy = false);

@@ -15,6 +15,7 @@ import 'package:mangaplus/app/data/services/notification_presentation.dart';
 import 'package:mangaplus/app/data/services/chapter_update_service.dart';
 import 'package:mangaplus/app/modules/history/controllers/history_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
+import 'package:mangaplus/app/widgets/app_feedback.dart';
 
 class ProfileController extends GetxController {
   final GetStorage _storage = GetStorage();
@@ -295,6 +296,9 @@ class ProfileController extends GetxController {
     super.onClose();
   }
 
-  void _message(String title, String message) => Get.snackbar(title, message,
-      snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(14));
+  void _message(String title, String message) => AppFeedback.show(
+        title: title,
+        message: message,
+        type: title.startsWith('تم') ? AppNoticeType.success : AppNoticeType.error,
+      );
 }

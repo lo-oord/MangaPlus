@@ -19,7 +19,12 @@ class MainView extends GetView<MainController> {
         body: PageView(
           controller: controller.pageController,
           physics: const NeverScrollableScrollPhysics(),
-          children: const [HomeView(), SearchView(), BookmarkView(), ProfileView()],
+          children: const [
+            KeepAlive(keepAlive: true, child: HomeView()),
+            KeepAlive(keepAlive: true, child: SearchView()),
+            KeepAlive(keepAlive: true, child: BookmarkView()),
+            KeepAlive(keepAlive: true, child: ProfileView()),
+          ],
         ),
         bottomNavigationBar: SafeArea(
           top: false,
@@ -139,37 +144,24 @@ class MainView extends GetView<MainController> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.max,
                 children: [
-                  AnimatedScale(
-                    scale: selected ? 1.08 : 1,
-                    duration: const Duration(milliseconds: 280),
-                    curve: Curves.easeOutBack,
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 220),
-                      switchInCurve: Curves.easeOutCubic,
-                      switchOutCurve: Curves.easeInCubic,
-                      transitionBuilder: (child, animation) => FadeTransition(
-                        opacity: animation,
-                        child: ScaleTransition(
-                          scale: Tween<double>(begin: 0.78, end: 1).animate(
-                            CurvedAnimation(
-                              parent: animation,
-                              curve: Curves.easeOutBack,
-                            ),
-                          ),
-                          child: child,
-                        ),
-                      ),
-                      child: Icon(
-                        icon,
-                        key: ValueKey('${itemIndex}_${selected ? 'active' : 'idle'}'),
-                        size: 23,
-                        color: selected ? AppColors.primary : AppColors.icon,
-                      ),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    switchInCurve: Curves.easeInOutCubic,
+                    switchOutCurve: Curves.easeInOutCubic,
+                    transitionBuilder: (child, animation) => FadeTransition(
+                      opacity: animation,
+                      child: child,
+                    ),
+                    child: Icon(
+                      icon,
+                      key: ValueKey('${itemIndex}_${selected ? 'active' : 'idle'}'),
+                      size: 23,
+                      color: selected ? AppColors.primary : AppColors.icon,
                     ),
                   ),
                   const SizedBox(height: 4),
                   AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 240),
+                    duration: const Duration(milliseconds: 200),
                     curve: Curves.easeOutCubic,
                     style: TextStyle(
                       color: selected ? AppColors.primary : AppColors.textSecondary,

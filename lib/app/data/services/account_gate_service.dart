@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/data/services/auth_service.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
+import 'package:mangaplus/app/widgets/app_feedback.dart';
 
 class AccountGateService {
   Future<bool> requireAccount({String feature = 'المفضلة'}) async {
@@ -28,10 +29,10 @@ class AccountGateService {
     if (activeUser != null &&
         !activeUser.isAnonymous &&
         !activeUser.emailVerified) {
-      Get.snackbar(
-        'تحقق من بريدك الإلكتروني'.tr,
-        'يجب تأكيد البريد قبل استخدام هذه الميزة.'.tr,
-        snackPosition: SnackPosition.BOTTOM,
+      AppFeedback.show(
+        title: 'تحقق من بريدك الإلكتروني'.tr,
+        message: 'يجب تأكيد البريد قبل استخدام هذه الميزة.'.tr,
+        type: AppNoticeType.info,
       );
       return false;
     }
