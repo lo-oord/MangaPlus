@@ -178,13 +178,14 @@ class ComicService {
   ComicData _comicData(List<Map<String, dynamic>> items, {
     int page = 1,
     String source = sourceName,
+    String type = 'manga',
   }) => ComicData(
         comicsList: items.map(mapComicItem).where((item) => item.comicId.isNotEmpty).toList(growable: false),
         source: source,
         page: page,
         genres: const [],
         status: '',
-        type: 'manga',
+        type: type,
         orderby: '',
       );
 
@@ -193,8 +194,9 @@ class ComicService {
     final selectedId = sourceId?.trim() ?? '';
     if (selectedId.isNotEmpty && selectedId != 'all') {
       final source = _sourceById(selectedId);
-      if (source == null || source.kind != 'manga') {
-        throw StateError('لم يتم العثور على مصدر مانجا صالح.');
+      if (source == null ||
+          (source.kind != 'manga' && source.kind != 'novel')) {
+        throw StateError('لم يتم العثور على مصدر محتوى صالح.');
       }
       final rawItems = await source.latest(page: page);
       final taggedItems = rawItems.map((item) => {
@@ -219,6 +221,7 @@ class ComicService {
         indexedItems.map((entry) => entry.value).toList(growable: false),
         page: page,
         source: source.name,
+        type: source.kind,
       );
     }
     final results = await Future.wait([

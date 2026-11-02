@@ -47,13 +47,49 @@ void main() {
     expect(results.source, picked.name);
     expect(results.comicsList.map((comic) => comic.title), ['Picked action']);
   });
+
+  test('a selected novel source supplies latest works and its own genres', () async {
+    final source = _CatalogSource(
+      'novel-picked',
+      [
+        _work('Novel action', '2026-03-01T10:00:00Z', ['مغامرة'], type: 'novel'),
+      ],
+      kind: 'novel',
+    );
+    final comicService =
+        ComicService(sourceById: (id) => id == source.id ? source : null);
+    final teamX = TeamXSource(
+      client: MockClient((_) async => http.Response('unavailable', 503)),
+    );
+    final genreService = GenreService(source: teamX, sources: [teamX, source]);
+
+    final latest = await comicService.fetchComics(sourceId: source.id);
+    final genres = await genreService.fetchGenres(sourceId: source.id);
+    final genreWorks = await genreService.fetchGenreDetail(
+      'مغامرة',
+      genreName: 'مغامرة',
+      sourceId: source.id,
+    );
+
+    expect(latest.comicsList.single.type, 'novel');
+    expect(genres.source, source.name);
+    expect(genres.genres.map((genre) => genre.link), ['مغامرة']);
+    expect(genreWorks.source, source.name);
+    expect(genreWorks.type, 'novel');
+    expect(genreWorks.comicsList.single.type, 'novel');
+  });
 }
 
-Map<String, dynamic> _work(String title, String date, List<String> genres) => {
+Map<String, dynamic> _work(
+  String title,
+  String date,
+  List<String> genres, {
+  String type = 'manga',
+}) => {
       'title': title,
       'url': 'https://$title.example/series/$title',
       'image_url': '',
-      'type': 'manga',
+      'type': type,
       'latest_chapter_date': date,
       'latest_chapter_number': 12,
       'rating': '8.4',
@@ -61,7 +97,7 @@ Map<String, dynamic> _work(String title, String date, List<String> genres) => {
     };
 
 class _CatalogSource extends ContentSource {
-  _CatalogSource(this.id, this.works);
+  _CatalogSource(this.id, this.works, {this.kind = 'manga'});
 
   @override
   final String id;
@@ -70,7 +106,7 @@ class _CatalogSource extends ContentSource {
   @override
   String get name => 'Source $id';
   @override
-  String get kind => 'manga';
+  final String kind;
   @override
   List<String> get hosts => const ['example.test'];
   @override

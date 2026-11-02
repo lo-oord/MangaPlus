@@ -19,7 +19,8 @@ class GenreService extends GetxService {
     final selectedId = sourceId?.trim() ?? '';
     if (selectedId.isNotEmpty && selectedId != 'all') {
       final source = _findSource(selectedId);
-      if (source == null || source.kind != 'manga') {
+      if (source == null ||
+          (source.kind != 'manga' && source.kind != 'novel')) {
         return GenreData(genres: const [], source: '');
       }
       final names = <String, Genre>{};
@@ -213,10 +214,11 @@ class GenreService extends GetxService {
     required String genreName,
     required ContentSource? source,
   }) async {
-    if (source == null || source.kind != 'manga') {
+    if (source == null ||
+        (source.kind != 'manga' && source.kind != 'novel')) {
       return ComicData(
         comicsList: const [], source: '', page: page, genres: [genre],
-        status: '', type: 'manga', orderby: '',
+        status: '', type: source?.kind ?? 'manga', orderby: '',
       );
     }
     List<Map<String, dynamic>> items;
@@ -272,7 +274,7 @@ class GenreService extends GetxService {
       page: page,
       genres: [genre],
       status: '',
-      type: 'manga',
+      type: source.kind,
       orderby: '',
     );
   }

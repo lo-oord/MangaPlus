@@ -20,24 +20,69 @@ class HomeView extends GetView<HomeController> {
     return ThemeAwareBuilder(builder: (context) => Scaffold(
       backgroundColor: AppColors.background,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: Obx(
-        () => FloatingActionButton.extended(
-          heroTag: 'home-source-picker',
-          tooltip: 'اختيار مصدر المانجا'.tr,
-          onPressed: () => _showSourcePicker(context),
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
-          elevation: 8,
-          icon: const Icon(Icons.travel_explore_rounded),
-          label: Text(
-            controller.selectedSourceName.tr,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w800),
+      floatingActionButton: Obx(() {
+        final visible = controller.sourcePickerVisible.value;
+        return AnimatedSlide(
+          offset: visible ? Offset.zero : const Offset(0, 1.35),
+          duration: const Duration(milliseconds: 340),
+          curve: visible ? Curves.easeOutBack : Curves.easeInCubic,
+          child: AnimatedOpacity(
+            opacity: visible ? 1 : 0,
+            duration: const Duration(milliseconds: 220),
+            child: AnimatedScale(
+              scale: visible ? 1 : 0.88,
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeOutCubic,
+              child: IgnorePointer(
+                ignoring: !visible,
+                child: Tooltip(
+                  message: 'اختيار مصدر المحتوى'.tr,
+                  child: Material(
+                    color: AppColors.primary,
+                    elevation: 7,
+                    shadowColor: AppColors.primary.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(22),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(22),
+                      onTap: () => _showSourcePicker(context),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 13,
+                          vertical: 9,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.travel_explore_rounded,
+                                color: Colors.white, size: 18),
+                            const SizedBox(width: 7),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 120),
+                              child: Text(
+                                controller.selectedSourceName.tr,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
-      body: Obx(() {
+        );
+      }),
+      body: NotificationListener<ScrollNotification>(
+        onNotification: controller.handleHomeScroll,
+        child: Obx(() {
         if (controller.showGenrePage.value) return _buildInlineGenrePage();
         if (controller.isLoading.value) {
           return BrandState(
@@ -71,7 +116,8 @@ class HomeView extends GetView<HomeController> {
             const SliverToBoxAdapter(child: SizedBox(height: 24)),
           ],
         );
-      }),
+        }),
+      ),
     ));
   }
 
@@ -131,7 +177,7 @@ class HomeView extends GetView<HomeController> {
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              'اختر مصدراً لعرض أحدث المانجا وتصنيفاتها'.tr,
+                              'اختر مصدراً لعرض أحدث المحتوى وتصنيفاته'.tr,
                               style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                             ),
                           ],
@@ -151,6 +197,9 @@ class HomeView extends GetView<HomeController> {
                       final source = isAll ? null : sources[index - 1];
                       final id = isAll ? 'all' : source!.id;
                       final name = isAll ? 'كل المصادر'.tr : source!.name;
+                      final kindLabel = source?.kind == 'novel'
+                          ? 'روايات'.tr
+                          : 'مانجا'.tr;
                       final selected = controller.selectedSourceId.value == id;
                       return Material(
                         color: selected
@@ -184,15 +233,32 @@ class HomeView extends GetView<HomeController> {
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
-                                  child: Text(
-                                    name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: AppColors.textPrimary,
-                                      fontSize: 14,
-                                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                                    ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: AppColors.textPrimary,
+                                          fontSize: 14,
+                                          fontWeight: selected
+                                              ? FontWeight.w800
+                                              : FontWeight.w600,
+                                        ),
+                                      ),
+                                      if (!isAll)
+                                        Text(
+                                          kindLabel,
+                                          style: TextStyle(
+                                            color: AppColors.textSecondary,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                 ),
                                 if (selected)

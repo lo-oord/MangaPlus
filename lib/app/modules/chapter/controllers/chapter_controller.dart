@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/data/models/chapter.dart';
 import 'package:mangaplus/app/core/utils/chapter_reference_identity.dart';
+import 'package:mangaplus/app/core/utils/reader_chapter_navigator.dart';
 import 'package:mangaplus/app/core/utils/reader_stream_merge.dart';
 import 'package:mangaplus/app/data/models/history.dart';
 import 'package:mangaplus/app/data/services/reading_stats_service.dart';
@@ -27,6 +28,20 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   static const novelChapterDividerToken =
       '__MANGAPLUS_NOVEL_CHAPTER_DIVIDER__';
 
+  static String novelChapterDividerMarker(String title) =>
+      '$novelChapterDividerToken${Uri.encodeComponent(title.trim())}';
+
+  static String titleFromNovelChapterDivider(String marker) {
+    if (!marker.startsWith(novelChapterDividerToken)) return '';
+    final encoded = marker.substring(novelChapterDividerToken.length);
+    if (encoded.isEmpty) return '';
+    try {
+      return Uri.decodeComponent(encoded).trim();
+    } on FormatException {
+      return encoded.trim();
+    }
+  }
+
   final ComicService _comicService = ComicService();
   final FlutterTts _flutterTts = FlutterTts();
   final GetStorage _storage = GetStorage();
@@ -41,12 +56,6 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   int _availableArgumentCount = -1;
   int _availableFallbackCount = -1;
   bool _availableCacheOffline = false;
-  List<ChapterElement>? _adjacentCacheSource;
-  int _adjacentCacheRevision = -1;
-  String _adjacentCacheChapterId = '';
-  String _adjacentCacheTitle = '';
-  ChapterElement? _cachedNextAdjacentChapter;
-  ChapterElement? _cachedPreviousAdjacentChapter;
   int _readChapterCacheRevision = -1;
   final Set<String> _readChapterIdentities = <String>{};
   ReadingSessionRef? _readingStatsSession;
@@ -482,70 +491,36 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   }
 
   String? get nextChapterId {
+    final adjacent = _adjacentChapter(forward: true)?.chapterId;
+    if (adjacent != null && !_sameChapterReference(adjacent, chapterId)) {
+      return adjacent;
+    }
+    final chapters = _navigationChapters;
+    if (chapters.length > 1 && _containsCurrentChapter(chapters)) return null;
     final direct = _chapterReference(chapterData.value.chapter.nextChapter);
     if (direct != null && !_sameChapterReference(direct, chapterId)) return direct;
-    return _adjacentChapter(forward: true)?.chapterId;
+    return null;
   }
 
   String? get previousChapterId {
-    final direct = _chapterReference(chapterData.value.chapter.previousChapter);
-    if (direct != null && !_sameChapterReference(direct, chapterId)) return direct;
     final adjacent = _adjacentChapter(forward: false)?.chapterId;
     if (adjacent != null && !_sameChapterReference(adjacent, chapterId)) {
       return adjacent;
     }
+    final chapters = _navigationChapters;
+    if (chapters.length > 1 && _containsCurrentChapter(chapters)) return null;
+    final direct = _chapterReference(chapterData.value.chapter.previousChapter);
+    if (direct != null && !_sameChapterReference(direct, chapterId)) return direct;
     return null;
   }
 
   ChapterElement? _adjacentChapter({required bool forward}) {
-    final chapters = _navigationChapters;
-    final revision = chapterNavigationRevision.value;
-    if (!identical(_adjacentCacheSource, chapters) ||
-        _adjacentCacheRevision != revision ||
-        _adjacentCacheChapterId != chapterId ||
-        _adjacentCacheTitle != currentChapterTitle) {
-      _adjacentCacheSource = chapters;
-      _adjacentCacheRevision = revision;
-      _adjacentCacheChapterId = chapterId;
-      _adjacentCacheTitle = currentChapterTitle;
-      _cachedNextAdjacentChapter = null;
-      _cachedPreviousAdjacentChapter = null;
-
-      final index = chapters.indexWhere(isCurrentChapter);
-      final currentNumber =
-          (index >= 0 ? _chapterNumber(chapters[index].title) : null) ??
-              _chapterNumber(currentChapterTitle);
-      final chapterNumbers = chapters.map((item) => _chapterNumber(item.title)).toList();
-      final hasUnnumberedOrDuplicate = chapterNumbers.any((number) => number == null) ||
-          chapterNumbers.toSet().length != chapterNumbers.length;
-      if (currentNumber != null && !hasUnnumberedOrDuplicate) {
-        double? nextNumber;
-        double? previousNumber;
-        for (final item in chapters) {
-          final number = _chapterNumber(item.title);
-          if (number == null) continue;
-          if (number > currentNumber &&
-              (nextNumber == null || number < nextNumber)) {
-            nextNumber = number;
-            _cachedNextAdjacentChapter = item;
-          } else if (number < currentNumber &&
-              (previousNumber == null || number > previousNumber)) {
-            previousNumber = number;
-            _cachedPreviousAdjacentChapter = item;
-          }
-        }
-      }
-
-      if (index >= 0) {
-        _cachedNextAdjacentChapter ??=
-            index > 0 ? chapters[index - 1] : null;
-        _cachedPreviousAdjacentChapter ??=
-            index + 1 < chapters.length ? chapters[index + 1] : null;
-      }
-    }
-    return forward
-        ? _cachedNextAdjacentChapter
-        : _cachedPreviousAdjacentChapter;
+    return ReaderChapterNavigator.adjacentChapter(
+      chapters: _navigationChapters,
+      currentChapterId: chapterId,
+      currentChapterTitle: currentChapterTitle,
+      forward: forward,
+    );
   }
 
   double? _chapterNumber(String title) {
@@ -597,6 +572,21 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     return chapter?.title ?? '';
   }
 
+  String _chapterTitleForDivider({
+    required String rawTitle,
+    required String fallbackTitle,
+    required String reference,
+  }) {
+    final raw = rawTitle.trim();
+    if (raw.isNotEmpty && raw.toLowerCase() != 'chapter' && raw != 'الفصل') {
+      return raw;
+    }
+    final listed = _chapterTitleFor(reference).trim();
+    if (listed.isNotEmpty) return listed;
+    if (fallbackTitle.trim().isNotEmpty) return fallbackTitle.trim();
+    return chapterDividerTitle(reference);
+  }
+
   Future<void> navigateToChapter(
     String? id, {
     bool reverse = false,
@@ -640,7 +630,10 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
         (isNovel
             ? previousData.chapter.content.trim().isNotEmpty
             : previousData.chapter.images.isNotEmpty);
-    final nextTitle = _chapterTitleFor(reference);
+    final listedTitle = _chapterTitleFor(reference).trim();
+    final nextTitle = listedTitle.isEmpty
+        ? chapterDividerTitle(reference)
+        : listedTitle;
     endNoticeShown = false;
     try {
       if (novelSpeechPlaying.value || novelSpeechPaused.value) {
@@ -676,7 +669,19 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
         final oldChapter = previousData.chapter;
         final newChapter = adjacent.chapter;
         if (isNovel) {
-          const separator = '\n\n$novelChapterDividerToken\n\n';
+          final dividerTitle = reverse
+              ? _chapterTitleForDivider(
+                  rawTitle: oldChapter.title,
+                  fallbackTitle: previousTitle,
+                  reference: previousId,
+                )
+              : _chapterTitleForDivider(
+                  rawTitle: newChapter.title,
+                  fallbackTitle: nextTitle,
+                  reference: reference,
+                );
+          final dividerMarker = novelChapterDividerMarker(dividerTitle);
+          final separator = '\n\n$dividerMarker\n\n';
           final mergedContent = reverse
               ? '${newChapter.content}$separator${oldChapter.content}'
               : '${oldChapter.content}$separator${newChapter.content}';
@@ -687,12 +692,12 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
           final mergedParagraphs = reverse
               ? <String>[
                   ...adjacentParagraphs,
-                  novelChapterDividerToken,
+                  dividerMarker,
                   ...oldParagraphs,
                 ]
               : <String>[
                   ...oldParagraphs,
-                  novelChapterDividerToken,
+                  dividerMarker,
                   ...adjacentParagraphs,
                 ];
           _paragraphSource = mergedContent;
@@ -993,7 +998,10 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
         _storage.read<String>(_readerSettingKey('direction')) ??
             _storage.read<String>('reader_direction') ??
             'rtl';
-    continuousNavigation.value = true;
+    continuousNavigation.value =
+        _storage.read<bool>(_readerSettingKey('continuous_navigation')) ??
+            _storage.read<bool>('reader_continuous_navigation') ??
+            true;
     showChapterTitle.value =
         _storage.read<bool>(_readerSettingKey('show_chapter_title')) ?? true;
     novelFontSize.value =
@@ -1365,9 +1373,11 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   }
 
   Future<void> setContinuousNavigation(bool value) async {
-    continuousNavigation.value = true;
-    await _storage.write('reader_continuous_navigation', true);
+    continuousNavigation.value = value;
+    await _storage.write(_readerSettingKey('continuous_navigation'), value);
+    await _storage.write('reader_continuous_navigation', value);
     if (!value) return;
+    unawaited(_loadChapterNavigationIfMissing());
     if (readerMode.value == 'paged') {
       onPageChanged(currentPage.value);
     } else if (_scrollController?.hasClients == true) {
@@ -1460,7 +1470,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
       }
     }
     if (metrics.extentAfter > threshold) return;
-    final next = nextChapterId ?? (isNovel ? previousChapterId : null);
+    final next = nextChapterId;
     if (next != null) {
       navigateToChapter(next, joinContinuousStream: true);
     } else if (!_isLoadingChapterNavigation) {

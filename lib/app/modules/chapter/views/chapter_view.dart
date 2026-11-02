@@ -330,8 +330,11 @@ class ChapterView extends GetView<ChapterController> {
                       itemBuilder: (context, index) {
                         final isCurrent = speechActive && index == speechParagraph;
                         final paragraph = paragraphs[index];
-                        if (paragraph == ChapterController.novelChapterDividerToken) {
-                          return _buildChapterDivider();
+                        if (paragraph.startsWith(ChapterController.novelChapterDividerToken)) {
+                          final title = ChapterController.titleFromNovelChapterDivider(paragraph);
+                          return _buildChapterDivider(
+                            title: controller.showChapterTitle.value ? title : null,
+                          );
                         }
                         final wordStart = isCurrent && speechWord.isNotEmpty
                             ? paragraph.toLowerCase().indexOf(speechWord.toLowerCase())
@@ -533,13 +536,11 @@ class ChapterView extends GetView<ChapterController> {
                       tooltip: 'إعدادات القارئ'.tr,
                       onPressed: _openReaderSettings,
                     ),
-                    if (!controller.isNovel &&
-                        controller.readerMode.value == 'paged')
-                      _readerIconButton(
-                        icon: Icons.list_alt_rounded,
-                        tooltip: 'قائمة الفصول'.tr,
-                        onPressed: _openChapterList,
-                      ),
+                    _readerIconButton(
+                      icon: Icons.list_alt_rounded,
+                      tooltip: 'قائمة الفصول'.tr,
+                      onPressed: _openChapterList,
+                    ),
                     if (controller.isNovel)
                       _readerIconButton(
                         icon: Icons.bookmarks_outlined,
@@ -559,6 +560,27 @@ class ChapterView extends GetView<ChapterController> {
                                 ? 'استئناف القراءة'.tr
                                 : 'القراءة الصوتية'.tr,
                         onPressed: () => controller.toggleNovelSpeech(),
+                      ),
+                    if (controller.isNovel)
+                      _readerIconButton(
+                        icon: Icons.chevron_left_rounded,
+                        tooltip: 'الفصل السابق'.tr,
+                        onPressed: controller.previousChapterId == null
+                            ? null
+                            : () => controller.navigateToChapter(
+                                  controller.previousChapterId,
+                                  reverse: true,
+                                ),
+                      ),
+                    if (controller.isNovel)
+                      _readerIconButton(
+                        icon: Icons.chevron_right_rounded,
+                        tooltip: 'الفصل التالي'.tr,
+                        onPressed: controller.nextChapterId == null
+                            ? null
+                            : () => controller.navigateToChapter(
+                                  controller.nextChapterId,
+                                ),
                       ),
                     if (!controller.isNovel)
                       _readerIconButton(
@@ -581,10 +603,7 @@ class ChapterView extends GetView<ChapterController> {
                       ),
                     Expanded(
                       child: GestureDetector(
-                        onTap: controller.isNovel ||
-                                controller.readerMode.value == 'scroll'
-                            ? null
-                            : _openChapterList,
+                        onTap: _openChapterList,
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -639,15 +658,21 @@ class ChapterView extends GetView<ChapterController> {
     required String tooltip,
     required VoidCallback? onPressed,
   }) {
-    return IconButton(
-      tooltip: tooltip,
-      onPressed: onPressed,
-      icon: Icon(icon),
-      color: onPressed == null
-          ? AppColors.icon.withValues(alpha: 0.35)
-          : AppColors.primary,
-      iconSize: 22,
-      visualDensity: VisualDensity.compact,
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        icon: Icon(icon),
+        color: onPressed == null
+            ? AppColors.icon.withValues(alpha: 0.35)
+            : AppColors.primary,
+        iconSize: 22,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+        visualDensity: VisualDensity.compact,
+      ),
     );
   }
 
@@ -765,9 +790,19 @@ class ChapterView extends GetView<ChapterController> {
                       _fitChoice('natural', 'الحجم الطبيعي'.tr),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  Divider(color: AppColors.divider),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: controller.continuousNavigation.value,
+                    onChanged: controller.setContinuousNavigation,
+                    title: Text('الانتقال التلقائي بين الفصول'.tr,
+                        style: TextStyle(color: AppColors.textPrimary)),
+                    subtitle: Text('تحميل الفصل المجاور عند بلوغ نهاية الفصل'.tr,
+                        style: TextStyle(color: AppColors.textSecondary)),
+                    activeColor: AppColors.primary,
+                  ),
                   if (controller.readerMode.value == 'scroll') ...[
-                    const SizedBox(height: 12),
-                    Divider(color: AppColors.divider),
                     SwitchListTile.adaptive(
                       contentPadding: EdgeInsets.zero,
                       value: controller.showChapterTitle.value,
@@ -1025,6 +1060,29 @@ class ChapterView extends GetView<ChapterController> {
                         _novelChoice('dark', 'داكن'.tr),
                         _novelChoice('black', 'أسود خالص'.tr),
                       ],
+                    ),
+                    const SizedBox(height: 12),
+                    Divider(color: AppColors.divider),
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      value: controller.continuousNavigation.value,
+                      onChanged: controller.setContinuousNavigation,
+                      title: Text('الانتقال التلقائي بين الفصول'.tr,
+                          style: TextStyle(color: AppColors.textPrimary)),
+                      subtitle: Text(
+                          'تحميل الفصل التالي عند بلوغ نهاية النص'.tr,
+                          style: TextStyle(color: AppColors.textSecondary)),
+                      activeColor: AppColors.primary,
+                    ),
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      value: controller.showChapterTitle.value,
+                      onChanged: controller.setShowChapterTitle,
+                      title: Text('إظهار اسم الفصل بين الفصول'.tr,
+                          style: TextStyle(color: AppColors.textPrimary)),
+                      subtitle: Text('يبقى الفاصل ظاهراً عند إخفاء الاسم'.tr,
+                          style: TextStyle(color: AppColors.textSecondary)),
+                      activeColor: AppColors.primary,
                     ),
                     const SizedBox(height: 8),
                     Container(

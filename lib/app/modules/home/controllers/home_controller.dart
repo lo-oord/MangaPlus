@@ -22,6 +22,7 @@ class HomeController extends GetxController {
   final PageController pageController = PageController(initialPage: 0);
   final ScrollController scrollController = ScrollController();
   final currentPage = 0.obs;
+  final sourcePickerVisible = true.obs;
   final canLoadMore = true.obs;
   final isLoadingMore = false.obs;
   final loadMoreError = false.obs;
@@ -39,9 +40,11 @@ class HomeController extends GetxController {
   int _genreRequestId = 0;
   int _loadedPage = 0;
   int _homeRequestId = 0;
+  Timer? _sourcePickerIdleTimer;
   final List<Map<String, String>> heroComics = <Map<String, String>>[];
 
-  List<ContentSource> get availableSources => MangaSourceRegistry.mangaSources;
+  List<ContentSource> get availableSources =>
+      MangaSourceRegistry.searchableSources;
 
   String get selectedSourceName {
     if (selectedSourceId.value == 'all') return 'كل المصادر';
@@ -331,6 +334,22 @@ class HomeController extends GetxController {
     if (scrollController.position.extentAfter < 700) loadNextPage();
   }
 
+  bool handleHomeScroll(ScrollNotification notification) {
+    if (notification.metrics.axis != Axis.vertical) return false;
+    if (notification is ScrollStartNotification ||
+        notification is ScrollUpdateNotification ||
+        notification is OverscrollNotification) {
+      _sourcePickerIdleTimer?.cancel();
+      if (sourcePickerVisible.value) sourcePickerVisible(false);
+    } else if (notification is ScrollEndNotification) {
+      _sourcePickerIdleTimer?.cancel();
+      _sourcePickerIdleTimer = Timer(const Duration(milliseconds: 620), () {
+        if (!isClosed) sourcePickerVisible(true);
+      });
+    }
+    return false;
+  }
+
   @override
   void onInit() {
     super.onInit();
@@ -346,6 +365,7 @@ class HomeController extends GetxController {
   @override
   void onClose() {
     _homeRequestId++;
+    _sourcePickerIdleTimer?.cancel();
     scrollController.removeListener(_checkScrollPosition);
     scrollController.dispose();
     pageController.dispose();
