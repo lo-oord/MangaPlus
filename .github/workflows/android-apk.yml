@@ -1,4 +1,4 @@
-name: Android APK (release signing)
+name: Android Release APK
 
 on:
   push:
@@ -44,12 +44,23 @@ jobs:
           lib/app/modules/profile/controllers/profile_controller.dart
       - name: Run tests
         run: flutter test --no-pub
-      - name: Build one signed release APK
-        run: flutter build apk --release --build-name=1.0.0 --build-number=${{ github.run_number }}
+      - name: Build signed release APK from pubspec version
+        run: flutter build apk --release
+      - name: Verify release signing certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk | awk '/SHA256:/ {print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          expected="252BD865EC82DC2CD236D46EA98B1BBFA778F4538DD53603265B68972F236AA3"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "Signing certificate mismatch; refusing to publish."
+            exit 1
+          fi
+          echo "Verified release signing certificate: $actual"
       - name: Publish APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MangaPlus-android-test-apk
+          name: MangaPlus-android-release-1.1.0
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14
