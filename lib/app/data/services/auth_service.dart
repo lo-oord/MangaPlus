@@ -12,6 +12,14 @@ class AuthService {
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
+
+  static const String _emailActionContinueUrl =
+      'https://mangaplus.devs.surf/';
+
+  ActionCodeSettings _emailActionSettings() => ActionCodeSettings(
+        url: _emailActionContinueUrl,
+        handleCodeInApp: false,
+      );
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     serverClientId: '479859476328-67vu8i5cp6rttk5p6sstutjuq5kv2au5.apps.googleusercontent.com',
   );
@@ -75,7 +83,7 @@ class AuthService {
       rethrow;
     }
     try {
-      await user.sendEmailVerification();
+      await user.sendEmailVerification(_emailActionSettings());
     } catch (error) {
       throw VerificationEmailSendException(profile, error);
     }
@@ -169,12 +177,15 @@ class AuthService {
   }
 
   Future<void> sendPasswordReset(String email) =>
-      _auth.sendPasswordResetEmail(email: email.trim());
+      _auth.sendPasswordResetEmail(
+        email: email.trim(),
+        actionCodeSettings: _emailActionSettings(),
+      );
 
   Future<void> resendVerification() async {
     final user = _auth.currentUser;
     if (user == null || user.isAnonymous || user.emailVerified) return;
-    await user.sendEmailVerification();
+    await user.sendEmailVerification(_emailActionSettings());
   }
 
   Future<UserProfile> refreshProfile() async {
