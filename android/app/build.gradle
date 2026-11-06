@@ -29,17 +29,22 @@ android {
     }
 
     signingConfigs {
-        release {
-            keyAlias System.getenv("KEY_ALIAS")
-            keyPassword System.getenv("KEY_PASSWORD")
-            storeFile file(System.getenv("KEYSTORE_PATH"))
-            storePassword System.getenv("KEYSTORE_PASSWORD")
+        // Only wire the release keystore when the signing secrets are present,
+        // otherwise Gradle fails during configuration even for debug builds.
+        def keystorePath = System.getenv("KEYSTORE_PATH")
+        if (keystorePath) {
+            release {
+                keyAlias System.getenv("KEY_ALIAS")
+                keyPassword System.getenv("KEY_PASSWORD")
+                storeFile file(keystorePath)
+                storePassword System.getenv("KEYSTORE_PASSWORD")
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig signingConfigs.release
+            signingConfig signingConfigs.findByName("release") ?: signingConfigs.debug
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'

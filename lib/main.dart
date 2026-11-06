@@ -65,16 +65,9 @@ void _handleForegroundMessage(RemoteMessage message) {
 }
 
 void _handleLocalNotificationResponse(NotificationResponse response) {
-  final comicId = response.payload?.trim() ?? '';
-  if (comicId == 'reading_stats_weekly') {
-    Get.toNamed(Routes.PROFILE);
-    return;
-  }
-  if (comicId.isNotEmpty) {
-    Get.toNamed(Routes.COMIC_DETAIL, arguments: comicId);
-  } else {
-    Get.toNamed(Routes.NOTIFICATIONS);
-  }
+  // Shared with the download manager so its actions and app navigation both
+  // survive whichever plugin instance initialised last.
+  unawaited(NotificationPresentation.handleResponse(response));
 }
 
 Future<void> setupFlutterNotifications({required String languageCode}) async {

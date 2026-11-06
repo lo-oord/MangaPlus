@@ -13,10 +13,12 @@ class ComicService {
     ContentSource? Function(String url)? sourceResolver,
     ContentSource? Function(String id)? sourceById,
     Duration detailRequestTimeout = const Duration(seconds: 20),
+    Duration chapterRequestTimeout = const Duration(seconds: 30),
   })  : _teamX = source ?? MangaSourceRegistry.teamX,
         _sourceResolver = sourceResolver ?? MangaSourceRegistry.forUrl,
         _sourceById = sourceById ?? MangaSourceRegistry.byId,
-        _detailRequestTimeout = detailRequestTimeout;
+        _detailRequestTimeout = detailRequestTimeout,
+        _chapterRequestTimeout = chapterRequestTimeout;
   static const Duration _detailCacheTtl = Duration(minutes: 15);
   static const Duration _chapterCacheTtl = Duration(minutes: 15);
   static final Map<String, ComicDetailData> _detailCache = {};
@@ -30,6 +32,7 @@ class ComicService {
   final ContentSource? Function(String url) _sourceResolver;
   final ContentSource? Function(String id) _sourceById;
   final Duration _detailRequestTimeout;
+  final Duration _chapterRequestTimeout;
   final _azora = MangaSourceRegistry.azora;
   final _mknov = MangaSourceRegistry.mknov;
   final _kawaiiManga = MangaSourceRegistry.kawaiiManga;
@@ -597,7 +600,9 @@ class ComicService {
     }
     final active = _chapterRequests[key];
     if (active != null) return active;
-    final request = load();
+    // A source that stops responding must not leave the reader waiting on the
+    // same shared future forever, so the timeout lives inside the request.
+    final request = load().timeout(_chapterRequestTimeout);
     _chapterRequests[key] = request;
     try {
       final chapter = await request;

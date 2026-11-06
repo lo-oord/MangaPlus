@@ -11,6 +11,7 @@ import 'package:mangaplus/app/data/models/comic_detail.dart';
 import 'package:mangaplus/app/data/models/download_task.dart';
 import 'package:mangaplus/app/data/models/downloaded_chapter.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
+import 'package:mangaplus/app/data/services/notification_presentation.dart';
 import 'package:mangaplus/app/data/sources/team_x_source.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:path_provider/path_provider.dart';
@@ -79,17 +80,7 @@ class DownloadManagerService extends GetxService {
       const InitializationSettings(
         android: AndroidInitializationSettings('ic_stat_mangaplus'),
       ),
-      onDidReceiveNotificationResponse: (response) {
-        final parts = response.payload?.split('|') ?? const [];
-        if (parts.length != 2) return;
-        final action = response.actionId?.isNotEmpty == true
-            ? response.actionId!
-            : parts.first;
-        if (action == 'pause') pause(parts.last);
-        if (action == 'resume') resume(parts.last);
-        if (action == 'retry') retry(parts.last);
-        if (action == 'cancel') cancel(parts.last);
-      },
+      onDidReceiveNotificationResponse: NotificationPresentation.handleResponse,
     );
     final android = _notifications.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
