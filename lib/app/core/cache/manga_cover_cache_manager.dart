@@ -21,11 +21,14 @@ class MangaCoverCacheManager {
     return headers;
   }
 
+  /// Covers are effectively immutable, so keep them for a year and allow a
+  /// generous entry count: the catalogue is long and evicting a cover forces a
+  /// fresh network download the next time it is shown.
   static final CacheManager instance = CacheManager(
     Config(
       'mangaplusCoverCache',
-      stalePeriod: const Duration(days: 180),
-      maxNrOfCacheObjects: 500,
+      stalePeriod: const Duration(days: 365),
+      maxNrOfCacheObjects: 1500,
     ),
   );
 }

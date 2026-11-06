@@ -31,6 +31,37 @@ class CustomCardNormal extends StatelessWidget {
     this.width = 120,
   });
 
+  static const double coverAspectRatio = 1.25;
+
+  static const TextStyle _titleStyle = TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w700,
+  );
+  static const TextStyle _ratingStyle = TextStyle(
+    fontSize: 10,
+    fontWeight: FontWeight.w800,
+  );
+  static const TextStyle _statusStyle = TextStyle(
+    fontSize: 9.5,
+    fontWeight: FontWeight.w700,
+  );
+  static const TextStyle _dateStyle = TextStyle(
+    fontSize: 9.5,
+    fontWeight: FontWeight.w500,
+  );
+
+  Widget _coverPlaceholder(double width, double height) {
+    return Container(
+      width: width,
+      height: height,
+      color: AppColors.searchBar,
+      alignment: Alignment.center,
+      child: MangaPlusLogo(
+        size: (width * 0.38).clamp(26.0, 44.0).toDouble(),
+      ),
+    );
+  }
+
   String _relativeDate() {
     final value = releaseDate.trim();
     DateTime? parsed = DateTime.tryParse(value) ??
@@ -72,7 +103,7 @@ class CustomCardNormal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final relativeDate = _relativeDate();
-    final coverHeight = width * 1.25;
+    final coverHeight = width * coverAspectRatio;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -98,27 +129,8 @@ class CustomCardNormal extends StatelessWidget {
                   filterQuality: FilterQuality.high,
                   gaplessPlayback: true,
                 ),
-                placeholder: (context, url) => Container(
-                  width: width,
-                  height: coverHeight,
-                  color: AppColors.searchBar,
-                  alignment: Alignment.center,
-                  child: MangaPlusCoverState(
-                    message: 'جارٍ تحميل الغلاف'.tr,
-                    markSize: width < 100 ? 38 : 48,
-                  ),
-                ),
-                progressIndicatorBuilder: (context, url, progress) => Container(
-                  width: width,
-                  height: coverHeight,
-                  color: AppColors.searchBar,
-                  alignment: Alignment.center,
-                  child: MangaPlusCoverState(
-                    message: 'جارٍ تحميل الغلاف'.tr,
-                    progress: progress.progress,
-                    markSize: width < 100 ? 38 : 48,
-                  ),
-                ),
+                placeholder: (context, url) =>
+                    _coverPlaceholder(width, coverHeight),
                 errorWidget: (context, url, error) => Container(
                   width: width,
                   height: coverHeight,
@@ -188,11 +200,7 @@ class CustomCardNormal extends StatelessWidget {
             maxLines: 1,
             textAlign: TextAlign.start,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
+            style: _titleStyle.copyWith(color: AppColors.textPrimary),
           ),
         ),
         const SizedBox(height: 5),
@@ -204,11 +212,7 @@ class CustomCardNormal extends StatelessWidget {
               const SizedBox(width: 2),
               Text(
                 rating.trim().isEmpty ? 'غير متاح'.tr : rating.trim(),
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                ),
+                style: _ratingStyle.copyWith(color: AppColors.textPrimary),
               ),
               if (status.trim().isNotEmpty) ...[
                 const SizedBox(width: 7),
@@ -217,11 +221,7 @@ class CustomCardNormal extends StatelessWidget {
                     localizeContentStatus(status),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: _statusColor(status),
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: _statusStyle.copyWith(color: _statusColor(status)),
                   ),
                 ),
               ],
@@ -235,11 +235,7 @@ class CustomCardNormal extends StatelessWidget {
             relativeDate.isEmpty ? 'غير متاح'.tr : relativeDate,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 9.5,
-              fontWeight: FontWeight.w500,
-            ),
+            style: _dateStyle.copyWith(color: AppColors.textSecondary),
           ),
         ),
       ],

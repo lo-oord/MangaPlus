@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:mangaplus/app/core/cache/manga_cover_cache_manager.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/translations/content_localization.dart';
+import 'package:mangaplus/app/data/models/comic.dart';
 import 'package:mangaplus/app/modules/home/controllers/home_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/custom_card_normal.dart';
@@ -454,16 +455,6 @@ class HomeView extends GetView<HomeController> {
                               markSize: 68,
                             ),
                           ),
-                          progressIndicatorBuilder: (context, url, progress) =>
-                              Container(
-                            color: AppColors.searchBar,
-                            alignment: Alignment.center,
-                            child: MangaPlusCoverState(
-                              message: 'جارٍ تحميل الغلاف'.tr,
-                              progress: progress.progress,
-                              markSize: 68,
-                            ),
-                          ),
                           errorWidget: (context, url, error) => Container(
                             color: AppColors.searchBar,
                             alignment: Alignment.center,
@@ -682,39 +673,28 @@ class KomikCardsSection extends GetView<HomeController> {
           ),
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                childAspectRatio: 0.75,
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 8,
-                mainAxisExtent: 240,
-              ),
+            sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final comic = comics[index];
-                  return GestureDetector(
-                    key: ValueKey<String>('home-${comic.comicId}'),
-                    onTap: () => Get.toNamed(
-                      Routes.COMIC_DETAIL,
-                      arguments: comic.comicId,
-                    ),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) => CustomCardNormal(
-                        comicId: comic.comicId,
-                        title: comic.title,
-                        chapter: comic.chapter,
-                        imageUrl: comic.image,
-                        type: comic.type,
-                        releaseDate: comic.latestChapterDate,
-                        rating: comic.rating,
-                        status: comic.status ?? '',
-                        width: constraints.maxWidth,
-                      ),
+                (context, rowIndex) {
+                  final firstIndex = rowIndex * 3;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (var slot = 0; slot < 3; slot++) ...[
+                          if (slot > 0) const SizedBox(width: 8),
+                          Expanded(
+                            child: firstIndex + slot < comics.length
+                                ? _latestCard(comics[firstIndex + slot])
+                                : const SizedBox.shrink(),
+                          ),
+                        ],
+                      ],
                     ),
                   );
                 },
-                childCount: comics.length,
+                childCount: (comics.length + 2) ~/ 3,
                 addAutomaticKeepAlives: true,
               ),
             ),
@@ -743,6 +723,29 @@ class KomikCardsSection extends GetView<HomeController> {
         ],
       );
     });
+  }
+
+  Widget _latestCard(ComicsList comic) {
+    return GestureDetector(
+      key: ValueKey<String>('home-${comic.comicId}'),
+      onTap: () => Get.toNamed(
+        Routes.COMIC_DETAIL,
+        arguments: comic.comicId,
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) => CustomCardNormal(
+          comicId: comic.comicId,
+          title: comic.title,
+          chapter: comic.chapter,
+          imageUrl: comic.image,
+          type: comic.type,
+          releaseDate: comic.latestChapterDate,
+          rating: comic.rating,
+          status: comic.status ?? '',
+          width: constraints.maxWidth,
+        ),
+      ),
+    );
   }
 
   Widget _buildLoadingSkeleton() {
