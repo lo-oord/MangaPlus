@@ -47,6 +47,7 @@ class _ChapterViewState extends State<ChapterView> {
       body: Stack(
         children: [
           _buildContent(context),
+          _buildPageLoadIndicator(context),
           _buildFloatingNavigation(),
         ],
       ),
@@ -117,7 +118,7 @@ class _ChapterViewState extends State<ChapterView> {
                 }
               },
               itemBuilder: (context, index) =>
-                  _buildPagedImage(context, chapter.images[index]),
+                  _buildPagedImage(context, chapter.images[index], index),
             ),
           ),
         );
@@ -203,7 +204,11 @@ class _ChapterViewState extends State<ChapterView> {
               }
               return KeyedSubtree(
                 key: _pageKeys[pageIndex],
-                child: _buildImage(context, chapter.images[pageIndex]),
+                child: _buildImage(
+                  context,
+                  chapter.images[pageIndex],
+                  pageIndex,
+                ),
               );
             },
           ),
@@ -1396,9 +1401,17 @@ class _ChapterViewState extends State<ChapterView> {
   bool _isLocalReaderPage(String imageReference) =>
       imageReference.startsWith('/');
 
-  Widget _buildPagedImage(BuildContext context, String imageUrl) {
+  Widget _buildPagedImage(
+    BuildContext context,
+    String imageUrl,
+    int pageIndex,
+  ) {
     return Obx(() {
       final isLocalPage = _isLocalReaderPage(imageUrl);
+      if (isLocalPage) {
+        WidgetsBinding.instance.addPostFrameCallback((_) =>
+            controller.markPageLoaded(pageIndex, pageReference: imageUrl));
+      }
       final selectedFit = controller.readerFit.value;
       final decodeWidth = selectedFit == 'natural'
           ? null
@@ -1419,22 +1432,29 @@ class _ChapterViewState extends State<ChapterView> {
               fit: fit,
               filterQuality: FilterQuality.medium,
               gaplessPlayback: true,
-              errorBuilder: (context, error, stackTrace) => const Center(
-                child: MangaPlusLogo(size: 56),
-              ),
+              errorBuilder: (context, error, stackTrace) {
+                WidgetsBinding.instance.addPostFrameCallback((_) =>
+                    controller.markPageFailed(pageIndex, pageReference: imageUrl));
+                return const Center(child: MangaPlusLogo(size: 56));
+              },
             )
           : CachedNetworkImage(
+              key: ValueKey('$imageUrl#${controller.pageRetryToken(pageIndex)}'),
               imageUrl: imageUrl,
               httpHeaders: _imageHeaders(imageUrl),
               memCacheWidth: decodeWidth,
-                imageBuilder: (context, imageProvider) => Image(
-                  image: imageProvider,
-                  width: double.infinity,
-                  height: double.infinity,
-                  fit: fit,
-                  filterQuality: FilterQuality.medium,
-                  gaplessPlayback: true,
-                ),
+                imageBuilder: (context, imageProvider) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) =>
+                      controller.markPageLoaded(pageIndex, pageReference: imageUrl));
+                  return Image(
+                    image: imageProvider,
+                    width: double.infinity,
+                    height: double.infinity,
+                    fit: fit,
+                    filterQuality: FilterQuality.medium,
+                    gaplessPlayback: true,
+                  );
+                },
                 progressIndicatorBuilder: (context, url, downloadProgress) =>
                     Center(
                   child: MangaPlusLoader(
@@ -1446,6 +1466,8 @@ class _ChapterViewState extends State<ChapterView> {
                   child: MangaPlusLoader(size: 54),
                 ),
                 errorWidget: (context, url, error) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) =>
+                      controller.markPageFailed(pageIndex, pageReference: imageUrl));
                   final issue = ReaderLoadIssue.from(
                     error,
                     fallbackTitle: 'تعذر تحميل الصورة',
@@ -1466,7 +1488,10 @@ class _ChapterViewState extends State<ChapterView> {
                         ),
                       ),
                       TextButton.icon(
-                        onPressed: () => controller.fetchChapter(controller.chapterId),
+                        onPressed: () => controller.retryPage(
+                          pageIndex,
+                          pageReference: imageUrl,
+                        ),
                         icon: const Icon(Icons.refresh_rounded),
                         label: Text('إعادة المحاولة'.tr),
                       ),
@@ -1481,13 +1506,21 @@ class _ChapterViewState extends State<ChapterView> {
     });
   }
 
-  Widget _buildImage(BuildContext context, String imageUrl) {
+  Widget _buildImage(
+    BuildContext context,
+    String imageUrl,
+    int pageIndex,
+  ) {
     return Container(
       width: double.infinity,
       color: Colors.black,
       child: Obx(
         () {
           final isLocalPage = _isLocalReaderPage(imageUrl);
+          if (isLocalPage) {
+            WidgetsBinding.instance.addPostFrameCallback((_) =>
+                controller.markPageLoaded(pageIndex, pageReference: imageUrl));
+          }
           final selectedFit = controller.readerFit.value;
           final decodeWidth = selectedFit == 'natural'
               ? null
@@ -1503,21 +1536,28 @@ class _ChapterViewState extends State<ChapterView> {
                   filterQuality: FilterQuality.medium,
                   alignment: Alignment.topCenter,
                   gaplessPlayback: true,
-                errorBuilder: (context, error, stackTrace) => const Center(
-                  child: MangaPlusLogo(size: 56),
-                ),
+                errorBuilder: (context, error, stackTrace) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) =>
+                      controller.markPageFailed(pageIndex, pageReference: imageUrl));
+                  return const Center(child: MangaPlusLogo(size: 56));
+                },
               )
               : CachedNetworkImage(
+                key: ValueKey('$imageUrl#${controller.pageRetryToken(pageIndex)}'),
                 imageUrl: imageUrl,
                 httpHeaders: _imageHeaders(imageUrl),
                 memCacheWidth: decodeWidth,
-                imageBuilder: (context, imageProvider) => Image(
-                  image: imageProvider,
-                  width: double.infinity,
-                  fit: _imageFit(controller.readerFit.value),
-                  filterQuality: FilterQuality.medium,
-                  gaplessPlayback: true,
-                ),
+                imageBuilder: (context, imageProvider) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) =>
+                      controller.markPageLoaded(pageIndex, pageReference: imageUrl));
+                  return Image(
+                    image: imageProvider,
+                    width: double.infinity,
+                    fit: _imageFit(controller.readerFit.value),
+                    filterQuality: FilterQuality.medium,
+                    gaplessPlayback: true,
+                  );
+                },
                 progressIndicatorBuilder: (context, url, downloadProgress) =>
                     SizedBox(
                   width: double.infinity,
@@ -1540,6 +1580,8 @@ class _ChapterViewState extends State<ChapterView> {
                   ),
                 ),
                 errorWidget: (context, url, error) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) =>
+                      controller.markPageFailed(pageIndex, pageReference: imageUrl));
                   final issue = ReaderLoadIssue.from(
                     error,
                     fallbackTitle: 'تعذر تحميل الصورة',
@@ -1565,7 +1607,10 @@ class _ChapterViewState extends State<ChapterView> {
                           ),
                         ),
                         TextButton.icon(
-                          onPressed: () => controller.fetchChapter(controller.chapterId),
+                          onPressed: () => controller.retryPage(
+                            pageIndex,
+                            pageReference: imageUrl,
+                          ),
                           icon: const Icon(Icons.refresh_rounded),
                           label: Text('إعادة المحاولة'.tr),
                         ),
@@ -1577,6 +1622,61 @@ class _ChapterViewState extends State<ChapterView> {
         },
       ),
     );
+  }
+
+  /// Small translucent chip with the real page-load ratio. It never takes taps
+  /// away from the reader and hides itself once the chapter has finished
+  /// loading (or shortly after, on a slow connection).
+  Widget _buildPageLoadIndicator(BuildContext context) {
+    return Obx(() {
+      controller.pageLoadRevision.value;
+      if (!controller.showPageLoadProgress.value) return const SizedBox.shrink();
+      final progress = controller.pageLoadProgress;
+      if (progress == null) return const SizedBox.shrink();
+      final percent = (progress * 100).round().clamp(0, 100);
+      return Positioned(
+        top: MediaQuery.paddingOf(context).top + 10,
+        left: 0,
+        right: 0,
+        child: IgnorePointer(
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0x94000000),
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      value: progress,
+                      strokeWidth: 1.8,
+                      backgroundColor: const Color(0x33FFFFFF),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.accent,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Text(
+                    '$percent%',
+                    style: const TextStyle(
+                      color: Color(0xE6FFFFFF),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    });
   }
 
   Future<void> _preloadImages(

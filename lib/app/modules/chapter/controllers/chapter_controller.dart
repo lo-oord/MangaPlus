@@ -8,6 +8,8 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/data/models/chapter.dart';
 import 'package:mangaplus/app/core/utils/chapter_reference_identity.dart';
+import 'package:mangaplus/app/core/utils/chapter_sequence.dart';
+import 'package:mangaplus/app/core/utils/page_load_tracker.dart';
 import 'package:mangaplus/app/core/utils/reader_chapter_navigator.dart';
 import 'package:mangaplus/app/core/utils/reader_stream_merge.dart';
 import 'package:mangaplus/app/data/models/history.dart';
@@ -308,6 +310,88 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
       _sameChapterReference(item.chapterId, chapterId) ||
       _sameChapterReference(item.url, chapterId);
 
+  // ---------------------------------------------------------------------
+  // Real page load progress
+  // ---------------------------------------------------------------------
+
+  final PageLoadTracker _pageLoads = PageLoadTracker();
+  final Map<int, int> _pageRetryTokens = <int, int>{};
+  Timer? _pageLoadHideTimer;
+
+  /// Bumped whenever a page finishes, fails or is retried.
+  final pageLoadRevision = 0.obs;
+
+  /// Whether the small loading chip should be visible.
+  final showPageLoadProgress = false.obs;
+
+  int get totalPageCount => _pageLoads.total;
+  int get loadedPageCount => _pageLoads.loadedCount;
+  int get failedPageCount => _pageLoads.failedCount;
+  double? get pageLoadProgress =>
+      _pageLoads.hasPages ? _pageLoads.progress : null;
+
+  bool isPageLoaded(int index) => _pageLoads.isLoaded(index);
+  bool isPageFailed(int index) => _pageLoads.isFailed(index);
+  int pageRetryToken(int index) => _pageRetryTokens[index] ?? 0;
+
+  bool _isCurrentPageReference(int index, String? pageReference) {
+    if (!_pageLoads.isValid(index)) return false;
+    if (pageReference == null) return true;
+    final images = chapterData.value.chapter.images;
+    return index < images.length && images[index] == pageReference;
+  }
+
+  void markPageLoaded(int index, {String? pageReference}) {
+    if (!_pageLoads.hasPages || _pageLoads.isLoaded(index)) return;
+    if (!_isCurrentPageReference(index, pageReference)) return;
+    _pageLoads.markLoaded(index);
+    _pageRetryTokens.remove(index);
+    pageLoadRevision.value++;
+    if (_pageLoads.isComplete) {
+      _schedulePageLoadHide(const Duration(milliseconds: 900));
+    }
+  }
+
+  void markPageFailed(int index, {String? pageReference}) {
+    if (!_pageLoads.hasPages || _pageLoads.isLoaded(index)) return;
+    if (!_isCurrentPageReference(index, pageReference)) return;
+    if (_pageLoads.isFailed(index)) return;
+    _pageLoads.markFailed(index);
+    pageLoadRevision.value++;
+  }
+
+  void retryPage(int index, {String? pageReference}) {
+    if (!_pageLoads.hasPages || !_pageLoads.isValid(index)) return;
+    if (!_isCurrentPageReference(index, pageReference)) return;
+    _pageLoads.retry(index);
+    _pageRetryTokens[index] = (_pageRetryTokens[index] ?? 0) + 1;
+    pageLoadRevision.value++;
+    showPageLoadProgress.value = true;
+    _schedulePageLoadHide(const Duration(seconds: 6));
+  }
+
+  void _beginPageLoads(int total) {
+    _pageLoadHideTimer?.cancel();
+    _pageLoads.reset(total);
+    _pageRetryTokens.clear();
+    pageLoadRevision.value++;
+    showPageLoadProgress.value = total > 0;
+    if (total > 0) _schedulePageLoadHide(const Duration(seconds: 6));
+  }
+
+  void _expandPageLoads(int total) {
+    if (total <= _pageLoads.total) return;
+    _pageLoads.expandTo(total);
+    pageLoadRevision.value++;
+  }
+
+  void _schedulePageLoadHide(Duration delay) {
+    _pageLoadHideTimer?.cancel();
+    _pageLoadHideTimer = Timer(delay, () {
+      showPageLoadProgress.value = false;
+    });
+  }
+
   Future<void> fetchChapter(
     String id, {
     bool keepCurrentContent = false,
@@ -425,6 +509,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
 
       if (restoreSavedPosition && keepCurrentContent) _restoreReaderPosition(id);
       final pageCount = chapterData.value.chapter.images.length;
+      if (!keepCurrentContent) _beginPageLoads(pageCount);
       if (startAtEnd) _suppressEndBoundaryOnce = true;
       if (pageCount > 0) {
         if (restoreSavedPosition) {
@@ -479,6 +564,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
       if (generation != _chapterLoadGeneration) return;
       hasError(true);
       loadIssue.value = ReaderLoadIssue.from(error);
+      _beginPageLoads(0);
       debugPrint('Chapter request failed: $error');
     } finally {
       if (generation == _chapterLoadGeneration) isLoading(false);
@@ -520,21 +606,17 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
       currentChapterId: chapterId,
       currentChapterTitle: currentChapterTitle,
       forward: forward,
+      declaredNextChapter: _chapterReference(
+        chapterData.value.chapter.nextChapter,
+      ),
+      declaredPreviousChapter: _chapterReference(
+        chapterData.value.chapter.previousChapter,
+      ),
     );
   }
 
-  double? _chapterNumber(String title) {
-    final explicit = RegExp(
-      r'(?:chapter|chap\.?|ch\.?|الفصل|فصل)\s*[-#:]?\s*(\d+(?:\.\d+)?)',
-      caseSensitive: false,
-    ).firstMatch(title);
-    if (explicit != null) return double.tryParse(explicit.group(1)!);
-    final numbers = RegExp(r'\d+(?:\.\d+)?').allMatches(title).toList();
-    // Multiple numbers can denote a volume, season, or release date; let the
-    // source chapter-list ordering decide rather than jumping to a false neighbor.
-    if (numbers.length != 1) return null;
-    return double.tryParse(numbers.single.group(0)!);
-  }
+  double? _chapterNumber(String title) =>
+      ChapterSequence.chapterNumber(title);
 
   String? _chapterReference(dynamic value) {
     if (value is Map) {
@@ -756,6 +838,13 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
             source: adjacent.source.isEmpty ? previousData.source : adjacent.source,
           );
           currentPage.value = mergedStream.currentPage;
+          // Appending keeps the pages already loaded; prepending inserts pages
+          // above them, so the tracker is restarted for a truthful ratio.
+          if (reverse) {
+            _beginPageLoads(mergedStream.pages.length);
+          } else {
+            _expandPageLoads(mergedStream.pages.length);
+          }
         }
         if (reverse && readerMode.value == 'scroll') {
           _continuousPrependPending = true;
@@ -1557,6 +1646,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_enqueueReadingStats(_finishReadingStatsSession));
     unawaited(stopNovelSpeech());
+    _pageLoadHideTimer?.cancel();
     _pageController?.dispose();
     _scrollController?.dispose();
     super.onClose();
