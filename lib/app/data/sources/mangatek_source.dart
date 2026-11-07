@@ -178,9 +178,14 @@ class MangaTekSource extends ContentSource {
     if (props is Map) {
       final propsMap = Map<String, dynamic>.from(props);
       final embedded = _readerImages(propsMap['imageUrls']);
-      final images = embedded.any((image) => image['pending'] == true)
+      final fetched = embedded.any((image) => image['pending'] == true)
           ? await _fetchReaderImages(document, propsMap, parts)
-          : embedded;
+          : const <Map<String, dynamic>>[];
+      // Never discard usable embedded pages when the rotating reader bundle
+      // changes and the pending-pages proof cannot be calculated yet.
+      final images = fetched.isNotEmpty
+          ? fetched
+          : embedded.where((image) => image['pending'] != true).toList();
       final pages = images
           .where((image) => image['isTrap'] != true)
           .map((image) => '${image['url'] ?? ''}')
