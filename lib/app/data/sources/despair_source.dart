@@ -26,7 +26,8 @@ abstract class DespairSource extends ContentSource {
     final uri = Uri.tryParse(url);
     if (uri == null || uri.host.toLowerCase().replaceFirst('www.', '') != 'despair-world.com') return false;
     final segments = uri.pathSegments.where((segment) => segment.isNotEmpty);
-    return segments.contains(kind == 'novel' ? 'novels' : 'series');
+    final expectedPath = kind == 'novel' ? 'novels' : 'series';
+    return segments.isNotEmpty && segments.first == expectedPath;
   }
 
   @override
