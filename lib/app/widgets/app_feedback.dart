@@ -15,14 +15,15 @@ class AppFeedback {
   }) {
     Get.closeCurrentSnackbar();
     Get.snackbar(
-      title,
-      message,
+      '',
+      '',
       snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: AppColors.card,
+      backgroundColor: AppColors.card.withValues(alpha: 0.9),
       colorText: AppColors.textPrimary,
-      borderRadius: 18,
-      margin: const EdgeInsets.fromLTRB(14, 8, 14, 16),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      borderRadius: 15,
+      margin: const EdgeInsets.fromLTRB(28, 8, 28, 74),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      maxWidth: 390,
       duration: type == AppNoticeType.error
           ? const Duration(seconds: 4)
           : const Duration(milliseconds: 2800),
@@ -30,27 +31,40 @@ class AppFeedback {
       forwardAnimationCurve: Curves.easeOutCubic,
       reverseAnimationCurve: Curves.easeInCubic,
       shouldIconPulse: false,
-      icon: const MangaPlusLogo(size: 28),
-      titleText: Text(
-        title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: type == AppNoticeType.error
-              ? AppColors.error
-              : type == AppNoticeType.success
-                  ? AppColors.success
-                  : AppColors.primary,
-          fontWeight: FontWeight.w700,
-          fontSize: 14,
-        ),
+      titleText: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const MangaPlusLogo(size: 24),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              message.trim().isEmpty ? title : message,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: type == AppNoticeType.error
+                    ? AppColors.error
+                    : type == AppNoticeType.success
+                        ? AppColors.success
+                        : AppColors.primary,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
       ),
-      messageText: Text(
-        message,
-        maxLines: 3,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: AppColors.textPrimary, height: 1.35),
-      ),
+      messageText: message.trim().isEmpty || message.trim() == title
+          ? const SizedBox.shrink()
+          : Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 11,
+              ),
+            ),
     );
   }
 }
