@@ -156,7 +156,7 @@ class SearchController extends GetxController {
                 _allSearchResults.map((item) => item.comicId).toSet();
             _allSearchResults
                 .addAll(batch.where((item) => existing.add(item.comicId)));
-            _applyContentFilter();
+            _applyTypeFilter();
           },
         );
       } catch (error) {
