@@ -57,11 +57,18 @@ class MangaTikSource extends ContentSource {
     });
     final document = await _document(uri.toString());
     return document.querySelectorAll('article.manga-card').map((card) {
-      final anchor = card.querySelector('.manga-title > a[href], a[href*="/manga/"]');
+      final titleAnchor = card.querySelector('.manga-title > a[href]');
+      final anchor = titleAnchor ?? card.querySelector('a[href*="/manga/"]');
       if (anchor == null) return <String, dynamic>{};
       final url = mangaAbsoluteUrl(_site, anchor.attributes['href']);
-      final title = mangaHtmlText(anchor);
       final image = mangaImageUrl(card.querySelector('img.manga-poster'), _site);
+      final title = _first([
+        mangaHtmlText(titleAnchor),
+        mangaHtmlText(card.querySelector('.manga-title')),
+        titleAnchor?.attributes['title'] ?? '',
+        card.querySelector('img.manga-poster')?.attributes['alt'] ?? '',
+        Uri.tryParse(url)?.pathSegments.where((part) => part.isNotEmpty).lastOrNull ?? '',
+      ]);
       final ratingText = mangaHtmlText(card.querySelector('.manga-rating-badge'));
       return item(title: title, url: url, image: image, rating: SourceValues.rating(ratingText));
     }).where((entry) => '${entry['title']}'.isNotEmpty && '${entry['url']}'.isNotEmpty).toList(growable: false);

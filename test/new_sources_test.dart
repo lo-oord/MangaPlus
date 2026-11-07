@@ -14,8 +14,8 @@ void main() {
       final client = _FixtureClient({
         '/latest': '''
           <article class="manga-card">
+            <a class="cover-link" href="/manga/series-one"><img class="manga-poster" data-src="/storage/covers/one.webp" src="/placeholder.webp" alt="Series One"></a>
             <div class="manga-title"><a href="/manga/series-one">Series One</a></div>
-            <img class="manga-poster" src="/storage/covers/one.webp">
             <span class="manga-rating-badge">★ 8.3</span>
           </article>
         ''',
