@@ -310,8 +310,11 @@ class HomeController extends GetxController {
     } catch (error) {
       if (isClosed || requestId != _genreRequestId) return;
       debugPrint('Team X inline genre request failed: $error');
-      if (page == 1) genreHasError(true);
-      else genreLoadMoreError(true);
+      if (page == 1) {
+        genreHasError(true);
+      } else {
+        genreLoadMoreError(true);
+      }
     } finally {
       if (!isClosed && requestId == _genreRequestId) {
         if (page == 1) {

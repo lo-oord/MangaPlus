@@ -1,6 +1,6 @@
 import 'package:get/get.dart';
-import 'package:mangaplus/app/core/translations/ar_SA.dart';
-import 'package:mangaplus/app/core/translations/en_US.dart';
+import 'package:mangaplus/app/core/translations/ar_sa.dart';
+import 'package:mangaplus/app/core/translations/en_us.dart';
 
 class AppTranslations extends Translations {
   @override

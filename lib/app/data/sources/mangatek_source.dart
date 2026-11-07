@@ -132,9 +132,12 @@ class MangaTekSource extends ContentSource {
         });
     }
     final chapters = _chapters(manga['MangaChapters'] ?? manga['chapters'], slug);
-    final tags = manga['Tags'] ?? manga['tags'];
-    final genres = tags is List
-        ? tags.map((tag) => tag is Map ? '${tag['name'] ?? ''}' : '$tag').where((tag) => tag.trim().isNotEmpty).toList()
+    final rawTags = manga['Tags'] ?? manga['tags'];
+    final genres = rawTags is List
+        ? rawTags
+            .map((tag) => tag is Map ? '${tag['name'] ?? ''}' : '$tag')
+            .where((tag) => tag.trim().isNotEmpty)
+            .toList()
         : <String>[];
     final description = mangaHtmlToText('${manga['description'] ?? ''}');
     return _item(
@@ -310,7 +313,7 @@ class MangaTekSource extends ContentSource {
       ..addAll({
         'description': description,
         'synopsis': description,
-        'genres': (data['Tags'] is List ? data['Tags'] : const []).whereType<Map>().map((tag) => '${tag['name'] ?? ''}').where((tag) => tag.isNotEmpty).toList(),
+        'genres': _tagNames(data['Tags']),
         'author': '${data['author'] ?? ''}',
         'status': _status('${data['status'] ?? ''}'),
         'rating': SourceValues.rating(data['rating']),
@@ -318,6 +321,15 @@ class MangaTekSource extends ContentSource {
         'latest_chapter_number': chapters.isEmpty ? 0 : chapters.first['number'],
         'chapters': chapters,
       });
+  }
+
+  List<String> _tagNames(dynamic raw) {
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((tag) => '${tag['name'] ?? ''}')
+        .where((name) => name.isNotEmpty)
+        .toList(growable: false);
   }
 
   Future<Map<String, dynamic>> _apiGet(String path, {Map<String, String>? query}) async {

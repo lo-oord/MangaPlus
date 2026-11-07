@@ -260,13 +260,6 @@ class ProComicSource extends ContentSource {
   String _chapterNumber(String value) => RegExp(r'-([0-9]+)-[0-9]+/?$').firstMatch(value)?.group(1) ?? '';
   String _chapterId(String value) => RegExp(r'-[0-9]+-([0-9]+)/?$').firstMatch(value)?.group(1) ?? '';
   double _chapterValue(dynamic value) => double.tryParse('$value') ?? -1;
-  String _firstText(Iterable<dynamic> values) {
-    for (final value in values) {
-      final text = _text(value);
-      if (text.isNotEmpty && text != 'null') return text;
-    }
-    return '';
-  }
   String _firstImageText(Iterable<dynamic> values) {
     for (final value in values) {
       if (value is Map) {

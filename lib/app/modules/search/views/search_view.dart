@@ -185,7 +185,7 @@ class SearchView extends GetView<search_controller.SearchController> {
         if (index == items.length + 1) {
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: 18),
-            child: const Center(child: MangaPlusLoader(size: 42)),
+            child: Center(child: MangaPlusLoader(size: 42)),
           );
         }
         return _SearchComicTile(comic: items[index - 1]);

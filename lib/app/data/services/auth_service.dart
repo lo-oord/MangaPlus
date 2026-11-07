@@ -207,8 +207,8 @@ class AuthService {
     await _auth.signOut();
     unawaited(_googleSignIn.signOut().timeout(
       const Duration(seconds: 2),
-      onTimeout: () {},
-    ).catchError((_) {}));
+      onTimeout: () => null,
+    ).catchError((_) => null));
   }
 
   Future<UserProfile> updatePhotoData(String photoData) async {

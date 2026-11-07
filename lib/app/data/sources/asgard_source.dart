@@ -6,7 +6,6 @@ import 'package:http/http.dart' as http;
 
 import 'manga_html_utils.dart';
 import 'source_base.dart';
-import 'source_values.dart';
 
 /// HTML/SSR adapter for Asgard Scans' Arabic manga catalogue.
 class AsgardSource extends ContentSource {
@@ -189,10 +188,15 @@ class AsgardSource extends ContentSource {
     for (final anchor in document.querySelectorAll('a[href^="/manga/"]')) {
       final href = anchor.attributes['href']?.trim() ?? '';
       final uri = Uri.tryParse(mangaAbsoluteUrl(_site, href));
-      if (uri == null || uri.pathSegments.length < 3 ||
-          uri.pathSegments[1] != slug) continue;
+      if (uri == null ||
+          uri.pathSegments.length < 3 ||
+          uri.pathSegments[1] != slug) {
+        continue;
+      }
       final number = _chapterNumber(uri.toString());
-      if (number.isEmpty || !seen.add(uri.toString())) continue;
+      if (number.isEmpty || !seen.add(uri.toString())) {
+        continue;
+      }
       chapters.add({
         'title': mangaHtmlText(anchor).ifEmpty('الفصل $number'),
         'number': num.tryParse(number) ?? number,

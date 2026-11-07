@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:mangaplus/app/core/constants/colors.dart';
 
 class AppTheme {
   // Warna Utama

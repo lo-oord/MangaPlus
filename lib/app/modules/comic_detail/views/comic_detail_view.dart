@@ -36,7 +36,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
           backgroundColor: AppColors.background,
           body: BrandState(
             title: (issue?.titleKey ?? 'تفاصيل القصة غير متاحة').tr,
-            description: issue == null ? null : issue.descriptionKey.tr,
+            description: issue?.descriptionKey.tr,
             icon: issue?.icon,
             actionLabel: 'إعادة المحاولة'.tr,
             onAction: controller.retryComicDetail,
@@ -438,88 +438,6 @@ class ComicDetailView extends GetView<ComicDetailController> {
   }
 }
 
-class _Metric extends StatelessWidget {
-  const _Metric({required this.icon, required this.text});
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: icon == Icons.star_rounded ? const Color(0xfff2b94b) : Colors.white70),
-          const SizedBox(width: 5),
-          Text(
-            text,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      );
-}
-
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.status});
-  final String status;
-
-  Color _statusColor() {
-    final value = localizeContentStatus(status).toLowerCase();
-    if (value == 'مستمر'.tr.toLowerCase() || value == 'مكتمل'.tr.toLowerCase() || value == 'ongoing' || value == 'completed') {
-      return AppColors.success;
-    }
-    if (value == 'متوقف مؤقتًا'.tr.toLowerCase() || value == 'hiatus' || value == 'paused') {
-      return AppColors.warning;
-    }
-    return AppColors.icon;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _statusColor();
-    return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.16),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withValues(alpha: 0.35)),
-        ),
-        child: Text(
-          localizeContentStatus(status),
-          style: TextStyle(
-            color: color,
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      );
-  }
-}
-
-class _SectionHeading extends StatelessWidget {
-  const _SectionHeading({required this.icon, required this.title});
-  final IconData icon;
-  final String title;
-
-  @override
-  Widget build(BuildContext context) => Row(
-        children: [
-          Icon(icon, color: AppColors.icon, size: 21),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 19,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      );
-}
-
 class _InfoCard extends StatelessWidget {
   const _InfoCard({required this.title, required this.icon, required this.child});
   final String title;
@@ -719,86 +637,6 @@ class _HeroStat extends StatelessWidget {
         ],
       );
 }
-class _InfoPill extends StatelessWidget {
-  const _InfoPill({required this.icon, required this.text});
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-        decoration: BoxDecoration(
-          color: AppColors.card.withValues(alpha: 0.94),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppColors.divider),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: icon == Icons.star_rounded ? const Color(0xfff2b94b) : AppColors.icon),
-            const SizedBox(width: 5),
-            Text(
-              text,
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      );
-}
-
-class _MetadataCard extends StatelessWidget {
-  const _MetadataCard({required this.comic});
-  final ComicDetail comic;
-
-  @override
-  Widget build(BuildContext context) {
-    final rows = <(String, String)>[
-      ('المؤلف'.tr, comic.author),
-      ('سنة الإصدار'.tr, comic.releaseYear),
-      ('الحالة'.tr, localizeContentStatus(comic.status)),
-      ('النوع'.tr, localizeContentType(comic.type)),
-      ('التقييم'.tr, comic.rating),
-      ('آخر تحديث'.tr, comic.updatedOn),
-    ].where((row) => row.$2.trim().isNotEmpty).toList();
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: Column(
-        children: rows
-            .map((row) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(row.$1,
-                            style: TextStyle(color: AppColors.textSecondary)),
-                      ),
-                      Flexible(
-                        child: Text(
-                          row.$2,
-                          textAlign: TextAlign.end,
-                          style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ))
-            .toList(),
-      ),
-    );
-  }
-}
-
 class _ChapterList extends StatefulWidget {
   const _ChapterList({required this.comic, required this.controller});
   final ComicDetail comic;
@@ -849,12 +687,6 @@ class _ChapterListState extends State<_ChapterList> {
       }).toList(growable: false);
       final sorted = widget.controller.sortedChapters(visible);
       final ascending = widget.controller.sortAscending.value;
-      final selectableIds = sorted
-          .where((chapter) => !widget.controller.isChapterDownloaded(chapter.chapterId))
-          .map((chapter) => chapter.chapterId)
-          .toList(growable: false);
-      final allVisibleSelectableSelected = selectableIds.isNotEmpty &&
-          selectableIds.every(widget.controller.selectedChapterIds.contains);
       return SliverMainAxisGroup(
         slivers: [
           SliverToBoxAdapter(
@@ -1128,13 +960,13 @@ class _ChapterListState extends State<_ChapterList> {
       trailingAction = IconButton(
         tooltip: 'إعادة المحاولة'.tr,
         onPressed: () => widget.controller.retryChapterDownload(chapter.chapterId),
-        icon: Icon(Icons.refresh_rounded, color: AppColors.error),
+        icon: const Icon(Icons.refresh_rounded, color: AppColors.error),
       );
     } else if (downloaded) {
       trailingAction = IconButton(
         tooltip: 'حذف الفصل المحلي'.tr,
         onPressed: () => _confirmDeleteChapter(chapter),
-        icon: Icon(Icons.delete_outline_rounded, color: AppColors.error),
+        icon: const Icon(Icons.delete_outline_rounded, color: AppColors.error),
       );
     } else {
       trailingAction = IconButton(
@@ -1211,7 +1043,7 @@ class _ChapterListState extends State<_ChapterList> {
                           const SizedBox(width: 7),
                           Text(
                             Get.locale?.languageCode == 'en' ? 'NEW' : 'جديد',
-                            style: TextStyle(
+                            style: const TextStyle(
                               color: AppColors.error,
                               fontSize: 10,
                               fontWeight: FontWeight.w900,
@@ -1341,13 +1173,13 @@ class _SelectionBottomBar extends StatelessWidget {
                   tooltip: 'تصنيف كمقروء'.tr,
                   visualDensity: VisualDensity.compact,
                   onPressed: selected == 0 ? null : controller.markSelectedChaptersRead,
-                  icon: Icon(Icons.check_circle_outline_rounded, color: AppColors.success),
+                  icon: const Icon(Icons.check_circle_outline_rounded, color: AppColors.success),
                 ),
                 IconButton(
                   tooltip: 'تصنيف كغير مقروء'.tr,
                   visualDensity: VisualDensity.compact,
                   onPressed: selected == 0 ? null : controller.markSelectedChaptersUnread,
-                  icon: Icon(Icons.radio_button_unchecked_rounded, color: AppColors.warning),
+                  icon: const Icon(Icons.radio_button_unchecked_rounded, color: AppColors.warning),
                 ),
                 IconButton(
                   tooltip: 'تنزيل المحدد'.tr,

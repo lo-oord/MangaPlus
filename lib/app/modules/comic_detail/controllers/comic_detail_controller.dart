@@ -3,20 +3,16 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:http/http.dart' as http;
 import 'package:mangaplus/app/data/models/bookmark.dart';
 import 'package:mangaplus/app/data/models/comic_detail.dart';
-import 'package:mangaplus/app/data/models/downloaded_chapter.dart';
 import 'package:mangaplus/app/data/models/download_task.dart';
 import 'package:mangaplus/app/data/models/history.dart';
 import 'package:mangaplus/app/data/services/app_data_service.dart';
 import 'package:mangaplus/app/data/services/account_gate_service.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
 import 'package:mangaplus/app/data/services/download_manager_service.dart';
-import 'package:mangaplus/app/data/sources/team_x_source.dart';
 import 'package:mangaplus/app/core/utils/reader_load_issue.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
-import 'package:path_provider/path_provider.dart';
 
 class ComicDetailController extends GetxController {
   final ComicService _comicService = ComicService();

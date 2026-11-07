@@ -152,8 +152,16 @@ abstract class CeneleSource extends ContentSource {
     if (target.isEmpty) throw Exception('$name: رابط الفصل غير صالح.');
     final response = await _request(target);
     final document = html_parser.parse(utf8.decode(response.bodyBytes, allowMalformed: true));
+    // The reader now wraps the body in a `story-fold` element (older markup
+    // used `story-layer`, and the webtoon/text container uses .text-chapter-content).
+    // Direct-child paragraphs keep the promo/support blocks out of the body.
     final paragraphs = document
-        .querySelectorAll('.reading-content story-layer > p')
+        .querySelectorAll(
+          '.reading-content story-fold > p, '
+          '.reading-content story-layer > p, '
+          '.reading-content .text-chapter-content > p, '
+          '.reading-content .text-left > p',
+        )
         .map(mangaHtmlText)
         .where((value) => value.isNotEmpty && value != '*****')
         .toList(growable: false);
@@ -193,16 +201,9 @@ abstract class CeneleSource extends ContentSource {
   Future<List<Map<String, dynamic>>> _fetchCatalog() async {
     final first = await _document(_catalogUri(page: 1).toString());
     final pages = _pageCount(first);
-    final documents = <Document>[first];
-    if (pages > 1) {
-      documents.addAll(await Future.wait([
-        for (var page = 2; page <= pages && page <= 100; page++)
-          _document(_catalogUri(page: page).toString()),
-      ]));
-    }
     final seen = <String>{};
     final results = <Map<String, dynamic>>[];
-    for (final document in documents) {
+    void collect(Document document) {
       for (final card in document.querySelectorAll('article.nhv-library-card')) {
         final anchor = card.querySelector('.nhv-library-card__cover, .nhv-library-card__title a');
         final href = anchor?.attributes['href'] ?? '';
@@ -219,6 +220,29 @@ abstract class CeneleSource extends ContentSource {
           description: mangaHtmlText(card.querySelector('.nhv-library-card__excerpt')),
         ));
       }
+    }
+
+    collect(first);
+    // Read the remaining pages in small batches and drop each document after
+    // collecting its cards. A page that the site no longer serves (404) or any
+    // other transient failure must not discard the works already collected.
+    for (var start = 2; start <= pages && results.length < 1200; start += 5) {
+      final end = start + 4 > pages ? pages : start + 4;
+      final batch = await Future.wait([
+        for (var page = start; page <= end; page++)
+          _document(_catalogUri(page: page).toString())
+              .then<Document?>((document) => document)
+              .catchError((_) => null),
+      ]);
+      var failed = false;
+      for (final document in batch) {
+        if (document == null) {
+          failed = true;
+          continue;
+        }
+        collect(document);
+      }
+      if (failed) break;
     }
     return results;
   }

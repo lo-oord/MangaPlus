@@ -152,10 +152,15 @@ class MangaTimeSource extends ContentSource {
   static dynamic _unwrap(dynamic value) {
     var current = value;
     for (var i = 0; i < 8; i++) {
-      if (current is Map && current.containsKey('result')) current = current['result'];
-      else if (current is Map && current.containsKey('data')) current = current['data'];
-      else if (current is Map && current.containsKey('json')) current = current['json'];
-      else break;
+      if (current is Map && current.containsKey('result')) {
+        current = current['result'];
+      } else if (current is Map && current.containsKey('data')) {
+        current = current['data'];
+      } else if (current is Map && current.containsKey('json')) {
+        current = current['json'];
+      } else {
+        break;
+      }
     }
     return current;
   }

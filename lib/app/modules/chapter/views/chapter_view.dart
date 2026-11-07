@@ -8,13 +8,20 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/utils/reader_load_issue.dart';
 import 'package:mangaplus/app/data/models/chapter.dart';
 import 'package:mangaplus/app/modules/chapter/controllers/chapter_controller.dart';
-import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
-class ChapterView extends GetView<ChapterController> {
-  ChapterView({super.key});
+class ChapterView extends StatefulWidget {
+  const ChapterView({super.key});
+
+  @override
+  State<ChapterView> createState() => _ChapterViewState();
+}
+
+class _ChapterViewState extends State<ChapterView> {
+  ChapterController get controller => Get.find<ChapterController>();
+
   final List<GlobalKey> _pageKeys = <GlobalKey>[];
   int _lastFollowedSpeechParagraph = -1;
   bool _speechWasPlaying = false;
@@ -220,8 +227,8 @@ class ChapterView extends GetView<ChapterController> {
           if (snapshot.connectionState != ConnectionState.done) {
             return ColoredBox(
               color: background,
-              child: Center(
-                child: const MangaPlusLoader(size: 54),
+              child: const Center(
+                child: MangaPlusLoader(size: 54),
               ),
             );
           }
@@ -1525,10 +1532,10 @@ class ChapterView extends GetView<ChapterController> {
                 placeholder: (context, url) => SizedBox(
                   width: double.infinity,
                   height: MediaQuery.sizeOf(context).height * 0.68,
-                  child: Column(
+                  child: const Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const MangaPlusLoader(size: 54),
+                      MangaPlusLoader(size: 54),
                     ],
                   ),
                 ),

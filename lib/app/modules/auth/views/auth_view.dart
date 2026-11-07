@@ -135,23 +135,6 @@ class AuthView extends GetView<AuthController> {
         _ => Column(children: [_countryField(), const SizedBox(height: 13), _genderField(), const SizedBox(height: 13), _birthDateField()]),
       };
 
-  Widget _registrationFields() => Column(
-        children: [
-          _field(controller.displayName, 'الاسم الظاهر', Icons.badge_outlined),
-          const SizedBox(height: 13),
-          _usernameField(),
-          const SizedBox(height: 13),
-          _passwordField(controller.confirmPassword, 'تأكيد كلمة المرور', controller.obscureConfirmPassword),
-          const SizedBox(height: 13),
-          _countryField(),
-          const SizedBox(height: 13),
-          _genderField(),
-          const SizedBox(height: 13),
-          _birthDateField(),
-          const SizedBox(height: 13),
-        ],
-      );
-
   Widget _verificationView() => Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -338,7 +321,7 @@ class _GoogleMarkPainter extends CustomPainter {
     final radius = size.width * .36;
     final rect = Rect.fromCircle(center: center, radius: radius);
     const stroke = 3.7;
-    final segments = <(Color, double, double)>[
+    const segments = <(Color, double, double)>[
       (Color(0xff4285F4), -0.20, 1.45),
       (Color(0xff34A853), 1.25, 1.00),
       (Color(0xffFBBC05), 2.25, 0.82),

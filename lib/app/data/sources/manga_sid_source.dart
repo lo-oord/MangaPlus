@@ -418,10 +418,14 @@ class MangaSidSource extends ContentSource {
     if (uri.scheme.isNotEmpty &&
         uri.scheme != 'http' &&
         uri.scheme != 'https' &&
-        uri.scheme != 'mangasid') return null;
+        uri.scheme != 'mangasid') {
+      return null;
+    }
     if (uri.hasAuthority &&
         uri.host != 'mangasid.com' &&
-        !uri.host.endsWith('.mangasid.com')) return null;
+        !uri.host.endsWith('.mangasid.com')) {
+      return null;
+    }
     final segments = uri.pathSegments.where((segment) => segment.isNotEmpty).toList();
     if (segments.length < 3 || segments[0] != 'reader') return null;
     final number = _numberText(segments.last);

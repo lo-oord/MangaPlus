@@ -1,4 +1,3 @@
-import 'package:get/get.dart';
 import 'package:mangaplus/app/data/models/chapter.dart';
 import 'package:mangaplus/app/data/models/comic.dart';
 import 'package:mangaplus/app/data/models/comic_detail.dart';

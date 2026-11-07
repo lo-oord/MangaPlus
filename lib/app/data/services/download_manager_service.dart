@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -13,7 +12,6 @@ import 'package:mangaplus/app/data/models/downloaded_chapter.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
 import 'package:mangaplus/app/data/services/notification_presentation.dart';
 import 'package:mangaplus/app/data/sources/team_x_source.dart';
-import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:path_provider/path_provider.dart';
 
 class DownloadManagerService extends GetxService {
@@ -220,8 +218,11 @@ class DownloadManagerService extends GetxService {
     if (task == null) return;
     for (final chapter in task.chapters) {
       task = _task(original.id);
-      if (task == null || task.status == DownloadTaskStatus.paused ||
-          task.status == DownloadTaskStatus.cancelled) return;
+      if (task == null ||
+          task.status == DownloadTaskStatus.paused ||
+          task.status == DownloadTaskStatus.cancelled) {
+        return;
+      }
       final id = chapter['id']!;
       if (task.completedChapterIds.contains(id)) continue;
       await _replace(task.copyWith(currentChapterId: id));
@@ -235,8 +236,10 @@ class DownloadManagerService extends GetxService {
         task = _task(original.id);
         if (task == null) return;
         if (task.status == DownloadTaskStatus.paused ||
-            task.status == DownloadTaskStatus.cancelled) return;
-        final completed = [...task.completedChapterIds, id].toSet().toList();
+            task.status == DownloadTaskStatus.cancelled) {
+          return;
+        }
+        final completed = <String>{...task.completedChapterIds, id}.toList();
         final failed = [...task.failedChapterIds]..remove(id);
         await _replace(task.copyWith(
           completedChapterIds: completed,
@@ -268,11 +271,16 @@ class DownloadManagerService extends GetxService {
 
   Future<void> _downloadNovelChapter(DownloadTask task, String chapterId, String chapterTitle) async {
     final current = _task(task.id);
-    if (current?.status == DownloadTaskStatus.paused || current?.status == DownloadTaskStatus.cancelled) return;
+    if (current?.status == DownloadTaskStatus.paused ||
+        current?.status == DownloadTaskStatus.cancelled) {
+      return;
+    }
     final data = await _comicService.fetchNovelChapter(chapterId);
     final afterFetch = _task(task.id);
     if (afterFetch?.status == DownloadTaskStatus.paused ||
-        afterFetch?.status == DownloadTaskStatus.cancelled) return;
+        afterFetch?.status == DownloadTaskStatus.cancelled) {
+      return;
+    }
     final content = data.chapter.content.trim();
     if (content.isEmpty) throw StateError('لا يوجد محتوى نصي للفصل');
     chapterProgress[chapterId] = 1.0;
@@ -314,7 +322,9 @@ class DownloadManagerService extends GetxService {
         if (index >= data.chapter.images.length) return;
         final current = _task(task.id);
         if (current?.status == DownloadTaskStatus.paused ||
-            current?.status == DownloadTaskStatus.cancelled) return;
+            current?.status == DownloadTaskStatus.cancelled) {
+          return;
+        }
         final imageUri = Uri.parse(data.chapter.images[index]);
         final isMangaDar = imageUri.host == 'storage.mangadar.com' ||
             imageUri.host.endsWith('.storage.mangadar.com') ||
@@ -374,7 +384,9 @@ class DownloadManagerService extends GetxService {
       final current = _task(task.id);
       if (completedPages != data.chapter.images.length ||
           current?.status == DownloadTaskStatus.paused ||
-          current?.status == DownloadTaskStatus.cancelled) return;
+          current?.status == DownloadTaskStatus.cancelled) {
+        return;
+      }
       if (await finalDir.exists()) await finalDir.delete(recursive: true);
       await temp.rename(finalDir.path);
       final finalPaths = paths
@@ -415,7 +427,7 @@ class DownloadManagerService extends GetxService {
       }
       await Future<void>.delayed(const Duration(milliseconds: 500));
     }
-    throw HttpException('تعذر تحميل صورة الفصل بعد إعادة المحاولة.');
+    throw const HttpException('تعذر تحميل صورة الفصل بعد إعادة المحاولة.');
   }
   Future<void> _saveDownloadedChapter(
     DownloadTask task,

@@ -14,7 +14,7 @@ class AzoraSource extends ContentSource {
   @override
   List<String> get hosts => const ['azorafly.com', 'azorafly.net', 'azoraworlds.net'];
   @override
-  bool handles(String url) => url.startsWith('azora://');
+  bool handles(String url) => url.startsWith('azora://') || super.handles(url);
 
   @override
   Future<List<Map<String, dynamic>>> search(String query) async {

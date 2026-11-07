@@ -286,7 +286,7 @@ class MknovSource extends ContentSource {
   Uri? _protectedFontUrl(Document document) {
     final styles = document
         .querySelectorAll('style')
-        .map((style) => '${style.text}')
+        .map((style) => style.text)
         .join('\n');
     final match = RegExp(
       r'''src\s*:\s*url\(\s*["']?([^"')\s]+\.woff2[^"')\s]*)["']?\s*\)''',

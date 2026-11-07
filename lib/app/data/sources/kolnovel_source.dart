@@ -237,7 +237,9 @@ class KolNovelSource extends ContentSource {
         if (id.isEmpty || href.isEmpty || classes.contains('--start')) continue;
         final parentClass = link.parent?.attributes['class'] ?? '';
         if (!parentClass.contains('kol-series-chapter') &&
-            !parentClass.contains('chapter-shortcuts')) continue;
+            !parentClass.contains('chapter-shortcuts')) {
+          continue;
+        }
         if (!seen.add(id)) continue;
         final text = mangaHtmlText(link);
         final number = mangaChapterNumber(text) ?? mangaChapterNumber(id) ?? 0;
@@ -277,7 +279,6 @@ class KolNovelSource extends ContentSource {
           break;
         }
         final document = loaded;
-        if (document == null) break;
         final nextPage = document
             .querySelectorAll('a[data-kol-volume-more-older][href]')
             .map((link) => Uri.tryParse(link.attributes['href'] ?? '')

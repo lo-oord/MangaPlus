@@ -23,7 +23,9 @@ class AccountGateService {
     }
     if (activeUser != null &&
         !activeUser.isAnonymous &&
-        activeUser.emailVerified) return true;
+        activeUser.emailVerified) {
+      return true;
+    }
 
     if (activeUser != null &&
         !activeUser.isAnonymous &&

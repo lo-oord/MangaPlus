@@ -10,7 +10,6 @@ import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/custom_card_normal.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
 class HomeView extends GetView<HomeController> {
@@ -514,7 +513,7 @@ class HomeView extends GetView<HomeController> {
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 textAlign: TextAlign.start,
-                                style: TextStyle(
+                                style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 25,
                                   height: 1.18,
@@ -603,33 +602,11 @@ class HomeView extends GetView<HomeController> {
           children: [
             Icon(icon, size: dot ? 8 : 14, color: accent),
             const SizedBox(width: 5),
-            Text(text, style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+            Text(text, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
           ],
         ),
       );
 
-  Widget _buildHeroImageSkeleton() {
-    return Shimmer.fromColors(
-      direction: ShimmerDirection.ltr,
-      baseColor: AppColors.searchBar,
-      highlightColor: AppColors.searchBar,
-      child: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            height: 390,
-            color: AppColors.searchBar,
-          ),
-          const SizedBox(height: 25),
-          Container(
-            height: 6,
-            width: 100,
-            color: AppColors.searchBar,
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class KomikCardsSection extends GetView<HomeController> {
@@ -745,208 +722,6 @@ class KomikCardsSection extends GetView<HomeController> {
           width: constraints.maxWidth,
         ),
       ),
-    );
-  }
-
-  Widget _buildLoadingSkeleton() {
-    return Shimmer.fromColors(
-      baseColor: AppColors.searchBar,
-      highlightColor: AppColors.searchBar,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // History section skeleton
-              Container(
-                height: 140,
-                margin: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Popular section skeleton
-              Container(
-                height: 20,
-                width: 150,
-                color: AppColors.textPrimary,
-                margin: const EdgeInsets.only(bottom: 8),
-              ),
-              const SizedBox(height: 8),
-
-              SizedBox(
-                height: 184,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: 5,
-                  itemBuilder: (context, index) {
-                    return Container(
-                      width: 120,
-                      margin: const EdgeInsets.only(right: 10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            height: 150,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(8),
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Container(
-                            height: 12,
-                            width: 100,
-                            color: AppColors.textPrimary,
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            height: 10,
-                            width: 60,
-                            color: AppColors.textPrimary,
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Genre chips skeleton
-              Container(
-                height: 20,
-                width: 150,
-                color: AppColors.textPrimary,
-                margin: const EdgeInsets.only(bottom: 8),
-              ),
-              const SizedBox(height: 8),
-
-              Container(
-                height: 36,
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: 6,
-                  itemBuilder: (context, index) {
-                    return Container(
-                      width: 80,
-                      height: 36,
-                      margin: const EdgeInsets.only(right: 8),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        color: AppColors.textPrimary,
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Latest section skeleton
-              Container(
-                height: 20,
-                width: 150,
-                color: AppColors.textPrimary,
-                margin: const EdgeInsets.only(bottom: 8),
-              ),
-              const SizedBox(height: 8),
-
-              GridView.builder(
-                padding: EdgeInsets.zero,
-                physics: const NeverScrollableScrollPhysics(),
-                shrinkWrap: true,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  childAspectRatio: 0.75,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                  mainAxisExtent: 200,
-                ),
-                itemCount: 12,
-                itemBuilder: (context, index) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        height: 144,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        height: 12,
-                        color: AppColors.textPrimary,
-                      ),
-                      const SizedBox(height: 4),
-                      Container(
-                        height: 10,
-                        width: 60,
-                        color: AppColors.textPrimary,
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTerbaruGrid(BuildContext context) {
-    final terbaruComics = controller.comicData.value.comicsList;
-    return Column(
-      children: [
-        GridView.builder(
-          padding: EdgeInsets.zero,
-          physics: const NeverScrollableScrollPhysics(),
-          shrinkWrap: true,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            childAspectRatio: 0.75,
-            crossAxisSpacing: 8,
-            mainAxisExtent: 240,
-          ),
-          itemCount: terbaruComics.length,
-          itemBuilder: (context, index) {
-            final comic = terbaruComics[index];
-            return GestureDetector(
-              onTap: () {
-                Get.toNamed(Routes.COMIC_DETAIL, arguments: comic.comicId);
-              },
-              child: CustomCardNormal(
-                comicId: comic.comicId,
-                title: comic.title,
-                chapter: comic.chapter,
-                imageUrl: comic.image,
-                type: comic.type,
-                releaseDate: comic.latestChapterDate,
-                rating: comic.rating,
-                status: comic.status ?? '',
-              ),
-            );
-          },
-        ),
-        if (controller.isLoadingMore.value)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 20),
-            child: SizedBox(
-              width: 42,
-              height: 42,
-              child: const MangaPlusLoader(size: 42),
-            ),
-          ),
-      ],
     );
   }
 

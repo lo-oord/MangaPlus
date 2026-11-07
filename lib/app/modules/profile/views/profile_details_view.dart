@@ -59,7 +59,7 @@ class ProfileDetailsView extends GetView<ProfileController> {
                     ),
                   ]),
                 ] else ...[
-                  _identityCard(account!),
+                  _identityCard(account),
                   const SizedBox(height: 20),
                   _section('نبذة'.tr, [
                     ListTile(

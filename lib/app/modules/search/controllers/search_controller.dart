@@ -21,11 +21,6 @@ class SearchController extends GetxController {
   Timer? _debounce;
   int _requestId = 0;
 
-  @override
-  void onInit() {
-    super.onInit();
-  }
-
   Future<void> loadSuggestions() async {
     if (isLoadingSuggestions.value || suggestions.isNotEmpty) return;
     isLoadingSuggestions.value = true;

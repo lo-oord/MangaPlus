@@ -10,7 +10,8 @@ import 'source_values.dart';
 
 /// Read-only adapter for the Arabic Onma / Manga Online source.
 class MangaOnlineSource extends ContentSource {
-  static const String _site = 'https://onma.top';
+  // The catalogue moved off onma.top; old links stay valid through [hosts].
+  static const String _site = 'https://manonga.online';
   static final http.Client _client = http.Client();
 
   @override
@@ -78,7 +79,9 @@ class MangaOnlineSource extends ContentSource {
       if (title.isEmpty || slug.isEmpty || !seen.add(slug)) continue;
       final image = mangaImageUrl(card.querySelector('.right-image img, img'), _site);
       final entry = _seriesItem(title, slug, image);
-      final latestChapter = card.querySelector('.chapter-title a, .latest-chapter a, .chapter a');
+      final latestChapter = card.querySelector(
+        '.manga-chapter a, .events-subtitle a, .chapter-title a, .latest-chapter a, .chapter a',
+      );
       final chapterLabel = mangaHtmlText(latestChapter);
       final chapterNumber = mangaChapterNumber(chapterLabel) ??
           mangaChapterNumber(latestChapter?.attributes['href'] ?? '');
@@ -188,7 +191,9 @@ class MangaOnlineSource extends ContentSource {
       if (anchor == null) continue;
       final chapterUrl = mangaAbsoluteUrl(_site, anchor.attributes['href']);
       final uri = Uri.tryParse(chapterUrl);
-      if (uri == null || uri.host != 'onma.top' || uri.pathSegments.length < 3 ||
+      if (uri == null ||
+          !handles(chapterUrl) ||
+          uri.pathSegments.length < 3 ||
           uri.pathSegments[0] != 'manga' || uri.pathSegments[1] != seriesSlug ||
           !seen.add(uri.path)) {
         continue;

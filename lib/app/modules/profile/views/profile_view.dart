@@ -24,7 +24,6 @@ class ProfileView extends GetView<ProfileController> {
           elevation: 0,
         ),
         body: Obx(() {
-          final account = controller.accountProfile.value;
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
             children: [
@@ -308,105 +307,6 @@ class ProfileView extends GetView<ProfileController> {
     );
   }
 
-  Widget _accountInfoCard(UserProfile account) => _settingsCard([
-        _infoRow(Icons.wc_rounded, 'الجنس'.tr, _genderLabel(account.gender)),
-        Divider(height: 1, color: AppColors.divider),
-        _infoRow(
-          Icons.public_rounded,
-          'الدولة'.tr,
-          account.countryName.isEmpty ? 'غير محدد'.tr : account.countryName,
-        ),
-      ]);
-
-  Widget _securityCard(UserProfile account) {
-    final canChangePassword = controller.canChangePassword;
-    return _settingsCard([
-      if (account.email.isNotEmpty) ...[
-        ListTile(
-          leading: Icon(Icons.mail_outline_rounded, color: AppColors.icon),
-          title: Text(
-            'البريد الإلكتروني'.tr,
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-          ),
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  account.email,
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  account.emailVerified
-                      ? 'البريد موثق'.tr
-                      : 'البريد غير موثق'.tr,
-                  style: TextStyle(
-                    color: account.emailVerified
-                        ? AppColors.success
-                        : AppColors.warning,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          trailing: Icon(
-            account.emailVerified
-                ? Icons.verified_rounded
-                : Icons.error_outline_rounded,
-            color: account.emailVerified ? AppColors.success : AppColors.warning,
-            size: 20,
-          ),
-        ),
-        if (canChangePassword) Divider(height: 1, color: AppColors.divider),
-      ],
-      if (canChangePassword) ...[
-        ListTile(
-          leading: Icon(Icons.key_rounded, color: AppColors.icon),
-          title: Text(
-            'تغيير كلمة المرور'.tr,
-            style: TextStyle(color: AppColors.textPrimary),
-          ),
-          subtitle: Text(
-            'تأكيد كلمة المرور الحالية مطلوب'.tr,
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-          ),
-          trailing: Icon(Icons.chevron_right_rounded, color: AppColors.icon),
-          onTap: controller.savingAccount.value ? null : _changePassword,
-        ),
-        Divider(height: 1, color: AppColors.divider),
-      ],
-      SwitchListTile.adaptive(
-        value: account.syncFavorites,
-        onChanged: controller.savingAccount.value
-            ? null
-            : controller.setFavoritesSync,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-        secondary: Icon(Icons.sync_rounded, color: AppColors.icon),
-        title: Text(
-          'مزامنة المفضلة'.tr,
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        subtitle: Text(
-          account.syncFavorites
-              ? 'يتم حفظ المفضلة وسجل القراءة سحابيًا'.tr
-              : 'المفضلة محفوظة على هذا الجهاز فقط'.tr,
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-        ),
-        activeColor: AppColors.primary,
-      ),
-    ]);
-  }
-
   Widget _languageSetting() => PopupMenuButton<String>(
         tooltip: 'اللغة'.tr,
         onSelected: controller.changeLanguage,
@@ -433,25 +333,6 @@ class ProfileView extends GetView<ProfileController> {
         ),
       );
 
-  Widget _bioCard(UserProfile account) => _settingsCard([
-    ListTile(
-      leading: Icon(Icons.notes_rounded, color: AppColors.icon),
-      title: Text('نبذة'.tr, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
-      subtitle: Padding(padding: const EdgeInsets.only(top: 5), child: Text(
-        account.bio.trim().isEmpty ? 'أضف نبذة قصيرة عن نفسك'.tr : account.bio,
-        maxLines: 5, overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: account.bio.trim().isEmpty ? AppColors.textSecondary : AppColors.textPrimary, height: 1.4),
-      )),
-      trailing: IconButton(tooltip: 'تعديل النبذة'.tr, onPressed: controller.savingAccount.value ? null : () => _editBio(account.bio),
-        icon: Icon(Icons.edit_outlined, color: AppColors.icon)),
-      onTap: controller.savingAccount.value ? null : () => _editBio(account.bio),
-    ),
-  ]);
-
-  Widget _infoRow(IconData icon, String title, String value, {Widget? trailing}) => ListTile(
-    leading: Icon(icon, color: AppColors.icon), title: Text(title, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-    subtitle: Text(value, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)), trailing: trailing);
-
   ImageProvider? _avatarProvider(UserProfile account) {
     if (account.photoData.isNotEmpty) {
       try {
@@ -461,23 +342,6 @@ class ProfileView extends GetView<ProfileController> {
       }
     }
     return account.photoUrl.isEmpty ? null : CachedNetworkImageProvider(account.photoUrl);
-  }
-
-  Future<void> _changePassword() async {
-    final oldPassword = TextEditingController(); final newPassword = TextEditingController(); final formKey = GlobalKey<FormState>();
-    final result = await Get.dialog<bool>(AlertDialog(backgroundColor: AppColors.card,
-      title: Text('تغيير كلمة المرور'.tr, style: TextStyle(color: AppColors.textPrimary)),
-      content: Form(key: formKey, child: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextFormField(controller: oldPassword, obscureText: true, decoration: InputDecoration(labelText: 'كلمة المرور الحالية'.tr),
-          validator: (v) => (v?.isEmpty ?? true) ? 'هذا الحقل مطلوب'.tr : null),
-        const SizedBox(height: 12), TextFormField(controller: newPassword, obscureText: true, decoration: InputDecoration(labelText: 'كلمة المرور الجديدة'.tr),
-          validator: (v) => (v == null || v.length < 6) ? 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'.tr : null),
-      ])), actions: [
-        TextButton(onPressed: () => Get.back(result: false), child: Text('إلغاء'.tr)),
-        FilledButton(onPressed: () { if (formKey.currentState!.validate()) Get.back(result: true); }, child: Text('حفظ'.tr)),
-      ]));
-    if (result == true) await controller.changePassword(oldPassword.text, newPassword.text);
-    oldPassword.dispose(); newPassword.dispose();
   }
 
   Future<void> _editDisplayName(String current) async {
@@ -495,26 +359,6 @@ class ProfileView extends GetView<ProfileController> {
     if (result == true) await controller.updateDisplayName(name.text);
     name.dispose();
   }
-
-  Future<void> _editBio(String current) async {
-    final bio = TextEditingController(text: current);
-    final result = await Get.dialog<bool>(AlertDialog(backgroundColor: AppColors.card,
-      title: Text('تعديل النبذة'.tr),
-      content: TextField(controller: bio, minLines: 3, maxLines: 5, maxLength: 300, autofocus: true,
-        decoration: InputDecoration(labelText: 'نبذة'.tr, hintText: 'اكتب نبذة قصيرة عن نفسك'.tr)),
-      actions: [
-        TextButton(onPressed: () => Get.back(result: false), child: Text('إلغاء'.tr)),
-        FilledButton(onPressed: () => Get.back(result: true), child: Text('حفظ'.tr)),
-      ]));
-    if (result == true) await controller.updateBio(bio.text);
-    bio.dispose();
-  }
-
-  void _confirmSignOut() => Get.dialog(AlertDialog(backgroundColor: AppColors.card,
-    title: Text('تسجيل الخروج'.tr), content: Text('هل تريد تسجيل الخروج من هذا الحساب؟'.tr), actions: [
-      TextButton(onPressed: Get.back, child: Text('إلغاء'.tr)),
-      FilledButton(onPressed: () async { Get.back(); await controller.signOut(); }, child: Text('تسجيل الخروج'.tr)),
-    ]));
 
   void _showAboutDialog() => Get.dialog(AlertDialog(backgroundColor: AppColors.card,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
@@ -544,7 +388,6 @@ class ProfileView extends GetView<ProfileController> {
         style: const TextStyle(color: Color(0xffD4A72C), fontSize: 10, height: 1.1, fontWeight: FontWeight.w700))),
     ]),
   );
-  String _genderLabel(String gender) => gender == 'female' ? 'أنثى'.tr : gender == 'male' ? 'ذكر'.tr : 'غير محدد'.tr;
   Widget _sectionTitle(String title) => Padding(padding: const EdgeInsetsDirectional.only(start: 4), child: Text(title, style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w700)));
   BoxDecoration _boxDecoration() => BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.divider));
   Widget _settingsCard(List<Widget> children) => Container(decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.divider.withValues(alpha: .72))), child: Column(mainAxisSize: MainAxisSize.min, children: children));
