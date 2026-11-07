@@ -16,6 +16,9 @@ import 'kolnovel_source.dart';
 import 'procomic_source.dart';
 import 'hijala_source.dart';
 import 'seanovel_source.dart';
+import 'despair_source.dart';
+import 'hizomanga_source.dart';
+import 'mangatik_source.dart';
 import 'search_relevance.dart';
 import 'source_base.dart';
 
@@ -40,6 +43,10 @@ class MangaSourceRegistry {
   static final ProComicSource proComic = ProComicSource();
   static final HijalaSource hijala = HijalaSource();
   static final SeanovelSource seaNovel = SeanovelSource();
+  static final DespairMangaSource despairManga = DespairMangaSource();
+  static final DespairNovelsSource despairNovels = DespairNovelsSource();
+  static final HizoMangaSource hizoManga = HizoMangaSource();
+  static final MangaTikSource mangaTik = MangaTikSource();
 
   static List<ContentSource> get mangaSources => searchableSources
       .where((source) => source.kind == 'manga')
@@ -73,6 +80,10 @@ class MangaSourceRegistry {
         proComic,
         hijala,
         seaNovel,
+        despairManga,
+        despairNovels,
+        hizoManga,
+        mangaTik,
       ];
 
   static ContentSource? forUrl(String url) {

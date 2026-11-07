@@ -366,11 +366,26 @@ class ComicService {
         type: source.kind,
       );
     }
-    final results = await Future.wait([
-      _teamX.latest(page: page).catchError((_) => <Map<String, dynamic>>[]),
-      _azora.latest(page: page).catchError((_) => <Map<String, dynamic>>[]),
-    ]);
-    final items = [...results[0], ...results[1]];
+    final results = await Future.wait(
+      MangaSourceRegistry.searchableSources.map((source) async {
+        try {
+          final rawItems = await source
+              .latest(page: page)
+              .timeout(const Duration(seconds: 25));
+          return rawItems
+              .map((item) => {
+                    ...item,
+                    'source_id': item['source_id'] ?? source.id,
+                    'source': item['source'] ?? source.name,
+                  })
+              .toList(growable: false);
+        } catch (_) {
+          // One unavailable provider must not prevent the combined feed.
+          return <Map<String, dynamic>>[];
+        }
+      }),
+    );
+    final items = results.expand((result) => result).toList(growable: false);
     final indexed = items.asMap().entries.toList();
     indexed.sort((leftEntry, rightEntry) {
       final left = DateTime.tryParse('${leftEntry.value['latest_chapter_date'] ?? ''}'.trim());
