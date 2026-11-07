@@ -131,6 +131,7 @@ void main() {
 
     expect(requestedPaths, [
       '/api/public/content/686',
+      '/api/public/manhua/686/chapters',
       '/ar/series/manhua/686/global-class-advancement',
     ]);
     expect(details['chapters'], hasLength(1));
