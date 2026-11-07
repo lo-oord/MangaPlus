@@ -392,12 +392,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
   }
 
   Map<String, String> _imageHeaders(String url) {
-    final isKawaii = Uri.tryParse(url)?.host.toLowerCase() == 'manga-cdn.kawaii-anime.com';
-    return {
-      'Referer': isKawaii ? 'https://kawaiimanga.org/' : 'https://olympustaff.com/',
-      'User-Agent':
-          'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
-    };
+    return MangaCoverCacheManager.requestHeadersForWorkUrl(url);
   }
 
   Widget _buildBody(BuildContext context, ComicDetail comic) {

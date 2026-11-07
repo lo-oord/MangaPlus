@@ -15,8 +15,16 @@ class MangaCoverCacheManager {
           'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
     };
     if (uri != null && uri.host.isNotEmpty) {
-      final scheme = uri.scheme == 'http' ? 'http' : 'https';
-      headers['Referer'] = '$scheme://${uri.host}/';
+      final host = uri.host.toLowerCase();
+      headers['Referer'] = host == 'manga-cdn.kawaii-anime.com'
+          ? 'https://kawaiimanga.org/'
+          : host == 'procomic.pro' || host.endsWith('.procomic.pro')
+              ? 'https://procomic.pro/'
+              : host == 'mangadar.com' || host.endsWith('.storage.mangadar.com')
+                  ? 'https://mangadar.com/'
+                  : host == 'hijala.com' || host.endsWith('.hijala.com')
+                      ? 'https://hijala.com/'
+                      : '${uri.scheme == 'http' ? 'http' : 'https'}://${uri.host}/';
     }
     return headers;
   }

@@ -7,6 +7,7 @@ import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/models/comic.dart';
 import 'package:mangaplus/app/modules/home/controllers/home_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
+import 'package:mangaplus/app/data/sources/source_brand.dart';
 import 'package:mangaplus/app/widgets/custom_card_normal.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
@@ -38,9 +39,9 @@ class HomeView extends GetView<HomeController> {
                 child: Tooltip(
                   message: 'اختيار مصدر المحتوى'.tr,
                   child: Material(
-                    color: AppColors.primary,
-                    elevation: 7,
-                    shadowColor: AppColors.primary.withValues(alpha: 0.35),
+                    color: AppColors.primary.withValues(alpha: 0.82),
+                    elevation: 2,
+                    shadowColor: AppColors.primary.withValues(alpha: 0.16),
                     borderRadius: BorderRadius.circular(22),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(22),
@@ -53,8 +54,15 @@ class HomeView extends GetView<HomeController> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.travel_explore_rounded,
-                                color: Colors.white, size: 18),
+                            SourceBrandIcon(
+                              source: controller.selectedSourceId.value == 'all'
+                                  ? ''
+                                  : controller.selectedSourceName,
+                              workUrl: '',
+                              size: 20,
+                              color: Colors.white,
+                              fallback: Icons.auto_awesome_mosaic_rounded,
+                            ),
                             const SizedBox(width: 7),
                             ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 120),
@@ -225,10 +233,15 @@ class HomeView extends GetView<HomeController> {
                                         : AppColors.searchBar,
                                     borderRadius: BorderRadius.circular(14),
                                   ),
-                                  child: Icon(
-                                    isAll ? Icons.auto_awesome_mosaic_rounded : Icons.menu_book_rounded,
+                                  alignment: Alignment.center,
+                                  child: SourceBrandIcon(
+                                    source: isAll ? '' : name,
+                                    workUrl: '',
+                                    size: 27,
                                     color: selected ? AppColors.primary : AppColors.icon,
-                                    size: 21,
+                                    fallback: isAll
+                                        ? Icons.auto_awesome_mosaic_rounded
+                                        : Icons.language_rounded,
                                   ),
                                 ),
                                 const SizedBox(width: 12),

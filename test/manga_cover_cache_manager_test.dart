@@ -26,4 +26,11 @@ void main() {
     expect(headers['Referer'], 'https://manga.example/');
     expect(headers['Referer'], isNot('https://olympustaff.com/'));
   });
+
+  test('uses SeaNovel as the referrer for SeaNovel covers', () {
+    final headers = MangaCoverCacheManager.requestHeadersForWorkUrl(
+      'https://seanovel.org/api/novel/example/cover?type=webp&v=1',
+    );
+    expect(headers['Referer'], 'https://seanovel.org/');
+  });
 }

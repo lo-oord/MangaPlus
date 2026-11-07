@@ -122,46 +122,80 @@ class SourceBrandMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = source.trim().isEmpty ? 'غير معروف' : source.trim();
-    return FutureBuilder<Uri?>(
-      future: SourceBrand.iconFor(source, workUrl),
-      builder: (context, snapshot) {
-        final iconUri = snapshot.data;
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (iconUri != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(3),
-                child: Image.network(
-                  iconUri.toString(),
-                  width: iconSize,
-                  height: iconSize,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => Icon(
-                    Icons.language_rounded,
-                    size: iconSize,
-                    color: nameColor,
-                  ),
-                ),
-              )
-            else
-              Icon(Icons.language_rounded, size: iconSize, color: nameColor),
-            const SizedBox(width: 4),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: nameColor,
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.w700,
-                ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SourceBrandIcon(
+          source: source,
+          workUrl: workUrl,
+          size: iconSize,
+          color: nameColor,
+        ),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: nameColor,
+              fontSize: fontSize,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Renders the source website icon in a fixed box so varying favicon ratios
+/// cannot shift or resize source controls.
+class SourceBrandIcon extends StatelessWidget {
+  const SourceBrandIcon({
+    super.key,
+    required this.source,
+    required this.workUrl,
+    this.size = 28,
+    this.color,
+    this.fallback = Icons.language_rounded,
+  });
+
+  final String source;
+  final String workUrl;
+  final double size;
+  final Color? color;
+  final IconData fallback;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: FutureBuilder<Uri?>(
+        future: SourceBrand.iconFor(source, workUrl),
+        builder: (context, snapshot) {
+          final iconUri = snapshot.data;
+          if (iconUri == null) {
+            return Icon(fallback, size: size * 0.78, color: color);
+          }
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(size * 0.2),
+            child: Image.network(
+              iconUri.toString(),
+              width: size,
+              height: size,
+              fit: BoxFit.contain,
+              headers: const {'User-Agent': 'Mozilla/5.0 MangaPlus'},
+              errorBuilder: (_, __, ___) => Icon(
+                fallback,
+                size: size * 0.78,
+                color: color,
               ),
             ),
-          ],
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }
