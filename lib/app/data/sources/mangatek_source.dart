@@ -11,7 +11,9 @@ import 'source_values.dart';
 /// Adapter for the Arabic MangaTek extension (Keiyoushi).
 class MangaTekSource extends ContentSource {
   static const _site = 'https://mangatek.com';
-  static final http.Client _client = http.Client();
+  MangaTekSource({http.Client? client}) : _client = client ?? http.Client();
+
+  final http.Client _client;
 
   @override
   String get id => 'mangatek';
@@ -172,10 +174,23 @@ class MangaTekSource extends ContentSource {
     final document = await _document(readerUrl);
     // The working MangaPeak parser reads the rendered reader images directly.
     // MangaTek does not consistently expose an Astro imageUrls payload.
+    final seen = <String>{};
     final pages = document
-        .querySelectorAll('div.manga-page img[src], div.manga-page img[data-src]')
+        .querySelectorAll([
+          'div.manga-page img[src]',
+          'div.manga-page img[data-src]',
+          'div.manga-page img[srcset]',
+          'div.manga-page img[data-srcset]',
+          'div.manga-page source[srcset]',
+          '.reader-content img[src]',
+          '.reader-content img[data-src]',
+          '.reader-content img[srcset]',
+          '.reader-content source[srcset]',
+          '[data-page] img[src]',
+          '[data-page] img[data-src]',
+        ].join(', '))
         .map((image) => mangaImageUrl(image, _site))
-        .where((image) => image.isNotEmpty)
+        .where((image) => image.isNotEmpty && seen.add(image))
         .toList(growable: false);
     if (pages.isEmpty) throw Exception('MangaTek: لم توجد صفحات لهذا الفصل.');
     return {

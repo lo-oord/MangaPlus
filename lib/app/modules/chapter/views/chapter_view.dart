@@ -1949,16 +1949,22 @@ class _ChapterViewState extends State<ChapterView> {
     final host = uri?.host.toLowerCase() ?? '';
     final isProComic = host == 'procomic.pro' || host.endsWith('.procomic.pro');
     final isHijala = host == 'hijala.com' || host.endsWith('.hijala.com');
+    final isMangaSid = host == 'api.mangasid.com' || host.endsWith('.mangasidcdn.com');
+    final isMangaTek = host == 'api.mangatek.com' || host.endsWith('.mangatek.com');
     return {
       'Referer': isProComic
           ? 'https://procomic.pro/'
           : isHijala
               ? 'https://hijala.com/'
-              : isMangaDar
-                  ? 'https://mangadar.com/'
-                  : uri == null || uri.host.isEmpty
-                      ? 'https://olympustaff.com/'
-                      : '${uri.scheme}://${uri.host}/',
+              : isMangaSid
+                  ? 'https://mangasid.com/'
+                  : isMangaTek
+                      ? 'https://mangatek.com/'
+                      : isMangaDar
+                          ? 'https://mangadar.com/'
+                          : uri == null || uri.host.isEmpty
+                              ? 'https://olympustaff.com/'
+                              : '${uri.scheme}://${uri.host}/',
       'User-Agent':
           'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
     };

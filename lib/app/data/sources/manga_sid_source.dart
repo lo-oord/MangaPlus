@@ -129,9 +129,14 @@ class MangaSidSource extends ContentSource {
     final selectors = [
       '.manga-page img[src]',
       '.manga-page img[data-src]',
+      '.manga-page img[srcset]',
+      '.manga-page source[srcset]',
       'img.block.relative.z-20.w-full.h-auto',
+      'img[data-srcset]',
       '.reader-content img[src]',
       '.reader-content img[data-src]',
+      '.reader-content img[srcset]',
+      '.reader-content source[srcset]',
     ].join(', ');
     final seen = <String>{};
     final pages = document.querySelectorAll(selectors).map((image) {
@@ -456,8 +461,14 @@ class MangaSidSource extends ContentSource {
       'data-cfsrc',
       'data-original',
       'src',
+      'data-srcset',
+      'data-lazy-srcset',
+      'srcset',
     ]) {
-      final value = image.attributes[key]?.trim() ?? '';
+      final raw = image.attributes[key]?.trim() ?? '';
+      final value = key.endsWith('srcset')
+          ? raw.split(',').first.trim().split(RegExp(r'\s+')).first
+          : raw;
       if (value.isNotEmpty && !value.startsWith('data:')) return value;
     }
     final srcset = image.attributes['srcset'] ?? '';

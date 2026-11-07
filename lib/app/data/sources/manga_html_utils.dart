@@ -63,9 +63,16 @@ String mangaImageUrl(Element? element, String baseUrl) {
     'data-cfsrc',
     'data-original',
     'data-background-image',
+    'data-srcset',
+    'data-lazy-srcset',
+    'srcset',
     'src',
   ]) {
-    final candidate = mangaAbsoluteUrl(baseUrl, element.attributes[attribute]);
+    final raw = element.attributes[attribute] ?? '';
+    final value = attribute.endsWith('srcset')
+        ? raw.split(',').first.trim().split(RegExp(r'\s+')).first
+        : raw;
+    final candidate = mangaAbsoluteUrl(baseUrl, value);
     if (candidate.isNotEmpty) return candidate;
   }
   return '';
