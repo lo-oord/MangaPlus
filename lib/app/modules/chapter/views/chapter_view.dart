@@ -8,6 +8,7 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/utils/reader_load_issue.dart';
 import 'package:mangaplus/app/data/models/chapter.dart';
 import 'package:mangaplus/app/data/sources/hijala_image_provider.dart';
+import 'package:mangaplus/app/data/sources/mangatek_overlay.dart';
 import 'package:mangaplus/app/modules/chapter/controllers/chapter_controller.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
@@ -1724,7 +1725,9 @@ class _ChapterViewState extends State<ChapterView> {
             );
       return ColoredBox(
         color: Colors.black,
-        child: SizedBox.expand(child: image),
+        child: SizedBox.expand(
+          child: MangaTekOverlay(imageUrl: imageUrl, child: image),
+        ),
       );
     });
   }
@@ -1750,7 +1753,7 @@ class _ChapterViewState extends State<ChapterView> {
               : (MediaQuery.sizeOf(context).width *
                       MediaQuery.devicePixelRatioOf(context))
                   .round();
-          return isLocalPage
+          final pageImage = isLocalPage
               ? Image.file(
                   File(imageUrl),
                   width: double.infinity,
@@ -1856,6 +1859,7 @@ class _ChapterViewState extends State<ChapterView> {
                   );
                 },
               );
+          return MangaTekOverlay(imageUrl: imageUrl, child: pageImage);
         },
       ),
     );

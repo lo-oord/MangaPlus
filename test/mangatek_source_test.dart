@@ -25,6 +25,22 @@ void main() {
       'https://api.mangatek.com/chapters/450/932/03.webp',
     ]);
   });
+
+  test('reader prefers the complete Astro imageUrls payload', () async {
+    final source = MangaTekSource(
+      client: MockClient((request) async => http.Response(_astroReaderPage, 200)),
+    );
+
+    final chapter = await source.chapterImages(
+      'mangatek://chapter?slug=magic-emperor&number=933',
+    );
+
+    expect(chapter?['pages'], [
+      'https://api.mangatek.com/chapters/450/933/01.webp',
+      'https://api.mangatek.com/chapters/450/933/02.webp',
+      'https://api.mangatek.com/chapters/450/933/03.webp',
+    ]);
+  });
 }
 
 const _readerPage = '''
@@ -41,5 +57,11 @@ const _readerPage = '''
       <img src="https://api.mangatek.com/chapters/450/932/03.webp">
     </picture>
   </div>
+</body></html>
+''';
+
+const _astroReaderPage = '''
+<html><body>
+  <astro-island props='{"imageUrls":["https://api.mangatek.com/chapters/450/933/01.webp","https://api.mangatek.com/chapters/450/933/02.webp","https://api.mangatek.com/chapters/450/933/03.webp"]}'></astro-island>
 </body></html>
 ''';

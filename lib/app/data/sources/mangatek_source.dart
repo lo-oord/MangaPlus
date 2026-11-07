@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
+import 'package:cryptography/cryptography.dart';
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:http/http.dart' as http;
@@ -172,6 +174,36 @@ class MangaTekSource extends ContentSource {
     if (parts == null) return null;
     final readerUrl = '$_site/reader/${Uri.encodeComponent(parts.$1)}/${Uri.encodeComponent(parts.$2)}';
     final document = await _document(readerUrl);
+    final props = _astroValue(document, 'imageUrls');
+    if (props is Map) {
+      final propsMap = Map<String, dynamic>.from(props);
+      final embedded = _readerImages(propsMap['imageUrls']);
+      final images = embedded.any((image) => image['pending'] == true)
+          ? await _fetchReaderImages(document, propsMap, parts)
+          : embedded;
+      final pages = images
+          .where((image) => image['isTrap'] != true)
+          .map((image) => '${image['url'] ?? ''}')
+          .where((image) => image.isNotEmpty)
+          .toList(growable: false);
+      if (pages.isNotEmpty) {
+        final overlays = await _overlayPages(propsMap);
+        final pagesWithOverlays = pages.asMap().entries.map((entry) {
+          final bubbleList = overlays[entry.key];
+          if (bubbleList == null || bubbleList.isEmpty) return entry.value;
+          return Uri.parse(entry.value).replace(
+            fragment: jsonEncode(bubbleList),
+          ).toString();
+        }).toList(growable: false);
+        return {
+          'title': 'الفصل ${parts.$2}',
+          'chapter_number': parts.$2,
+          'pages': pagesWithOverlays,
+          'images': pagesWithOverlays.map((page) => {'url': page}).toList(),
+          'url': url,
+        };
+      }
+    }
     // The working MangaPeak parser reads the rendered reader images directly.
     // MangaTek does not consistently expose an Astro imageUrls payload.
     final seen = <String>{};
@@ -200,6 +232,114 @@ class MangaTekSource extends ContentSource {
       'images': pages.map((page) => {'url': page}).toList(),
       'url': url,
     };
+  }
+
+  List<Map<String, dynamic>> _readerImages(dynamic value) {
+    if (value is! List) return const [];
+    return value.map((entry) {
+      if (entry is String) return {'url': entry, 'pending': false, 'isTrap': false};
+      if (entry is Map) {
+        final raw = Map<String, dynamic>.from(entry);
+        return {
+          'url': '${raw['url'] ?? ''}',
+          'pending': raw['pending'] == true,
+          'isTrap': raw['isTrap'] == true,
+        };
+      }
+      return <String, dynamic>{};
+    }).where((entry) => '${entry['url'] ?? ''}'.isNotEmpty || entry['pending'] == true).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchReaderImages(
+    Document document,
+    Map<String, dynamic> props,
+    (String, String) parts,
+  ) async {
+    final chapterId = props['chapterId'];
+    final token = '${props['unlockToken'] ?? ''}';
+    final mangaSlug = '${props['mangaSlug'] ?? parts.$1}';
+    final chapterRef = '${props['chapterRef'] ?? parts.$2}';
+    final salt = await _readerProofSalt(document);
+    if (chapterId == null || token.isEmpty || salt.isEmpty) return const [];
+    final proof = sha256.convert(utf8.encode('$salt|$token|$chapterId')).toString();
+    final response = await _client.post(
+      Uri.parse('https://api.mangatek.com/api/reader/pages'),
+      headers: const {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'MangaPlus/1.1',
+      },
+      body: jsonEncode({
+        'chapterId': chapterId,
+        'mangaSlug': mangaSlug,
+        'chapterNumber': chapterRef,
+        'token': token,
+        'proof': proof,
+      }),
+    ).timeout(const Duration(seconds: 25));
+    if (response.statusCode < 200 || response.statusCode >= 300) return const [];
+    final decoded = jsonDecode(utf8.decode(response.bodyBytes, allowMalformed: true));
+    final data = decoded is Map ? decoded['data'] : null;
+    return _readerImages(data);
+  }
+
+  Future<Map<int, List<Map<String, dynamic>>>> _overlayPages(
+    Map<String, dynamic> props,
+  ) async {
+    final blob = '${props['overlayBlob'] ?? ''}';
+    if (blob.isEmpty || !blob.contains(':')) return const {};
+    try {
+      final parts = blob.split(':').map(_hexBytes).toList();
+      if (parts.length != 3) return const {};
+      final clear = await AesGcm.with256bits().decrypt(
+        SecretBox(parts[1], nonce: parts[0], mac: Mac(parts[2])),
+        secretKey: SecretKey(_hexBytes(
+          'ff453871399fe268588a0936b45376022d85ed0fd1292001d5102f6a30291dc1',
+        )),
+      );
+      final decoded = jsonDecode(utf8.decode(clear));
+      final pages = decoded is Map ? decoded['pages'] : null;
+      if (pages is! List) return const {};
+      final offset = int.tryParse('${props['overlayPageOffset'] ?? 0}') ?? 0;
+      return {
+        for (final page in pages.whereType<Map>())
+          offset + (int.tryParse('${page['page_number'] ?? 0}') ?? 0) - 1:
+              (page['overlays'] is List
+                  ? page['overlays']
+                      .whereType<Map>()
+                      .map((item) => Map<String, dynamic>.from(item))
+                      .toList()
+                  : const <Map<String, dynamic>>[]),
+      };
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  List<int> _hexBytes(String value) {
+    final clean = value.trim();
+    final bytes = <int>[];
+    for (var i = 0; i + 1 < clean.length; i += 2) {
+      bytes.add(int.parse(clean.substring(i, i + 2), radix: 16));
+    }
+    return bytes;
+  }
+
+  Future<String> _readerProofSalt(Document document) async {
+    final component = document.querySelector('astro-island[component-url*="ChapterImageViewer"]')
+        ?.attributes['component-url'];
+    if (component == null || component.isEmpty) return '';
+    final bundleUrl = mangaAbsoluteUrl(_site, component);
+    if (bundleUrl.isEmpty) return '';
+    final response = await _client.get(Uri.parse(bundleUrl), headers: const {
+      'Accept': 'application/javascript',
+      'User-Agent': 'MangaPlus/1.1',
+    }).timeout(const Duration(seconds: 25));
+    if (response.statusCode < 200 || response.statusCode >= 300) return '';
+    // Keep this tolerant because Astro changes bundle formatting between releases.
+    final match = RegExp(r'''proofSalt["']?\s*[:=]\s*["']([^"']+)["']''')
+        .firstMatch(utf8.decode(response.bodyBytes, allowMalformed: true));
+    return match?.group(1) ?? '';
   }
 
   Map<String, dynamic> _item(
@@ -358,15 +498,19 @@ class MangaTekSource extends ContentSource {
   }
 
   Map<String, dynamic> _astro(Document document, String key) {
+    final value = _astroValue(document, key);
+    return _asMap(value);
+  }
+
+  dynamic _astroValue(Document document, String key) {
     final element = document.querySelector('[props*=$key]');
     final raw = element?.attributes['props'];
-    if (raw == null || raw.trim().isEmpty) return {};
+    if (raw == null || raw.trim().isEmpty) return null;
     try {
       final decoded = jsonDecode(raw);
-      final unwrapped = _unwrap(decoded);
-      return _asMap(unwrapped);
+      return _unwrap(decoded);
     } catch (_) {
-      return {};
+      return null;
     }
   }
 
