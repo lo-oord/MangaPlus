@@ -51,8 +51,11 @@ class HizoMangaSource extends ContentSource {
     final safePage = page < 1 ? 1 : page;
     // The site's current catalogue is /series/; keep the standard Madara
     // query parameters so existing/redirected WordPress installations work.
+    final searching = query.trim().isNotEmpty;
     final uri = Uri.parse(_site).replace(
-      path: safePage == 1 ? '/series/' : '/series/page/$safePage/',
+      path: searching
+          ? (safePage == 1 ? '/' : '/page/$safePage/')
+          : (safePage == 1 ? '/series/' : '/series/page/$safePage/'),
       queryParameters: query.trim().isEmpty
           ? null
           : {'s': query.trim(), 'post_type': 'wp-manga'},
@@ -86,7 +89,7 @@ class HizoMangaSource extends ContentSource {
       '.manga-status span:last-child, .summary-content, .summary-heading',
     ));
     final genres = document
-        .querySelectorAll('.genres-content a, .manga-genres a, .genres a, .mgen a')
+        .querySelectorAll('.genres-content a, .manga-genres a, .genres a, .mgen a, .tags-content a')
         .map(mangaHtmlText)
         .where((value) => value.isNotEmpty)
         .toSet()
@@ -94,7 +97,11 @@ class HizoMangaSource extends ContentSource {
     final chapters = _chapters(document, seriesUrl);
     final number = chapters.isEmpty ? '' : chapters.first['number'];
     final type = _info(document, const ['النوع', 'Type']);
+    final typeEvidence = '$type ${genres.join(' ')} $title';
+    final isNovel = RegExp(r'رواية|روايات|\bnovel\b|light novel', caseSensitive: false)
+        .hasMatch(typeEvidence);
     final author = _info(document, const ['المؤلف', 'الكاتب', 'Author']);
+    final publisher = _info(document, const ['الناشر', 'Publisher']);
     final rating = SourceValues.rating(mangaHtmlText(document.querySelector(
       '[itemprop="ratingValue"], .rating .num, .post-total-rating .score',
     )));
@@ -103,7 +110,7 @@ class HizoMangaSource extends ContentSource {
       title: title,
       url: seriesUrl,
       image: cover,
-      type: SourceValues.type(type, fallback: kind),
+      type: isNovel ? 'novel' : SourceValues.type(type, fallback: kind),
       genres: genres,
       description: synopsis,
       rating: rating,
@@ -112,6 +119,7 @@ class HizoMangaSource extends ContentSource {
       'synopsis': synopsis,
       'status': status,
       'author': author,
+      if (publisher.isNotEmpty) 'publisher': publisher,
       'chapters': chapters,
       'total_chapters': chapters.length,
       'latest_chapter_number': number,
@@ -131,7 +139,7 @@ class HizoMangaSource extends ContentSource {
     final pages = <String>[];
     final selectors = const [
       '#readerarea img', '.reading-content img', '.wp-manga-chapter-img img',
-      '.chapter-content img', '.entry-content img', '.reader-area img',
+      '.chapter-content img', '.reader-area img',
     ];
     for (final selector in selectors) {
       for (final image in document.querySelectorAll(selector)) {
@@ -154,6 +162,37 @@ class HizoMangaSource extends ContentSource {
       if (context?['previous_chapter'] case final String previous when previous.isNotEmpty) 'previous_chapter': previous,
       if (context?['next_chapter'] case final String next when next.isNotEmpty) 'next_chapter': next,
       if (context?['chapters'] case final List<Map<String, dynamic>> chapters) 'chapters': chapters,
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>?> chapterContent(String url) async {
+    final chapterUrl = _canonical(url);
+    if (chapterUrl.isEmpty) return null;
+    final document = await _document(chapterUrl);
+    final container = document.querySelector('.reading-content, .chapter-content, #readerarea');
+    if (container == null) return null;
+    final paragraphs = container
+        .querySelectorAll('p')
+        .map(mangaHtmlText)
+        .where((paragraph) => paragraph.isNotEmpty)
+        .toList(growable: false);
+    final content = paragraphs.isEmpty ? mangaHtmlText(container) : paragraphs.join('\n\n');
+    if (content.isEmpty) return null;
+    final context = _chapterContexts[chapterUrl];
+    final heading = mangaHtmlText(document.querySelector('h1, .chapter-title'));
+    final number = '${context?['number'] ?? _chapterNumber(chapterUrl)}';
+    return {
+      'title': heading.isEmpty ? 'الفصل $number' : heading,
+      'chapter_number': number,
+      'url': chapterUrl,
+      'content': content,
+      if (context?['chapters'] case final List<Map<String, dynamic>> chapters)
+        'chapters': chapters,
+      if (context?['previous_chapter'] case final String previous when previous.isNotEmpty)
+        'previous_chapter': previous,
+      if (context?['next_chapter'] case final String next when next.isNotEmpty)
+        'next_chapter': next,
     };
   }
 
@@ -187,7 +226,12 @@ class HizoMangaSource extends ContentSource {
       final cover = _secure(mangaImageUrl(card.querySelector('img'), _site));
       final chapterText = mangaHtmlText(card.querySelector('.list-chapter a, .latest-chapter, .chapter'));
       final number = _number(chapterText);
-      output.add(item(title: title, url: url, image: cover)
+      final typeEvidence = '$title ${mangaHtmlText(card.querySelector('.mg_genres, .genres-content, .manga-type'))}';
+      final contentType = RegExp(r'رواية|روايات|\bnovel\b|light novel', caseSensitive: false)
+              .hasMatch(typeEvidence)
+          ? 'novel'
+          : kind;
+      output.add(item(title: title, url: url, image: cover, type: contentType)
         ..addAll({if (number != null) 'latest_chapter_number': number}));
     }
     return output;

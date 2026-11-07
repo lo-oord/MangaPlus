@@ -25,9 +25,13 @@ abstract class DespairSource extends ContentSource {
   bool handles(String url) {
     final uri = Uri.tryParse(url);
     if (uri == null || uri.host.toLowerCase().replaceFirst('www.', '') != 'despair-world.com') return false;
-    final segments = uri.pathSegments.where((segment) => segment.isNotEmpty);
-    final expectedPath = kind == 'novel' ? 'novels' : 'series';
-    return segments.isNotEmpty && segments.first == expectedPath;
+    final segments = uri.pathSegments.where((segment) => segment.isNotEmpty).toList();
+    final firstPath = segments.isEmpty ? '' : segments.first;
+    final isNovelUrl = uri.queryParameters['mangaplus_source'] == 'despair_novels' ||
+        firstPath == 'novels';
+    return kind == 'novel'
+        ? isNovelUrl && (firstPath == 'series' || firstPath == 'novels')
+        : firstPath == 'series' && !isNovelUrl;
   }
 
   @override
@@ -152,14 +156,20 @@ abstract class DespairSource extends ContentSource {
       'order': 'chapter_number.desc,id.desc',
     });
     final rows = await _getList(uri);
-    return rows.map((row) {
+    final readableRows = kind == 'novel'
+        ? rows.where((row) => '${row['content'] ?? ''}'.trim().isNotEmpty)
+        : rows;
+    return readableRows.map((row) {
       final number = row['chapter_number'] ?? '';
       final numberText = number is num && number == number.roundToDouble()
           ? number.toInt().toString()
           : '$number';
       final title = '${row['title'] ?? ''}'.trim();
-      final chapterPath = kind == 'novel' ? 'novels' : 'series';
-      final chapterUrl = '$_site/$chapterPath/${Uri.encodeComponent(slug)}/main/ch/${Uri.encodeComponent(numberText)}';
+      final chapterUrl = Uri.parse(
+        '$_site/series/${Uri.encodeComponent(slug)}/main/ch/${Uri.encodeComponent(numberText)}',
+      ).replace(
+        queryParameters: kind == 'novel' ? {'mangaplus_source': 'despair_novels'} : null,
+      ).toString();
       return <String, dynamic>{
         'id': '${row['id'] ?? ''}',
         'number': number,
@@ -204,8 +214,13 @@ abstract class DespairSource extends ContentSource {
     final titleAr = '${raw['title_ar'] ?? ''}'.trim();
     final titleEn = '${raw['title_en'] ?? ''}'.trim();
     final title = titleAr.isNotEmpty ? titleAr : titleEn;
-    final workPath = kind == 'novel' ? 'novels' : 'series';
-    final url = '$_site/$workPath/${Uri.encodeComponent(slug)}';
+    final url = Uri.parse('$_site/series/${Uri.encodeComponent(slug)}').replace(
+      queryParameters: kind == 'novel' ? {'mangaplus_source': 'despair_novels'} : null,
+    ).toString();
+    final rawChapterCount = raw['chapters_count'];
+    final chapterCount = rawChapterCount is num && rawChapterCount > 0
+        ? rawChapterCount
+        : null;
     final genres = raw['genres'] is List ? (raw['genres'] as List).map((value) => '$value').where((value) => value.trim().isNotEmpty).toList() : <String>[];
     final synopsis = '${raw['synopsis'] ?? ''}'.trim();
     final item = this.item(
@@ -224,7 +239,7 @@ abstract class DespairSource extends ContentSource {
       'status': '${raw['status'] ?? ''}',
       'release_year': '${raw['release_year'] ?? ''}',
       'updated_on': '${raw['updated_at'] ?? ''}',
-      'total_chapters': raw['chapters_count'] ?? 0,
+      'total_chapters': chapterCount,
       'latest_chapter_number': '',
       'synopsis': synopsis,
     });
@@ -236,20 +251,24 @@ abstract class DespairSource extends ContentSource {
     if (uri == null || !handles(url)) return '';
     final segments = uri.pathSegments.where((segment) => segment.isNotEmpty).toList();
     if (segments.isEmpty) return '';
-    final seriesIndex = segments.indexOf(kind == 'novel' ? 'novels' : 'series');
-    if (seriesIndex < 0 || seriesIndex + 1 >= segments.length) return '';
-    return Uri.decodeComponent(segments[seriesIndex + 1]);
+    final seriesIndex = segments.indexOf('series');
+    final legacyNovelsIndex = segments.indexOf('novels');
+    final workIndex = seriesIndex >= 0 ? seriesIndex : legacyNovelsIndex;
+    if (workIndex < 0 || workIndex + 1 >= segments.length) return '';
+    return Uri.decodeComponent(segments[workIndex + 1]);
   }
 
   (String, String)? _chapterParts(String url) {
     final uri = Uri.tryParse(url);
     if (uri == null || !handles(url)) return null;
     final segments = uri.pathSegments.where((segment) => segment.isNotEmpty).toList();
-    final seriesIndex = segments.indexOf(kind == 'novel' ? 'novels' : 'series');
-    if (seriesIndex < 0 || seriesIndex + 1 >= segments.length) return null;
-    final marker = segments.indexOf('ch', seriesIndex + 2);
+    final seriesIndex = segments.indexOf('series');
+    final legacyNovelsIndex = segments.indexOf('novels');
+    final workIndex = seriesIndex >= 0 ? seriesIndex : legacyNovelsIndex;
+    if (workIndex < 0 || workIndex + 1 >= segments.length) return null;
+    final marker = segments.indexOf('ch', workIndex + 2);
     if (marker < 0 || marker + 1 >= segments.length) return null;
-    return (Uri.decodeComponent(segments[seriesIndex + 1]), Uri.decodeComponent(segments[marker + 1]));
+    return (Uri.decodeComponent(segments[workIndex + 1]), Uri.decodeComponent(segments[marker + 1]));
   }
 }
 

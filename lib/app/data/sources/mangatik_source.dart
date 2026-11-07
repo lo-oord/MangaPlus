@@ -90,7 +90,8 @@ class MangaTikSource extends ContentSource {
     final ratingData = jsonLd['aggregateRating'];
     final rating = SourceValues.rating(ratingData is Map ? ratingData['ratingValue'] : ratingData);
     final authorData = jsonLd['author'];
-    final author = authorData is Map ? '${authorData['name'] ?? ''}' : '$authorData';
+    final rawAuthor = authorData is Map ? '${authorData['name'] ?? ''}' : '$authorData';
+    final author = rawAuthor.trim().toLowerCase() == 'updating' ? '' : rawAuthor;
     final status = mangaHtmlText(document.querySelector('.badge-status, .manga-status, [data-status]'));
     _rememberChapters(chapters);
     final result = item(
