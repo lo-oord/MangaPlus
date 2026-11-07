@@ -822,10 +822,26 @@ class _ChapterListState extends State<_ChapterList> {
               padding: EdgeInsets.fromLTRB(16, 0, 16, widget.controller.isSelectionMode.value ? 110 : 28),
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate(
-                  (context, index) => Padding(
-                    padding: EdgeInsets.only(bottom: index == sorted.length - 1 ? 0 : 7),
-                    child: _buildChapterTile(context, sorted[index]),
-                  ),
+                  (context, index) {
+                    final chapter = sorted[index];
+                    // Every row owns its Obx: a selection change repaints just
+                    // that row, and the row keeps a stable key so reordering or
+                    // scrolling never swaps selection state between chapters.
+                    return Obx(() {
+                      widget.controller.selectionRevision.value;
+                      return Padding(
+                        padding: EdgeInsets.only(
+                          bottom: index == sorted.length - 1 ? 0 : 7,
+                        ),
+                        child: KeyedSubtree(
+                          key: ValueKey(
+                            '${widget.comic.comicId}|${chapter.chapterId}',
+                          ),
+                          child: _buildChapterTile(context, chapter),
+                        ),
+                      );
+                    });
+                  },
                   childCount: sorted.length,
                 ),
               ),
@@ -891,7 +907,7 @@ class _ChapterListState extends State<_ChapterList> {
 
   Widget _buildChapterTile(BuildContext context, Chapter chapter) {
     final selecting = widget.controller.isSelectionMode.value;
-    final selected = widget.controller.selectedChapterIds.contains(chapter.chapterId);
+    final selected = widget.controller.isChapterSelected(chapter.chapterId);
     final downloaded = widget.controller.isChapterDownloaded(chapter.chapterId);
     final read = widget.controller.isChapterRead(chapter.chapterId);
     final isNew = _chapterUpdateService.isNewChapter(
@@ -1113,15 +1129,17 @@ class _SelectionBottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Obx(() {
-        if (!controller.isSelectionMode.value && controller.selectedChapterIds.isEmpty) {
+        controller.selectionRevision.value;
+        controller.downloadRevision.value;
+        if (!controller.isSelectionMode.value && controller.selectionIsEmpty) {
           return const SizedBox.shrink();
         }
-        final selected = controller.selectedChapterIds.length;
-        final allSelectable = comic.chapters.where(
-          (chapter) => !controller.isChapterDownloaded(chapter.chapterId),
-        ).toList(growable: false);
-        final allSelected = allSelectable.isNotEmpty &&
-            allSelectable.every((chapter) => controller.selectedChapterIds.contains(chapter.chapterId));
+        final selected = controller.selectedCount;
+        final allSelectable = comic.chapters
+            .where((chapter) => !controller.isChapterDownloaded(chapter.chapterId))
+            .map((chapter) => chapter.chapterId)
+            .toList(growable: false);
+        final allSelected = controller.selectionCoversAll(allSelectable);
         return SafeArea(
           top: false,
           child: Container(

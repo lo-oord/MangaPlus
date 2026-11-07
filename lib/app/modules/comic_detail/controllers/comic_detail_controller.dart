@@ -11,6 +11,7 @@ import 'package:mangaplus/app/data/services/app_data_service.dart';
 import 'package:mangaplus/app/data/services/account_gate_service.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
 import 'package:mangaplus/app/data/services/download_manager_service.dart';
+import 'package:mangaplus/app/core/utils/chapter_selection.dart';
 import 'package:mangaplus/app/core/utils/reader_load_issue.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 
@@ -44,8 +45,20 @@ class ComicDetailController extends GetxController {
   final loadIssue = Rxn<ReaderLoadIssue>();
   final downloadingChapters = <String, double>{}.obs;
   final filteredChapters = <Chapter>[].obs;
-  final selectedChapterIds = <String>[].obs;
+  final ChapterSelection _chapterSelection = ChapterSelection();
+
+  /// Bumped on every selection change so individual list rows can rebuild
+  /// without rebuilding the whole page.
+  final selectionRevision = 0.obs;
   final isSelectionMode = false.obs;
+
+  List<String> get selectedChapterIds => _chapterSelection.ids;
+  int get selectedCount => _chapterSelection.count;
+  bool get selectionIsEmpty => _chapterSelection.isEmpty;
+  bool isChapterSelected(String chapterId) =>
+      _chapterSelection.contains(chapterId);
+  bool selectionCoversAll(Iterable<String> chapterIds) =>
+      _chapterSelection.coversAll(chapterIds);
   final isBulkDownloading = false.obs;
   final sortAscending = false.obs;
   final chapterFilter = 'all'.obs;
@@ -175,6 +188,11 @@ class ComicDetailController extends GetxController {
       isLoading(true);
       loadIssue.value = null;
       comicDetailData.value = await _comicService.fetchComicDetail(comicId);
+      _chapterSelection.retainOnly(
+        comicDetailData.value.comicDetail.chapters.map((c) => c.chapterId),
+      );
+      if (_chapterSelection.isEmpty) isSelectionMode.value = false;
+      selectionRevision.value++;
     } catch (error) {
       loadIssue.value = ReaderLoadIssue.from(
         error,
@@ -385,14 +403,9 @@ class ComicDetailController extends GetxController {
   }
 
   void toggleChapterSelection(Chapter chapter) {
-    if (isChapterDownloaded(chapter.chapterId)) return;
-    isSelectionMode.value = true;
-    if (selectedChapterIds.contains(chapter.chapterId)) {
-      selectedChapterIds.remove(chapter.chapterId);
-    } else {
-      selectedChapterIds.add(chapter.chapterId);
-    }
-    if (selectedChapterIds.isEmpty) isSelectionMode.value = false;
+    _chapterSelection.toggle(chapter.chapterId);
+    isSelectionMode.value = _chapterSelection.isNotEmpty;
+    selectionRevision.value++;
   }
 
   void toggleSelectionMode() {
@@ -407,28 +420,25 @@ class ComicDetailController extends GetxController {
     final allIds = chapters
         .where((chapter) => !isChapterDownloaded(chapter.chapterId))
         .map((chapter) => chapter.chapterId)
-        .toSet();
-    final alreadySelected = allIds.isNotEmpty && allIds.every(selectedChapterIds.contains);
-    if (alreadySelected) {
-      for (final id in allIds) {
-        selectedChapterIds.remove(id);
-      }
-      if (selectedChapterIds.isEmpty) isSelectionMode.value = false;
+        .where((id) => id.trim().isNotEmpty)
+        .toList(growable: false);
+    if (_chapterSelection.coversAll(allIds)) {
+      _chapterSelection.deselectAll(allIds);
     } else {
-      for (final id in allIds) {
-        if (!selectedChapterIds.contains(id)) selectedChapterIds.add(id);
-      }
-      isSelectionMode.value = allIds.isNotEmpty;
+      _chapterSelection.selectAll(allIds);
     }
+    isSelectionMode.value = _chapterSelection.isNotEmpty;
+    selectionRevision.value++;
   }
 
   void clearChapterSelection() {
-    selectedChapterIds.clear();
+    _chapterSelection.clear();
     isSelectionMode.value = false;
+    selectionRevision.value++;
   }
 
   Future<void> markSelectedChaptersRead() async {
-    final ids = selectedChapterIds.toSet();
+    final ids = _chapterSelection.ids.toSet();
     if (ids.isEmpty) return;
     final readChapters = Map<String, dynamic>.from(
       _storage.read('readChapters') ?? <String, dynamic>{},
@@ -444,7 +454,7 @@ class ComicDetailController extends GetxController {
   }
 
   Future<void> markSelectedChaptersUnread() async {
-    final ids = selectedChapterIds.toSet();
+    final ids = _chapterSelection.ids.toSet();
     if (ids.isEmpty) return;
     final readChapters = Map<String, dynamic>.from(
       _storage.read('readChapters') ?? <String, dynamic>{},
@@ -465,11 +475,14 @@ class ComicDetailController extends GetxController {
   }
 
   Future<void> downloadSelectedChapters(ComicDetail comic) async {
-    final selection = selectedChapterIds.toSet();
+    // The queue reads the same selection the UI shows, so the number of queued
+    // chapters is always the selected count of unique chapter ids.
+    final selection = _chapterSelection.ids.toSet();
     if (selection.isEmpty || isBulkDownloading.value) return;
     final chapters = comic.chapters
         .where((chapter) => selection.contains(chapter.chapterId))
         .toList(growable: false);
+    if (chapters.isEmpty) return;
     isBulkDownloading.value = true;
     try {
       final taskId = await Get.find<DownloadManagerService>().enqueue(
