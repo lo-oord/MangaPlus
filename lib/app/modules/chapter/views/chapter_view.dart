@@ -166,6 +166,7 @@ class _ChapterViewState extends State<ChapterView> {
                     : null,
                 userInitiated: notification is ScrollUpdateNotification &&
                     notification.dragDetails != null,
+                settled: notification is ScrollEndNotification,
               );
               if (notification.metrics.extentAfter <=
                       notification.metrics.viewportDimension * 2 &&
@@ -331,6 +332,7 @@ class _ChapterViewState extends State<ChapterView> {
                       userInitiated:
                           notification is ScrollUpdateNotification &&
                               notification.dragDetails != null,
+                      settled: notification is ScrollEndNotification,
                     );
                   }
                   if (notification is OverscrollNotification) {

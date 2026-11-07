@@ -88,7 +88,13 @@ class ChapterSequence {
     }
 
     if (index >= 0) {
-      return _neighbour(index, forward);
+      return _neighbour(
+        index,
+        forward,
+        declaredNextChapter: declaredNextChapter,
+        declaredPreviousChapter: declaredPreviousChapter,
+        currentId: currentId,
+      );
     }
 
     // The current chapter is not part of the list (for example a chapter opened
@@ -111,13 +117,57 @@ class ChapterSequence {
     );
   }
 
-  ChapterElement? _neighbour(int index, bool forward) {
-    final step = order == ChapterOrder.ascending
+  ChapterElement? _neighbour(
+    int index,
+    bool forward, {
+    required String currentId,
+    String? declaredNextChapter,
+    String? declaredPreviousChapter,
+  }) {
+    // A list without usable numbers (special chapters, titled chapters, Arabic
+    // names) has no direction of its own. The source-declared neighbours are
+    // the only real evidence in that case; guessing "newest first" turned
+    // "next" into "one row up", which opens an older chapter on lists that are
+    // actually oldest-first.
+    final direction = order == ChapterOrder.unknown
+        ? _declaredDirection(
+              index,
+              currentId: currentId,
+              declaredNextChapter: declaredNextChapter,
+              declaredPreviousChapter: declaredPreviousChapter,
+            ) ??
+            ChapterOrder.descending
+        : order;
+    final step = direction == ChapterOrder.ascending
         ? (forward ? 1 : -1)
         : (forward ? -1 : 1);
     final target = index + step;
     if (target < 0 || target >= chapters.length) return null;
     return chapters[target];
+  }
+
+  /// Reads the list direction from the source's own next/previous links.
+  ///
+  /// When the declared next chapter sits below the current one, the list runs
+  /// oldest-first; when it sits above, the list runs newest-first. Returns null
+  /// when the links are missing or do not resolve inside the list.
+  ChapterOrder? _declaredDirection(
+    int index, {
+    required String currentId,
+    String? declaredNextChapter,
+    String? declaredPreviousChapter,
+  }) {
+    ChapterOrder? fromLink(String? reference, {required bool forward}) {
+      if (reference == null || reference.trim().isEmpty) return null;
+      final target = indexOf(reference, baseReference: currentId);
+      if (target < 0 || target == index) return null;
+      final movesDown = target > index;
+      final ascending = forward ? movesDown : !movesDown;
+      return ascending ? ChapterOrder.ascending : ChapterOrder.descending;
+    }
+
+    return fromLink(declaredNextChapter, forward: true) ??
+        fromLink(declaredPreviousChapter, forward: false);
   }
 
   ChapterElement? _nearestNumbered({
@@ -168,21 +218,30 @@ class ChapterSequence {
     return false;
   }
 
+  /// Learns the list direction from the numbered chapters only.
+  ///
+  /// Requiring every row to be numbered made a single `Special`, `Extra` or
+  /// titled chapter erase the direction of a whole list, and one duplicated or
+  /// out-of-order number did the same. Comparable neighbours now vote, so the
+  /// majority decides and unnumbered rows are simply skipped.
   static ChapterOrder _detectOrder(List<ChapterElement> chapters) {
     if (chapters.length < 2) return ChapterOrder.unknown;
-    final numbers = chapters
-        .map((chapter) =>
-            chapterNumber(chapter.title) ?? chapterNumber(chapter.chapterId))
-        .toList(growable: false);
-    if (numbers.any((number) => number == null)) return ChapterOrder.unknown;
-    var ascending = true;
-    var descending = true;
-    for (var index = 1; index < numbers.length; index++) {
-      if (numbers[index]! <= numbers[index - 1]!) ascending = false;
-      if (numbers[index]! >= numbers[index - 1]!) descending = false;
+    var ascending = 0;
+    var descending = 0;
+    double? previous;
+    for (final chapter in chapters) {
+      final number =
+          chapterNumber(chapter.title) ?? chapterNumber(chapter.chapterId);
+      if (number == null) continue;
+      if (previous != null) {
+        if (number > previous) ascending++;
+        if (number < previous) descending++;
+      }
+      previous = number;
     }
-    if (ascending) return ChapterOrder.ascending;
-    if (descending) return ChapterOrder.descending;
+    if (ascending == 0 && descending == 0) return ChapterOrder.unknown;
+    if (ascending > descending) return ChapterOrder.ascending;
+    if (descending > ascending) return ChapterOrder.descending;
     return ChapterOrder.unknown;
   }
 

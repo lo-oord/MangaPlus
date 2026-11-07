@@ -10,6 +10,9 @@ import 'package:mangaplus/app/data/models/chapter.dart';
 import 'package:mangaplus/app/core/utils/chapter_reference_identity.dart';
 import 'package:mangaplus/app/core/utils/chapter_sequence.dart';
 import 'package:mangaplus/app/core/utils/page_load_tracker.dart';
+import 'package:mangaplus/app/core/utils/reader_boundary_guard.dart';
+import 'package:mangaplus/app/core/utils/reader_chapter_anchors.dart';
+import 'package:mangaplus/app/core/utils/reader_navigation_log.dart';
 import 'package:mangaplus/app/core/utils/reader_progress.dart';
 import 'package:mangaplus/app/core/utils/reader_chapter_navigator.dart';
 import 'package:mangaplus/app/core/utils/reader_stream_merge.dart';
@@ -189,6 +192,19 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   bool _novelStreamAppendOlder = false;
   int _chapterLoadGeneration = 0;
   bool _suppressEndBoundaryOnce = false;
+
+  /// Guards automatic end-of-content transitions: one per reader motion, never
+  /// for layout changes or for the frame a transition lands on.
+  final ReaderBoundaryGuard _boundaryGuard = ReaderBoundaryGuard();
+
+  /// Chapter boundaries inside a merged novel stream, so navigation follows
+  /// the chapter the reader is looking at instead of the last merged one.
+  ReaderChapterAnchors _novelAnchors = ReaderChapterAnchors.single('');
+  String? _pendingPrependChapterId;
+
+  /// Identifies the transition currently being applied. An older transition
+  /// must never write reader state after a newer one started.
+  int _transitionGeneration = 0;
   Offset? _readerPointerDownPosition;
   Duration? _readerPointerDownTime;
   bool _readerPointerMoved = false;
@@ -250,10 +266,29 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
 
   String get activeReaderChapterId {
     if (isNovel) {
+      final anchored = _novelAnchors.activeChapterId(_currentScrollOffset);
+      if (anchored != null && anchored.trim().isNotEmpty) return anchored;
       final id = chapterData.value.chapter.chapterId.trim();
       return id.isEmpty ? chapterId : id;
     }
     return activeReaderPageRange?.chapterId ?? chapterId;
+  }
+
+  double get _currentScrollOffset =>
+      _scrollController?.hasClients == true
+          ? _scrollController!.offset
+          : _restoredScrollOffset;
+
+  /// The chapter the reader is actually looking at.
+  ///
+  /// In continuous mode the merged stream keeps several chapters, and
+  /// `chapterId` points at the newest one that was merged in. Adjacency must be
+  /// resolved from this anchor: otherwise "next" starts from a chapter further
+  /// ahead and skips everything in between, while "previous" re-merges content
+  /// that is already on screen.
+  String get _navigationAnchorId {
+    final active = activeReaderChapterId.trim();
+    return active.isEmpty ? chapterId : active;
   }
 
   List<Map<String, dynamic>> get activeChapterBookmarks =>
@@ -330,14 +365,26 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
         baseReference: chapterId,
       );
 
-  bool _containsCurrentChapter(List<ChapterElement> chapters) => chapters.any(
-        (item) => _sameChapterReference(item.chapterId, chapterId) ||
-            _sameChapterReference(item.url, chapterId),
-      );
+  bool _containsCurrentChapter(List<ChapterElement> chapters) {
+    final anchor = _navigationAnchorId;
+    return chapters.any(
+      (item) =>
+          _sameChapterReference(item.chapterId, anchor) ||
+          _sameChapterReference(item.url, anchor),
+    );
+  }
 
-  bool isCurrentChapter(ChapterElement item) =>
-      _sameChapterReference(item.chapterId, chapterId) ||
-      _sameChapterReference(item.url, chapterId);
+  /// Whether [item] is the chapter the reader is looking at right now.
+  ///
+  /// In a merged stream `chapterId` is the newest chapter that was merged in,
+  /// which is not necessarily the one on screen; marking the wrong row as
+  /// current also made the visible chapter look tappable while a tap on it did
+  /// nothing.
+  bool isCurrentChapter(ChapterElement item) {
+    final anchor = _navigationAnchorId;
+    return _sameChapterReference(item.chapterId, anchor) ||
+        _sameChapterReference(item.url, anchor);
+  }
 
   // ---------------------------------------------------------------------
   // Real page load progress
@@ -421,13 +468,26 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     });
   }
 
-  Future<void> fetchChapter(
+  /// Loads [id] into the reader.
+  ///
+  /// Returns whether the data that is now in [chapterData] belongs to [id]. A
+  /// superseded load (the reader moved on, or a retry started a newer request)
+  /// returns false without touching the reader, so a caller can never merge a
+  /// chapter it did not get.
+  Future<bool> fetchChapter(
     String id, {
     bool keepCurrentContent = false,
     bool startAtEnd = false,
     bool restoreSavedPosition = true,
+    bool resetStreamAnchors = true,
   }) async {
     final generation = ++_chapterLoadGeneration;
+    ReaderNavigationLog.log('load', {
+      'chapter': id,
+      'request': generation,
+      'keepContent': keepCurrentContent,
+      'startAtEnd': startAtEnd,
+    });
     try {
       isLoading(true);
       hasError(false);
@@ -514,7 +574,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
         final loaded = isNovel
             ? await _comicService.fetchNovelChapter(id)
             : await _comicService.fetchChapter(id);
-        if (generation != _chapterLoadGeneration) return;
+        if (generation != _chapterLoadGeneration) return false;
         isOffline.value = false;
         final fallbackTitle = currentChapterTitle.trim();
         final title = loaded.chapter.title.trim().isEmpty ||
@@ -585,6 +645,18 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
         _pendingScrollRestore = startAtEnd ? double.maxFinite : _restoredScrollOffset;
         currentPage.value = 0;
       }
+      final loadedChapterId = chapterData.value.chapter.chapterId.isEmpty
+          ? id
+          : chapterData.value.chapter.chapterId;
+      if (!keepCurrentContent && resetStreamAnchors) {
+        _novelAnchors.reset(loadedChapterId);
+        _pendingPrependChapterId = null;
+      }
+      // The content that just arrived is a landing, not a reader motion: the
+      // page/scroll notifications it causes must not start another transition.
+      _boundaryGuard.onTransitionCompleted(
+        landingPage: isNovel ? null : currentPage.value,
+      );
       if (!hasError.value && hasReadableContent) {
         await _enqueueReadingStats(() async {
           final comicId = '${arguments['comicId'] ?? ''}'.trim();
@@ -597,12 +669,14 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
           }
         });
       }
+      return true;
     } catch (error) {
-      if (generation != _chapterLoadGeneration) return;
+      if (generation != _chapterLoadGeneration) return false;
       hasError(true);
       loadIssue.value = ReaderLoadIssue.from(error);
       _beginPageLoads(0);
       debugPrint('Chapter request failed: $error');
+      return false;
     } finally {
       if (generation == _chapterLoadGeneration) isLoading(false);
     }
@@ -613,35 +687,39 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     return match == null ? 0 : int.tryParse(match.group(1)!) ?? 0;
   }
 
-  String? get nextChapterId {
-    final adjacent = _adjacentChapter(forward: true)?.chapterId;
-    if (adjacent != null && !_sameChapterReference(adjacent, chapterId)) {
-      return adjacent;
-    }
-    final chapters = _navigationChapters;
-    if (chapters.length > 1 && _containsCurrentChapter(chapters)) return null;
-    final direct = _chapterReference(chapterData.value.chapter.nextChapter);
-    if (direct != null && !_sameChapterReference(direct, chapterId)) return direct;
-    return null;
-  }
+  String? get nextChapterId => _adjacentChapterId(forward: true);
 
-  String? get previousChapterId {
-    final adjacent = _adjacentChapter(forward: false)?.chapterId;
-    if (adjacent != null && !_sameChapterReference(adjacent, chapterId)) {
-      return adjacent;
+  String? get previousChapterId => _adjacentChapterId(forward: false);
+
+  String? _adjacentChapterId({required bool forward}) {
+    final anchor = _navigationAnchorId;
+    final target = _adjacentChapter(forward: forward)?.chapterId;
+    if (target != null && !_sameChapterReference(target, anchor)) {
+      return target;
     }
     final chapters = _navigationChapters;
-    if (chapters.length > 1 && _containsCurrentChapter(chapters)) return null;
-    final direct = _chapterReference(chapterData.value.chapter.previousChapter);
-    if (direct != null && !_sameChapterReference(direct, chapterId)) return direct;
+    // A source list that contains the current chapter is authoritative. Its
+    // end is the end of the work; falling back to the source's own links there
+    // used to send the reader to whatever chapter the source linked to (often
+    // the newest one) instead of stopping.
+    if (chapters.isNotEmpty && _containsCurrentChapter(chapters)) return null;
+    final direct = _chapterReference(
+      forward
+          ? chapterData.value.chapter.nextChapter
+          : chapterData.value.chapter.previousChapter,
+    );
+    if (direct != null && !_sameChapterReference(direct, anchor)) return direct;
     return null;
   }
 
   ChapterElement? _adjacentChapter({required bool forward}) {
+    final anchor = _navigationAnchorId;
+    final anchorTitle = _chapterTitleFor(anchor).trim();
     return ReaderChapterNavigator.adjacentChapter(
       chapters: _navigationChapters,
-      currentChapterId: chapterId,
-      currentChapterTitle: currentChapterTitle,
+      currentChapterId: anchor,
+      currentChapterTitle:
+          anchorTitle.isNotEmpty ? anchorTitle : currentChapterTitle,
       forward: forward,
       declaredNextChapter: _chapterReference(
         chapterData.value.chapter.nextChapter,
@@ -706,17 +784,51 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     return chapterDividerTitle(reference);
   }
 
+  /// Opens [id] as the next chapter the reader is on.
+  ///
+  /// The transition is atomic: the target is resolved once from the chapter the
+  /// reader is looking at, a second transition cannot start while one is
+  /// running, and a result that no longer belongs to the current transition is
+  /// discarded instead of being written into the reader.
   Future<void> navigateToChapter(
     String? id, {
     bool reverse = false,
     bool joinContinuousStream = false,
   }) async {
     final reference = _chapterReference(id);
-    if (reference == null ||
-        _sameChapterReference(reference, chapterId) ||
-        isNavigating.value) {
+    final anchorId = _navigationAnchorId;
+    if (reference == null || isNavigating.value) {
+      ReaderNavigationLog.log('transition-ignored', {
+        'target': id,
+        'reason': reference == null
+            ? 'invalid-reference'
+            : 'transition-in-flight',
+        'reader': isNovel ? 'novel' : 'manga',
+      });
       return;
     }
+    if (_sameChapterReference(reference, anchorId)) {
+      ReaderNavigationLog.log('transition-ignored', {
+        'target': reference,
+        'reason': 'already-on-chapter',
+      });
+      return;
+    }
+    // The target can already be part of the merged stream (continuous reading
+    // appended or prepended it). Moving there must not load or merge it again:
+    // re-merging duplicated pages and skipped the chapters in between.
+    final streamPosition = _streamPositionOf(reference);
+    if (streamPosition != null) {
+      ReaderNavigationLog.log('seek-within-stream', {
+        'reader': isNovel ? 'novel' : 'manga',
+        'target': reference,
+        'page': streamPosition.pageIndex,
+        'offset': streamPosition.offset,
+      });
+      await _seekWithinStream(streamPosition);
+      return;
+    }
+    final transition = ++_transitionGeneration;
     isNavigating.value = true;
     final previousId = chapterId;
     final previousTitle = currentChapterTitle;
@@ -743,7 +855,49 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     final previousScrollExtent = _scrollController?.hasClients == true
         ? _scrollController!.position.maxScrollExtent
         : 0.0;
+    final previousAnchors = _novelAnchors.copy();
+    final previousPendingPrepend = _pendingPrependChapterId;
+    final previousPrependPending = _continuousPrependPending;
+    final previousPrependBaseExtent = _continuousPrependBaseExtent;
+    final previousPrependOffset = _continuousPrependOffset;
+
+    // Every failure path (network, empty content, superseded load) must leave
+    // the reader exactly as it was, never with a chapter title that does not
+    // match the content below it.
+    void restorePreviousState() {
+      chapterId = previousId;
+      currentChapterTitle = previousTitle;
+      chapterData.value = previousData;
+      isOffline.value = previousOffline;
+      localImages.assignAll(previousImages);
+      _readerChapterPageRanges =
+          List<ReaderChapterPageRange>.of(previousPageRanges);
+      _novelAnchors = previousAnchors;
+      _pendingPrependChapterId = previousPendingPrepend;
+      _continuousPrependPending = previousPrependPending;
+      _continuousPrependBaseExtent = previousPrependBaseExtent;
+      _continuousPrependOffset = previousPrependOffset;
+      currentPage.value = previousPage;
+      _restoredScrollOffset = previousOffset;
+      _pendingScrollRestore =
+          readerMode.value == 'scroll' ? previousOffset : null;
+      hasError(false);
+      loadIssue.value = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_pageController?.hasClients == true) {
+          _pageController!.jumpToPage(previousPage);
+        }
+        if (_scrollController?.hasClients == true) {
+          _scrollController!.jumpTo(previousOffset);
+        }
+      });
+    }
+
+    // Merging a chapter that is already rendered would duplicate it, so a
+    // rendered target always opens as a standalone chapter in that case.
+    final targetAlreadyRendered = _chapterIsRendered(reference);
     final keepContinuousStream = joinContinuousStream &&
+        !targetAlreadyRendered &&
         (readerMode.value == 'scroll' || readerMode.value == 'paged') &&
         continuousNavigation.value &&
         (isNovel
@@ -777,13 +931,39 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
           source: '',
         );
       }
-      await fetchChapter(
+      final loaded = await fetchChapter(
         reference,
         keepCurrentContent: false,
         startAtEnd: reverse && !keepContinuousStream,
         restoreSavedPosition: !keepContinuousStream,
+        // A merged stream keeps the chapters already on screen, so their
+        // boundaries must survive while the new one is recorded below.
+        resetStreamAnchors: !keepContinuousStream,
       );
-      if (!hasError.value && hasReadableContent && keepContinuousStream) {
+      if (transition != _transitionGeneration) {
+        // A newer transition owns the reader now: this one must neither merge
+        // its stale data nor roll the newer state back.
+        ReaderNavigationLog.log('transition-stale', {
+          'target': reference,
+          'transition': transition,
+          'latest': _transitionGeneration,
+        });
+        return;
+      }
+      if (!loaded) {
+        final issue = loadIssue.value;
+        // A superseded load is not an error: a newer request owns the reader,
+        // so leave it untouched. A real failure restores the previous chapter.
+        if (hasError.value) {
+          restorePreviousState();
+          AppFeedback.show(
+            title: (issue?.titleKey ?? 'تعذر فتح الفصل').tr,
+            message: (issue?.descriptionKey ?? 'حاول مرة أخرى').tr,
+          );
+        }
+        return;
+      }
+      if (hasReadableContent && keepContinuousStream) {
         final adjacent = chapterData.value;
         final oldChapter = previousData.chapter;
         final newChapter = adjacent.chapter;
@@ -822,9 +1002,11 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
           _paragraphSource = mergedContent;
           _paragraphsFuture = Future<List<String>>.value(mergedParagraphs);
           if (!reverse) _novelStreamAppendOlder = appendingOlderNovelChapter;
+          final mergedNovelChapterId =
+              newChapter.chapterId.isEmpty ? reference : newChapter.chapterId;
           chapterData.value = ChapterData(
             chapter: DataChapter(
-              chapterId: newChapter.chapterId.isEmpty ? reference : newChapter.chapterId,
+              chapterId: mergedNovelChapterId,
               title: newChapter.title.isEmpty ? nextTitle : newChapter.title,
               images: const [],
               content: mergedContent,
@@ -844,6 +1026,24 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
             ),
             source: adjacent.source.isEmpty ? previousData.source : adjacent.source,
           );
+          // Record where this chapter starts inside the merged text so the
+          // navigation anchor follows the text the reader actually sees.
+          if (reverse) {
+            _pendingPrependChapterId = mergedNovelChapterId;
+            if (_scrollController?.hasClients != true) {
+              _novelAnchors.prepend(
+                chapterId: mergedNovelChapterId,
+                addedExtent: 0,
+              );
+              _pendingPrependChapterId = null;
+            }
+          } else {
+            _novelAnchors.append(
+              chapterId: mergedNovelChapterId,
+              boundaryOffset:
+                  previousScrollExtent > 0 ? previousScrollExtent : previousOffset,
+            );
+          }
         } else {
           final mergedStream = mergeReaderStreamPages(
             currentPages: oldChapter.images,
@@ -898,58 +1098,86 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
           _pendingScrollRestore = null;
         }
       }
-      if (hasError.value || !hasReadableContent) {
+      if (!hasReadableContent) {
         final issue = loadIssue.value;
-        chapterId = previousId;
-        currentChapterTitle = previousTitle;
-        chapterData.value = previousData;
-        isOffline.value = previousOffline;
-        localImages.assignAll(previousImages);
-        currentPage.value = previousPage;
-        _restoredScrollOffset = previousOffset;
-        _pendingScrollRestore = readerMode.value == 'scroll' ? previousOffset : null;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_pageController?.hasClients == true) {
-            _pageController!.jumpToPage(previousPage);
-          }
-          if (_scrollController?.hasClients == true) {
-            _scrollController!.jumpTo(previousOffset);
-          }
-        });
-        hasError(false);
-        loadIssue.value = null;
+        restorePreviousState();
         AppFeedback.show(
           title: (issue?.titleKey ?? 'تعذر فتح الفصل').tr,
           message: (issue?.descriptionKey ?? 'حاول مرة أخرى').tr,
         );
         return;
       }
+      _boundaryGuard.onTransitionCompleted(
+        landingPage: isNovel ? null : currentPage.value,
+      );
       await _markAsRead(chapterId, currentChapterTitle);
       unawaited(_prefetchAdjacentChapters());
-    } catch (error) {
-      chapterId = previousId;
-      currentChapterTitle = previousTitle;
-      chapterData.value = previousData;
-      isOffline.value = previousOffline;
-      localImages.assignAll(previousImages);
-      currentPage.value = previousPage;
-      _restoredScrollOffset = previousOffset;
-      _pendingScrollRestore = readerMode.value == 'scroll' ? previousOffset : null;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_pageController?.hasClients == true) {
-          _pageController!.jumpToPage(previousPage);
-        }
-        if (_scrollController?.hasClients == true) {
-          _scrollController!.jumpTo(previousOffset);
-        }
+      ReaderNavigationLog.log('transition-complete', {
+        'reader': isNovel ? 'novel' : 'manga',
+        'chapter': chapterId,
+        'page': currentPage.value,
+        'stream': _readerChapterPageRanges.length,
+        'anchors': _novelAnchors.anchors.length,
       });
-      hasError(false);
+    } catch (error) {
       final issue = loadIssue.value;
       debugPrint('Unable to navigate to chapter: $error');
+      restorePreviousState();
       AppFeedback.show(
         title: (issue?.titleKey ?? 'تعذر فتح الفصل').tr,
         message: (issue?.descriptionKey ?? 'حاول مرة أخرى').tr,
       );
+    } finally {
+      isNavigating.value = false;
+    }
+  }
+
+  bool _chapterIsRendered(String reference) {
+    if (isNovel) return _novelAnchors.contains(reference);
+    return _readerChapterPageRanges
+        .any((item) => _sameChapterReference(item.chapterId, reference));
+  }
+
+  /// Where [reference] already sits inside the merged reader stream, if it is
+  /// there at all.
+  _ReaderStreamPosition? _streamPositionOf(String reference) {
+    if (isNovel) {
+      final offset = _novelAnchors.offsetOf(reference);
+      return offset == null ? null : _ReaderStreamPosition(offset: offset);
+    }
+    final range = _readerChapterPageRanges.firstWhereOrNull(
+      (item) => _sameChapterReference(item.chapterId, reference),
+    );
+    if (range == null) return null;
+    // A list of pages can only be addressed directly in the paged reader; in
+    // scroll mode the pages are laid out by the view, so a fresh load is the
+    // honest way to open the chapter.
+    if (readerMode.value != 'paged') return null;
+    return _ReaderStreamPosition(pageIndex: range.startIndex);
+  }
+
+  Future<void> _seekWithinStream(_ReaderStreamPosition position) async {
+    isNavigating.value = true;
+    try {
+      final page = position.pageIndex;
+      if (page != null && readerMode.value == 'paged') {
+        setCurrentPage(page);
+        if (_pageController?.hasClients == true) {
+          _pageController!.jumpToPage(page);
+        }
+        _boundaryGuard.onTransitionCompleted(landingPage: page);
+        return;
+      }
+      final scroll = _scrollController;
+      final offset = position.offset;
+      if (scroll?.hasClients == true && offset != null) {
+        final target =
+            offset.clamp(0.0, scroll!.position.maxScrollExtent).toDouble();
+        scroll.jumpTo(target);
+        _restoredScrollOffset = target;
+        _pendingScrollRestore = null;
+      }
+      _boundaryGuard.onTransitionCompleted();
     } finally {
       isNavigating.value = false;
     }
@@ -974,9 +1202,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _loadChapterNavigationIfMissing({
-    bool checkEndAfterLoad = true,
-  }) async {
+  Future<void> _loadChapterNavigationIfMissing() async {
     if (_isLoadingChapterNavigation) return;
     if (availableChapters.length > 1 &&
         _containsCurrentChapter(availableChapters)) {
@@ -1003,15 +1229,11 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
       debugPrint('Unable to load chapter navigation list: $error');
     } finally {
       _isLoadingChapterNavigation = false;
-      if (checkEndAfterLoad) {
-        if (readerMode.value == 'paged' &&
-            currentPage.value >= chapterData.value.chapter.images.length - 1) {
-          onPageChanged(currentPage.value);
-        } else if (readerMode.value == 'scroll' &&
-            _scrollController?.hasClients == true) {
-          unawaited(handleScroll(_scrollController!.position));
-        }
-      }
+      // The list finishing is not a reader action. Replaying the last page or
+      // scroll position here used to open the next chapter by itself while the
+      // reader was simply sitting at the end of the current one. Only re-arm
+      // the end-of-chapter notice so the next real flip/scroll can move.
+      endNoticeShown = false;
     }
   }
 
@@ -1113,6 +1335,9 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     if (_pageController?.hasClients == true) {
       _pageController!.jumpToPage(page);
     }
+    // A seek is not a reader flip: landing on the last page must not open the
+    // next chapter by itself.
+    _boundaryGuard.onTransitionCompleted(landingPage: page);
     onPageChanged(page);
   }
 
@@ -1127,8 +1352,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     unawaited(_persistReaderPosition(currentPage.value));
   }
 
-  Future<void> ensureChapterNavigation() =>
-      _loadChapterNavigationIfMissing(checkEndAfterLoad: false);
+  Future<void> ensureChapterNavigation() => _loadChapterNavigationIfMissing();
 
   void persistScrollOffset(double offset) {
     if (!offset.isFinite || offset < 0) return;
@@ -1160,6 +1384,16 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
       final target = (_continuousPrependOffset + addedExtent)
           .clamp(0.0, position.maxScrollExtent)
           .toDouble();
+      // Content was inserted above: every recorded chapter boundary moves down
+      // by the same amount, and the newly merged chapter starts at the top.
+      final prependedChapterId = _pendingPrependChapterId;
+      if (prependedChapterId != null && prependedChapterId.isNotEmpty) {
+        _novelAnchors.prepend(
+          chapterId: prependedChapterId,
+          addedExtent: addedExtent,
+        );
+        _pendingPrependChapterId = null;
+      }
       if ((position.pixels - target).abs() > 1) scroll.jumpTo(target);
       _restoredScrollOffset = target;
       _continuousPrependPending = false;
@@ -1579,6 +1813,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     if (_pageController?.hasClients == true) {
       _pageController!.jumpToPage(targetPage);
     }
+    _boundaryGuard.onTransitionCompleted(landingPage: targetPage);
     onPageChanged(targetPage);
   }
 
@@ -1602,6 +1837,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     }
     readerMode.value = value;
     if (value == 'paged' && _pageController?.hasClients == true) {
+      _boundaryGuard.onTransitionCompleted(landingPage: currentPage.value);
       _pageController!.jumpToPage(currentPage.value);
     }
     await _storage.write(_readerSettingKey('mode'), value);
@@ -1684,12 +1920,25 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     }
     if (readerMode.value != 'paged' ||
         !continuousNavigation.value ||
-        isNavigating.value ||
-        page < chapterData.value.chapter.images.length - 1) {
+        isNavigating.value) {
       return;
     }
+    // Advancing needs an actual flip into the last page. Landing there after a
+    // transition, a rebuild or a programmatic jump is not a reader action, and
+    // re-reporting the same page must not consume another chapter.
+    final move = _boundaryGuard.consumePageBoundary(
+      page,
+      chapterData.value.chapter.images.length,
+    );
+    if (move != ReaderBoundaryMove.forward) return;
     final next = nextChapterId;
     if (next != null) {
+      ReaderNavigationLog.log('auto-next', {
+        'reader': 'manga-paged',
+        'from': _navigationAnchorId,
+        'to': next,
+        'page': page,
+      });
       navigateToChapter(next, joinContinuousStream: true);
     } else if (!_isLoadingChapterNavigation) {
       _showEndNoticeOnce();
@@ -1700,6 +1949,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     ScrollMetrics metrics, {
     double? scrollDelta,
     bool userInitiated = false,
+    bool settled = false,
   }) async {
     if (userInitiated && scrollDelta != null && scrollDelta.abs() >= 2) {
       final progress = isNovel
@@ -1713,6 +1963,11 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
         chapterCompleted: progress >= .80,
       );
     }
+    if (userInitiated) {
+      // Only a reader gesture arms an automatic chapter change. Restoring an
+      // offset, re-syncing a controller or laying out merged content does not.
+      _boundaryGuard.onUserMotion();
+    }
     if (readerMode.value != 'scroll' || !continuousNavigation.value) return;
     final threshold = metrics.viewportDimension * 0.04 > 28
         ? metrics.viewportDimension * 0.04
@@ -1725,9 +1980,23 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     if (metrics.extentAfter <= metrics.viewportDimension * 2) {
       unawaited(prefetchChapter(nextChapterId));
     }
-    if (metrics.pixels <= threshold && (scrollDelta ?? 0) < -1) {
+    if (settled) {
+      _boundaryGuard.onScrollSettled(
+        atEdge: metrics.extentAfter <= threshold || metrics.pixels <= threshold,
+      );
+    }
+    final move = _boundaryGuard.consumeScrollEdge(
+      atStart: metrics.pixels <= threshold && (scrollDelta ?? 0) < -1,
+      atEnd: metrics.extentAfter <= threshold,
+    );
+    if (move == ReaderBoundaryMove.backward) {
       final previous = previousChapterId;
       if (previous != null) {
+        ReaderNavigationLog.log('auto-previous', {
+          'reader': isNovel ? 'novel' : 'manga-scroll',
+          'from': _navigationAnchorId,
+          'to': previous,
+        });
         await navigateToChapter(
           previous,
           reverse: true,
@@ -1736,9 +2005,14 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
         return;
       }
     }
-    if (metrics.extentAfter > threshold) return;
+    if (move != ReaderBoundaryMove.forward) return;
     final next = nextChapterId;
     if (next != null) {
+      ReaderNavigationLog.log('auto-next', {
+        'reader': isNovel ? 'novel' : 'manga-scroll',
+        'from': _navigationAnchorId,
+        'to': next,
+      });
       navigateToChapter(next, joinContinuousStream: true);
     } else if (!_isLoadingChapterNavigation) {
       _showEndNoticeOnce();
@@ -1806,12 +2080,13 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     _readChapterNavigationArguments();
     _loadReaderPreferences();
     _configureNovelSpeech();
+    _novelAnchors = ReaderChapterAnchors.single(chapterId);
     if (isNovel) {
       readerMode.value = 'scroll';
       showNavigation.value = true;
     }
-    unawaited(fetchChapter(chapterId).then((_) async {
-      if (!hasError.value && hasReadableContent) {
+    unawaited(fetchChapter(chapterId).then((loaded) async {
+      if (loaded && hasReadableContent) {
         await _markAsRead(chapterId, currentChapterTitle);
       }
       await _loadChapterNavigationIfMissing();
@@ -2003,4 +2278,15 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
       unawaited(_enqueueReadingStats(_finishReadingStatsSession));
     }
   }
+}
+
+/// A chapter that is already rendered inside the merged reader stream.
+class _ReaderStreamPosition {
+  const _ReaderStreamPosition({this.pageIndex, this.offset});
+
+  /// First page of the chapter in the merged page list (paged manga reader).
+  final int? pageIndex;
+
+  /// Scroll offset where the chapter starts (merged novel stream).
+  final double? offset;
 }
