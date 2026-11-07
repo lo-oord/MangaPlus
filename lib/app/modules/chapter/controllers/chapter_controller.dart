@@ -10,6 +10,7 @@ import 'package:mangaplus/app/data/models/chapter.dart';
 import 'package:mangaplus/app/core/utils/chapter_reference_identity.dart';
 import 'package:mangaplus/app/core/utils/chapter_sequence.dart';
 import 'package:mangaplus/app/core/utils/page_load_tracker.dart';
+import 'package:mangaplus/app/core/utils/reader_progress.dart';
 import 'package:mangaplus/app/core/utils/reader_chapter_navigator.dart';
 import 'package:mangaplus/app/core/utils/reader_stream_merge.dart';
 import 'package:mangaplus/app/data/models/history.dart';
@@ -158,6 +159,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   final showNavigation = false.obs;
   final showChapterList = false.obs;
   final currentPage = 0.obs;
+  final readerProgress = 0.0.obs;
   final readerFit = 'width'.obs;
   final readerMode = 'scroll'.obs;
   final readingDirection = 'rtl'.obs;
@@ -170,7 +172,8 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   final novelLineHeight = 1.85.obs;
   final novelParagraphSpacing = 18.0.obs;
   final novelProgress = 0.0.obs;
-  final novelBookmarks = <Map<String, dynamic>>[].obs;
+  final readerBookmarks = <Map<String, dynamic>>[].obs;
+  RxList<Map<String, dynamic>> get novelBookmarks => readerBookmarks;
   final novelSpeechPlaying = false.obs;
   final novelSpeechPaused = false.obs;
   final novelSpeechRate = 0.42.obs;
@@ -239,6 +242,32 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
 
   List<ReaderChapterPageRange> get readerChapterPageRanges =>
       List<ReaderChapterPageRange>.unmodifiable(_readerChapterPageRanges);
+
+  ReaderChapterPageRange? get activeReaderPageRange =>
+      _readerChapterPageRanges.firstWhereOrNull(
+        (range) => range.contains(currentPage.value),
+      );
+
+  String get activeReaderChapterId {
+    if (isNovel) {
+      final id = chapterData.value.chapter.chapterId.trim();
+      return id.isEmpty ? chapterId : id;
+    }
+    return activeReaderPageRange?.chapterId ?? chapterId;
+  }
+
+  List<Map<String, dynamic>> get activeChapterBookmarks =>
+      readerBookmarks
+          .where((bookmark) =>
+              _sameChapterReference(
+                '${bookmark['chapterId'] ?? ''}',
+                activeReaderChapterId,
+              ))
+          .toList(growable: false);
+
+  Map<String, dynamic>? bookmarkForChapter(String id) =>
+      readerBookmarks.firstWhereOrNull((bookmark) =>
+          _sameChapterReference('${bookmark['chapterId'] ?? ''}', id));
 
   String chapterDividerTitle(String reference) {
     final chapter = availableChapters.firstWhereOrNull(
@@ -526,6 +555,14 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
         currentPage.value = startAtEnd
             ? pageCount - 1
             : currentPage.value.clamp(0, pageCount - 1).toInt();
+        final initialRange = _readerChapterPageRanges.firstWhereOrNull(
+          (range) => range.contains(currentPage.value),
+        );
+        readerProgress.value = ReaderProgress.page(
+          pageIndex: currentPage.value,
+          pageCount: pageCount,
+          range: initialRange,
+        );
         if (startAtEnd) _restoredScrollOffset = 0;
         if (isNovel || readerMode.value == 'scroll') {
           _pendingScrollRestore = startAtEnd ? double.maxFinite : _restoredScrollOffset;
@@ -1022,7 +1059,72 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     final safePage = page.clamp(0, pageCount - 1).toInt();
     if (currentPage.value == safePage) return;
     currentPage.value = safePage;
+    final range = _readerChapterPageRanges.firstWhereOrNull(
+      (item) => item.contains(safePage),
+    );
+    readerProgress.value = ReaderProgress.page(
+      pageIndex: safePage,
+      pageCount: pageCount,
+      range: range,
+    );
     unawaited(_persistReaderPosition(safePage));
+  }
+
+  void updateImageScrollProgress(int page, double fractionWithinPage) {
+    final pageCount = chapterData.value.chapter.images.length;
+    if (pageCount == 0) return;
+    final safePage = page.clamp(0, pageCount - 1).toInt();
+    if (currentPage.value != safePage) setCurrentPage(safePage);
+    final range = _readerChapterPageRanges.firstWhereOrNull(
+      (item) => item.contains(safePage),
+    );
+    readerProgress.value = ReaderProgress.page(
+      pageIndex: safePage,
+      pageCount: pageCount,
+      range: range,
+      fractionWithinPage: fractionWithinPage,
+    );
+  }
+
+  void seekReaderProgress(double value) {
+    final progress = value.isFinite
+        ? value.clamp(0.0, 1.0).toDouble()
+        : 0.0;
+    if (isNovel || readerMode.value == 'scroll') {
+      final scroll = _scrollController;
+      if (scroll?.hasClients != true) return;
+      final position = scroll!.position;
+      final target = (progress * position.maxScrollExtent)
+          .clamp(0.0, position.maxScrollExtent)
+          .toDouble();
+      scroll.jumpTo(target);
+      if (isNovel) updateNovelProgress(target, position.maxScrollExtent);
+      return;
+    }
+
+    final pageCount = chapterData.value.chapter.images.length;
+    if (pageCount == 0) return;
+    final range = activeReaderPageRange;
+    final page = ReaderProgress.pageAt(
+      progress: progress,
+      pageCount: pageCount,
+      range: range,
+    );
+    if (_pageController?.hasClients == true) {
+      _pageController!.jumpToPage(page);
+    }
+    onPageChanged(page);
+  }
+
+  void persistReaderProgress() {
+    if (isNovel || readerMode.value == 'scroll') {
+      final scroll = _scrollController;
+      if (scroll?.hasClients == true) {
+        persistScrollOffset(scroll!.position.pixels);
+      }
+      return;
+    }
+    unawaited(_persistReaderPosition(currentPage.value));
   }
 
   Future<void> ensureChapterNavigation() =>
@@ -1034,18 +1136,18 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     final scroll = _scrollController;
     if (isNovel && scroll?.hasClients == true) {
       final maxExtent = scroll!.position.maxScrollExtent;
-      novelProgress.value = maxExtent <= 0
-          ? 0
-          : (offset / maxExtent).clamp(0.0, 1.0).toDouble();
+      updateNovelProgress(offset, maxExtent);
     }
     unawaited(_persistReaderPosition(currentPage.value, scrollOffset: offset));
   }
 
   void updateNovelProgress(double offset, double maxExtent) {
     if (!isNovel) return;
-    novelProgress.value = maxExtent <= 0
-        ? 0
-        : (offset / maxExtent).clamp(0.0, 1.0).toDouble();
+    novelProgress.value = ReaderProgress.scroll(
+      offset: offset,
+      maxExtent: maxExtent,
+    );
+    readerProgress.value = novelProgress.value;
   }
 
   void syncScrollController() {
@@ -1071,9 +1173,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     if ((position.pixels - target).abs() > 1) scroll.jumpTo(target);
     _restoredScrollOffset = target;
     if (isNovel) {
-      novelProgress.value = position.maxScrollExtent <= 0
-          ? 0
-          : (target / position.maxScrollExtent).clamp(0.0, 1.0).toDouble();
+      updateNovelProgress(target, position.maxScrollExtent);
     }
     _pendingScrollRestore = null;
   }
@@ -1117,9 +1217,16 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     novelSpeechLanguage.value =
         _storage.read<String>(_readerSettingKey('novel_speech_language')) ??
             'ar-SA';
-    final storedBookmarks =
-        _storage.read<List<dynamic>>(_readerSettingKey('novel_bookmarks')) ?? [];
-    novelBookmarks.assignAll(
+    final storedBookmarks = _storage.read<List<dynamic>>(
+          _readerSettingKey('bookmarks'),
+        ) ??
+        (isNovel
+            ? _storage.read<List<dynamic>>(
+                  _readerSettingKey('novel_bookmarks'),
+                ) ??
+                []
+            : <dynamic>[]);
+    readerBookmarks.assignAll(
       storedBookmarks
           .whereType<Map>()
           .map((item) => Map<String, dynamic>.from(item)),
@@ -1366,65 +1473,119 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     } catch (_) {}
   }
 
-  Future<void> saveNovelBookmark() async {
-    if (!isNovel || chapterData.value.chapter.content.isEmpty) return;
+  Future<void> saveReaderBookmark() async {
+    if (!hasReadableContent) return;
     final offset = _scrollController?.hasClients == true
         ? _scrollController!.offset
         : _restoredScrollOffset;
-    final maxExtent = _scrollController?.hasClients == true
-        ? _scrollController!.position.maxScrollExtent
-        : 0.0;
+    final range = activeReaderPageRange;
+    final page = range == null
+        ? currentPage.value
+        : (currentPage.value - range.startIndex).clamp(0, range.pageCount - 1);
+    final chapterReference = activeReaderChapterId;
+    final progress = readerProgress.value.clamp(0.0, 1.0).toDouble();
+    final chapter = availableChapters.firstWhereOrNull((item) =>
+        _sameChapterReference(item.chapterId, chapterReference) ||
+        _sameChapterReference(item.url, chapterReference));
     final bookmark = <String, dynamic>{
       'id': DateTime.now().microsecondsSinceEpoch.toString(),
-      'chapterId': chapterId,
-      'chapterTitle': chapterData.value.chapter.title.isNotEmpty
-          ? chapterData.value.chapter.title
-          : currentChapterTitle,
+      'chapterId': chapterReference,
+      'chapterTitle': chapter?.title.isNotEmpty == true
+          ? chapter!.title
+          : chapterData.value.chapter.title.isNotEmpty
+              ? chapterData.value.chapter.title
+              : currentChapterTitle,
+      'page': page,
       'offset': offset,
-      'progress': maxExtent <= 0
-          ? 0.0
-          : (offset / maxExtent).clamp(0.0, 1.0).toDouble(),
+      'progress': progress,
+      'readerMode': isNovel ? 'novel' : readerMode.value,
       'createdAt': DateTime.now().toIso8601String(),
     };
-    novelBookmarks.insert(0, bookmark);
-    await _storage.write(
-      _readerSettingKey('novel_bookmarks'),
-      novelBookmarks.toList(growable: false),
-    );
+    readerBookmarks.insert(0, bookmark);
+    await _persistReaderBookmarks();
   }
 
-  Future<void> removeNovelBookmark(String id) async {
-    novelBookmarks.removeWhere((bookmark) => '${bookmark['id']}' == id);
-    await _storage.write(
-      _readerSettingKey('novel_bookmarks'),
-      novelBookmarks.toList(growable: false),
-    );
+  Future<void> _persistReaderBookmarks() async {
+    final saved = readerBookmarks.toList(growable: false);
+    await _storage.write(_readerSettingKey('bookmarks'), saved);
+    // Keep old novel bookmarks readable by previous app versions.
+    if (isNovel) {
+      await _storage.write(_readerSettingKey('novel_bookmarks'), saved);
+    }
   }
 
-  Future<void> openNovelBookmark(Map<String, dynamic> bookmark) async {
+  Future<void> removeReaderBookmark(String id) async {
+    readerBookmarks.removeWhere((bookmark) => '${bookmark['id']}' == id);
+    await _persistReaderBookmarks();
+  }
+
+  Future<void> openReaderBookmark(Map<String, dynamic> bookmark) async {
     final targetChapter = '${bookmark['chapterId'] ?? ''}';
-    final targetOffsetValue = bookmark['offset'];
-    final targetOffset = targetOffsetValue is num
-        ? targetOffsetValue.toDouble()
-        : double.tryParse('$targetOffsetValue') ?? 0.0;
     if (targetChapter.isEmpty) return;
-    if (!_sameChapterReference(targetChapter, chapterId)) {
+
+    var targetRange = _readerChapterPageRanges.firstWhereOrNull((range) =>
+        _sameChapterReference(range.chapterId, targetChapter));
+    final isInLoadedStream = isNovel
+        ? _sameChapterReference(targetChapter, activeReaderChapterId)
+        : targetRange != null;
+    if (!isInLoadedStream &&
+        !_sameChapterReference(targetChapter, activeReaderChapterId)) {
       await navigateToChapter(targetChapter);
       if (!_sameChapterReference(targetChapter, chapterId)) return;
       await WidgetsBinding.instance.endOfFrame;
       await WidgetsBinding.instance.endOfFrame;
+      targetRange = _readerChapterPageRanges.firstWhereOrNull((range) =>
+          _sameChapterReference(range.chapterId, targetChapter));
     }
-    final scroll = _scrollController;
-    if (scroll?.hasClients != true) return;
-    final offset = targetOffset
-        .clamp(0.0, scroll!.position.maxScrollExtent)
-        .toDouble();
-    scroll.jumpTo(offset);
-    _restoredScrollOffset = offset;
-    _pendingScrollRestore = null;
-    updateNovelProgress(offset, scroll.position.maxScrollExtent);
-    persistScrollOffset(offset);
+
+    if (isNovel || readerMode.value == 'scroll') {
+      final scroll = _scrollController;
+      if (scroll?.hasClients != true) return;
+      final savedProgressValue = bookmark['progress'];
+      final savedProgress = savedProgressValue is num
+          ? savedProgressValue.toDouble()
+          : double.tryParse('$savedProgressValue') ?? 0.0;
+      final savedOffsetValue = bookmark['offset'];
+      final savedOffset = savedOffsetValue is num
+          ? savedOffsetValue.toDouble()
+          : double.tryParse('$savedOffsetValue') ?? 0.0;
+      final preserveStreamOffset = isInLoadedStream &&
+          savedOffset.isFinite &&
+          savedOffset >= 0;
+      final position = scroll!.position;
+      final offset = (preserveStreamOffset
+              ? savedOffset
+              : savedProgress.clamp(0.0, 1.0) * position.maxScrollExtent)
+          .clamp(0.0, position.maxScrollExtent)
+          .toDouble();
+      scroll.jumpTo(offset);
+      _restoredScrollOffset = offset;
+      _pendingScrollRestore = null;
+      if (isNovel) updateNovelProgress(offset, position.maxScrollExtent);
+      readerProgress.value = savedProgress.clamp(0.0, 1.0).toDouble();
+      persistScrollOffset(offset);
+      return;
+    }
+
+    final pageValue = bookmark['page'];
+    final localPage = pageValue is num
+        ? pageValue.toInt()
+        : int.tryParse('$pageValue') ?? 0;
+    final targetPage = (targetRange == null
+            ? localPage
+            : targetRange.startIndex + localPage)
+        .clamp(0, chapterData.value.chapter.images.length - 1)
+        .toInt();
+    if (_pageController?.hasClients == true) {
+      _pageController!.jumpToPage(targetPage);
+    }
+    onPageChanged(targetPage);
   }
+
+  Future<void> saveNovelBookmark() => saveReaderBookmark();
+  Future<void> removeNovelBookmark(String id) => removeReaderBookmark(id);
+  Future<void> openNovelBookmark(Map<String, dynamic> bookmark) =>
+      openReaderBookmark(bookmark);
 
   Future<void> setReaderFit(String value) async {
     readerFit.value = value;
@@ -1489,13 +1650,28 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     if (chapterData.value.chapter.images.isEmpty) return;
     if (page != currentPage.value) {
       final count = chapterData.value.chapter.images.length;
-      final progress = count <= 0 ? 0.0 : ((page + 1) / count).clamp(0.0, 1.0);
+      final range = _readerChapterPageRanges.firstWhereOrNull(
+        (item) => item.contains(page),
+      );
+      final progress = ReaderProgress.page(
+        pageIndex: page,
+        pageCount: count,
+        range: range,
+      );
       _recordReadingActivity(
         progress,
         chapterCompleted: progress >= .80,
       );
     }
     setCurrentPage(page);
+    final range = _readerChapterPageRanges.firstWhereOrNull(
+      (item) => item.contains(currentPage.value),
+    );
+    readerProgress.value = ReaderProgress.page(
+      pageIndex: currentPage.value,
+      pageCount: chapterData.value.chapter.images.length,
+      range: range,
+    );
     if (_suppressEndBoundaryOnce &&
         page >= chapterData.value.chapter.images.length - 1) {
       _suppressEndBoundaryOnce = false;
@@ -1526,13 +1702,15 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     bool userInitiated = false,
   }) async {
     if (userInitiated && scrollDelta != null && scrollDelta.abs() >= 2) {
-      final progress = metrics.maxScrollExtent <= 0
-          ? 0.0
-          : (metrics.pixels / metrics.maxScrollExtent).clamp(0.0, 1.0);
+      final progress = isNovel
+          ? ReaderProgress.scroll(
+              offset: metrics.pixels,
+              maxExtent: metrics.maxScrollExtent,
+            )
+          : readerProgress.value;
       _recordReadingActivity(
         progress,
-        chapterCompleted: metrics.extentAfter <=
-            (metrics.viewportDimension * .10).clamp(24.0, 120.0),
+        chapterCompleted: progress >= .80,
       );
     }
     if (readerMode.value != 'scroll' || !continuousNavigation.value) return;

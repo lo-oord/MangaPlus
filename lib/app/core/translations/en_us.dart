@@ -217,6 +217,7 @@ const Map<String, String> enUS = {
   'تباعد الأسطر': 'Line spacing',
   'أسود خالص': 'Pure black',
   'العلامات المرجعية': 'Bookmarks',
+  'الانتقال إلى العلامة المرجعية': 'Jump to bookmark',
   'حفظ موضع القراءة': 'Save reading position',
   'لا توجد علامات مرجعية': 'No bookmarks yet',
   'قائمة الفصول': 'Chapter list',

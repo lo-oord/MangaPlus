@@ -22,10 +22,13 @@ class ChapterView extends StatefulWidget {
 class _ChapterViewState extends State<ChapterView> {
   ChapterController get controller => Get.find<ChapterController>();
 
-  final List<GlobalKey> _pageKeys = <GlobalKey>[];
+  final Map<String, GlobalKey> _pageKeys = <String, GlobalKey>{};
   int _lastFollowedSpeechParagraph = -1;
   bool _speechWasPlaying = false;
   final Set<String> _preloadedImages = <String>{};
+  int _scrollAnchorPageIndex = 0;
+  double _scrollAnchorTop = 0;
+  double _scrollAnchorOffset = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -123,17 +126,29 @@ class _ChapterViewState extends State<ChapterView> {
           ),
         );
       }
-      if (_pageKeys.length != chapter.images.length) {
-        _pageKeys
-          ..clear()
-          ..addAll(List.generate(chapter.images.length, (_) => GlobalKey()));
-      }
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) controller.syncScrollController();
       });
       WidgetsBinding.instance.addPostFrameCallback((_) => _updateCurrentPage(context));
       final chapterBoundaries =
           controller.readerChapterPageRanges.skip(1).toList(growable: false);
+      final imageOccurrences = <String, int>{};
+      final pageKeys = chapter.images.map((image) {
+        final occurrence = imageOccurrences.update(
+          image,
+          (count) => count + 1,
+          ifAbsent: () => 0,
+        );
+        final identity = '$image\u0000$occurrence';
+        return _pageKeys.putIfAbsent(identity, GlobalKey.new);
+      }).toList(growable: false);
+      final childIndexes = <Key, int>{};
+      for (var pageIndex = 0; pageIndex < pageKeys.length; pageIndex++) {
+        final precedingDividers = chapterBoundaries
+            .where((range) => range.startIndex <= pageIndex)
+            .length;
+        childIndexes[pageKeys[pageIndex]] = pageIndex + precedingDividers;
+      }
       return GestureDetector(
         onTap: controller.toggleNavigationVisibility,
         behavior: HitTestBehavior.opaque,
@@ -141,6 +156,9 @@ class _ChapterViewState extends State<ChapterView> {
           onNotification: (notification) {
             if (notification is ScrollUpdateNotification ||
                 notification is ScrollEndNotification) {
+              if (notification is ScrollUpdateNotification) {
+                _updateCurrentPage(context);
+              }
               controller.handleScroll(
                 notification.metrics,
                 scrollDelta: notification is ScrollUpdateNotification
@@ -186,6 +204,7 @@ class _ChapterViewState extends State<ChapterView> {
             controller: controller.scrollController,
             cacheExtent: 1200,
             itemCount: chapter.images.length + chapterBoundaries.length,
+            findChildIndexCallback: (key) => childIndexes[key],
             itemBuilder: (context, index) {
               var pageIndex = index;
               for (var boundaryIndex = 0;
@@ -203,7 +222,7 @@ class _ChapterViewState extends State<ChapterView> {
                 if (index > insertionIndex) pageIndex--;
               }
               return KeyedSubtree(
-                key: _pageKeys[pageIndex],
+                key: pageKeys[pageIndex],
                 child: _buildImage(
                   context,
                   chapter.images[pageIndex],
@@ -484,13 +503,33 @@ class _ChapterViewState extends State<ChapterView> {
     final screenCenter = MediaQuery.sizeOf(context).height / 2;
     var bestIndex = controller.currentPage.value;
     var bestDistance = double.infinity;
-    for (var index = 0; index < _pageKeys.length; index++) {
-      final renderObject = _pageKeys[index].currentContext?.findRenderObject();
+    var fractionWithinPage = 1.0;
+    final images = controller.chapterData.value.chapter.images;
+    final imageOccurrences = <String, int>{};
+    final pageKeys = <GlobalKey>[];
+    for (final image in images) {
+      final occurrence = imageOccurrences.update(
+        image,
+        (count) => count + 1,
+        ifAbsent: () => 0,
+      );
+      pageKeys.add(_pageKeys.putIfAbsent(
+        '$image\u0000$occurrence',
+        GlobalKey.new,
+      ));
+    }
+    for (var index = 0; index < pageKeys.length; index++) {
+      final renderObject = pageKeys[index].currentContext?.findRenderObject();
       if (renderObject is! RenderBox || !renderObject.hasSize) continue;
       final top = renderObject.localToGlobal(Offset.zero).dy;
       final bottom = top + renderObject.size.height;
       if (top <= screenCenter && bottom >= screenCenter) {
         bestIndex = index;
+        fractionWithinPage = renderObject.size.height <= 0
+            ? 1
+            : ((screenCenter - top) / renderObject.size.height)
+                .clamp(0.0, 1.0)
+                .toDouble();
         break;
       }
       final distance = screenCenter < top ? top - screenCenter : screenCenter - bottom;
@@ -499,19 +538,92 @@ class _ChapterViewState extends State<ChapterView> {
         bestIndex = index;
       }
     }
-    if (bestIndex != controller.currentPage.value) {
-      controller.setCurrentPage(bestIndex);
+    if (bestIndex != controller.currentPage.value ||
+        controller.readerMode.value == 'scroll') {
+      controller.updateImageScrollProgress(bestIndex, fractionWithinPage);
     }
+    _captureScrollAnchor(bestIndex, pageKeys);
+  }
+
+  void _captureScrollAnchor(int pageIndex, List<GlobalKey> pageKeys) {
+    final scroll = controller.scrollController;
+    if (controller.readerMode.value != 'scroll' ||
+        !scroll.hasClients ||
+        pageIndex < 0 ||
+        pageIndex >= pageKeys.length) {
+      return;
+    }
+    final renderObject =
+        pageKeys[pageIndex].currentContext?.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) return;
+    _scrollAnchorPageIndex = pageIndex;
+    _scrollAnchorTop = renderObject.localToGlobal(Offset.zero).dy;
+    _scrollAnchorOffset = scroll.offset;
+  }
+
+  void _restoreScrollAnchorAfterImageLayout() {
+    if (controller.readerMode.value != 'scroll') return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final scroll = controller.scrollController;
+      if (!mounted || !scroll.hasClients) return;
+      final images = controller.chapterData.value.chapter.images;
+      final occurrences = <String, int>{};
+      GlobalKey? anchorKey;
+      for (var index = 0; index < images.length; index++) {
+        final image = images[index];
+        final occurrence = occurrences.update(
+          image,
+          (count) => count + 1,
+          ifAbsent: () => 0,
+        );
+        final key = _pageKeys['$image\u0000$occurrence'];
+        if (index == _scrollAnchorPageIndex) {
+          anchorKey = key;
+          break;
+        }
+      }
+      final renderObject = anchorKey?.currentContext?.findRenderObject();
+      if (renderObject is RenderBox && renderObject.hasSize) {
+        final currentOffset = scroll.offset;
+        final currentTop = renderObject.localToGlobal(Offset.zero).dy;
+        final expectedTop =
+            _scrollAnchorTop - (currentOffset - _scrollAnchorOffset);
+        final correction = currentTop - expectedTop;
+        if (correction.isFinite && correction.abs() > 1) {
+          scroll.jumpTo(
+            (currentOffset + correction)
+                .clamp(0.0, scroll.position.maxScrollExtent)
+                .toDouble(),
+          );
+        }
+      }
+      final currentKey = anchorKey;
+      final currentBox = currentKey?.currentContext?.findRenderObject();
+      if (currentBox is RenderBox && currentBox.hasSize) {
+        _scrollAnchorTop = currentBox.localToGlobal(Offset.zero).dy;
+        _scrollAnchorOffset = scroll.offset;
+      }
+    });
   }
 
   Widget _buildFloatingNavigation() {
     return Obx(() {
       final chapter = controller.chapterData.value.chapter;
-      final progress = controller.isNovel
-          ? controller.novelProgress.value
-          : chapter.images.isEmpty
-              ? 0.0
-              : (controller.currentPage.value + 1) / chapter.images.length;
+      final progress = controller.readerProgress.value.clamp(0.0, 1.0).toDouble();
+      final activeChapterId = controller.activeReaderChapterId;
+      final activeChapter = controller.availableChapters.firstWhereOrNull(
+        (item) => item.chapterId == activeChapterId || item.url == activeChapterId,
+      );
+      final title = activeChapter?.title.trim().isNotEmpty == true
+          ? activeChapter!.title
+          : chapter.title.isNotEmpty
+              ? chapter.title
+              : 'الفصل'.tr;
+      final activeRange = controller.activeReaderPageRange;
+      final pageCount = activeRange?.pageCount ?? chapter.images.length;
+      final localPage = activeRange == null
+          ? controller.currentPage.value
+          : controller.currentPage.value - activeRange.startIndex;
       return Positioned(
         bottom: 0,
         left: 0,
@@ -527,8 +639,8 @@ class _ChapterViewState extends State<ChapterView> {
             child: SafeArea(
               minimum: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               child: Container(
-                constraints: const BoxConstraints(minHeight: 70),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                constraints: const BoxConstraints(minHeight: 132),
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
                 decoration: BoxDecoration(
                   color: AppColors.card.withValues(alpha: 0.96),
                   borderRadius: BorderRadius.circular(22),
@@ -541,119 +653,43 @@ class _ChapterViewState extends State<ChapterView> {
                     ),
                   ],
                 ),
-                child: Row(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    _readerIconButton(
-                      icon: Icons.settings_rounded,
-                      tooltip: 'إعدادات القارئ'.tr,
-                      onPressed: _openReaderSettings,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          controller.isNovel || pageCount <= 0
+                              ? '${(progress * 100).round()}%'
+                              : '${(progress * 100).round()}%  •  ${localPage + 1}/$pageCount',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     ),
-                    _readerIconButton(
-                      icon: Icons.list_alt_rounded,
-                      tooltip: 'قائمة الفصول'.tr,
-                      onPressed: _openChapterList,
-                    ),
-                    if (controller.isNovel)
-                      _readerIconButton(
-                        icon: Icons.bookmarks_outlined,
-                        tooltip: 'العلامات المرجعية'.tr,
-                        onPressed: _openNovelBookmarks,
-                      ),
-                    if (controller.isNovel)
-                      _readerIconButton(
-                        icon: controller.novelSpeechPlaying.value
-                            ? Icons.pause_rounded
-                            : controller.novelSpeechPaused.value
-                                ? Icons.play_arrow_rounded
-                                : Icons.volume_up_rounded,
-                        tooltip: controller.novelSpeechPlaying.value
-                            ? 'إيقاف مؤقت'.tr
-                            : controller.novelSpeechPaused.value
-                                ? 'استئناف القراءة'.tr
-                                : 'القراءة الصوتية'.tr,
-                        onPressed: () => controller.toggleNovelSpeech(),
-                      ),
-                    if (controller.isNovel)
-                      _readerIconButton(
-                        icon: Icons.chevron_left_rounded,
-                        tooltip: 'الفصل السابق'.tr,
-                        onPressed: controller.previousChapterId == null
-                            ? null
-                            : () => controller.navigateToChapter(
-                                  controller.previousChapterId,
-                                  reverse: true,
-                                ),
-                      ),
-                    if (controller.isNovel)
-                      _readerIconButton(
-                        icon: Icons.chevron_right_rounded,
-                        tooltip: 'الفصل التالي'.tr,
-                        onPressed: controller.nextChapterId == null
-                            ? null
-                            : () => controller.navigateToChapter(
-                                  controller.nextChapterId,
-                                ),
-                      ),
-                    if (!controller.isNovel)
-                      _readerIconButton(
-                        icon: controller.readerMode.value == 'paged'
-                            ? Icons.view_stream_rounded
-                            : Icons.menu_book_rounded,
-                        tooltip: 'تبديل وضع القراءة'.tr,
-                        onPressed: () => controller.setReaderMode(
-                          controller.readerMode.value == 'paged' ? 'scroll' : 'paged',
-                        ),
-                      ),
-                    if (!controller.isNovel &&
-                        controller.readerMode.value == 'paged')
-                      _readerIconButton(
-                        icon: Icons.swap_horiz_rounded,
-                        tooltip: 'تبديل اتجاه القراءة'.tr,
-                        onPressed: () => controller.setReadingDirection(
-                          controller.readingDirection.value == 'rtl' ? 'ltr' : 'rtl',
-                        ),
-                      ),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: _openChapterList,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              chapter.title.isNotEmpty
-                                  ? chapter.title
-                                  : 'الفصل'.tr,
-                              style: TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              controller.isNovel
-                                  ? '${(progress * 100).round()}%'
-                                  : '${(progress * 100).round()}%  •  ${controller.currentPage.value + 1}/${chapter.images.length}',
-                              style: TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 11,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(3),
-                              child: LinearProgressIndicator(
-                                value: progress,
-                                minHeight: 2.5,
-                                backgroundColor: AppColors.divider,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    _buildProgressSlider(progress),
+                    Divider(height: 1, color: AppColors.divider),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 2,
+                      runSpacing: 0,
+                      children: _readerControlButtons(),
                     ),
                   ],
                 ),
@@ -664,6 +700,146 @@ class _ChapterViewState extends State<ChapterView> {
       );
     });
   }
+
+  Widget _buildProgressSlider(double progress) {
+    final bookmarks = controller.activeChapterBookmarks;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final rtl = Directionality.of(context) == TextDirection.rtl;
+        return SizedBox(
+          height: 46,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  trackHeight: 6,
+                  activeTrackColor: AppColors.primary,
+                  inactiveTrackColor: AppColors.divider,
+                  thumbColor: AppColors.primary,
+                  overlayColor: AppColors.primary.withValues(alpha: 0.16),
+                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
+                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 18),
+                ),
+                child: Slider(
+                  value: progress,
+                  min: 0,
+                  max: 1,
+                  label: '${(progress * 100).round()}%',
+                  onChanged: controller.seekReaderProgress,
+                  onChangeEnd: (_) => controller.persistReaderProgress(),
+                ),
+              ),
+              for (final bookmark in bookmarks)
+                if (bookmark['progress'] is num)
+                  Positioned(
+                    left: _bookmarkMarkLeft(
+                      (bookmark['progress'] as num).toDouble(),
+                      constraints.maxWidth,
+                      rtl,
+                    ),
+                    child: GestureDetector(
+                      onTap: () => controller.openReaderBookmark(bookmark),
+                      child: Container(
+                        width: 13,
+                        height: 13,
+                        decoration: BoxDecoration(
+                          color: const Color(0xff31c46c),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.card, width: 2),
+                          boxShadow: const [
+                            BoxShadow(color: Color(0x70000000), blurRadius: 3),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  double _bookmarkMarkLeft(double progress, double width, bool rtl) {
+    final fraction = progress.isFinite
+        ? progress.clamp(0.0, 1.0).toDouble()
+        : 0.0;
+    final alongTrack = rtl ? 1 - fraction : fraction;
+    return (16 + alongTrack * (width - 32) - 6.5).toDouble();
+  }
+
+  List<Widget> _readerControlButtons() => [
+        _readerIconButton(
+          icon: Icons.settings_rounded,
+          tooltip: 'إعدادات القارئ'.tr,
+          onPressed: _openReaderSettings,
+        ),
+        _readerIconButton(
+          icon: Icons.list_alt_rounded,
+          tooltip: 'قائمة الفصول'.tr,
+          onPressed: _openChapterList,
+        ),
+        _readerIconButton(
+          icon: Icons.bookmarks_outlined,
+          tooltip: 'العلامات المرجعية'.tr,
+          onPressed: _openReaderBookmarks,
+        ),
+        if (controller.isNovel) ...[
+          _readerIconButton(
+            icon: controller.novelSpeechPlaying.value
+                ? Icons.pause_rounded
+                : controller.novelSpeechPaused.value
+                    ? Icons.play_arrow_rounded
+                    : Icons.volume_up_rounded,
+            tooltip: controller.novelSpeechPlaying.value
+                ? 'إيقاف مؤقت'.tr
+                : controller.novelSpeechPaused.value
+                    ? 'استئناف القراءة'.tr
+                    : 'القراءة الصوتية'.tr,
+            onPressed: () => controller.toggleNovelSpeech(),
+          ),
+          _readerIconButton(
+            icon: Icons.chevron_left_rounded,
+            tooltip: 'الفصل السابق'.tr,
+            onPressed: controller.previousChapterId == null
+                ? null
+                : () => controller.navigateToChapter(
+                      controller.previousChapterId,
+                      reverse: true,
+                      joinContinuousStream: true,
+                    ),
+          ),
+          _readerIconButton(
+            icon: Icons.chevron_right_rounded,
+            tooltip: 'الفصل التالي'.tr,
+            onPressed: controller.nextChapterId == null
+                ? null
+                : () => controller.navigateToChapter(
+                      controller.nextChapterId,
+                      joinContinuousStream: true,
+                    ),
+          ),
+        ] else ...[
+          _readerIconButton(
+            icon: controller.readerMode.value == 'paged'
+                ? Icons.view_stream_rounded
+                : Icons.menu_book_rounded,
+            tooltip: 'تبديل وضع القراءة'.tr,
+            onPressed: () => controller.setReaderMode(
+              controller.readerMode.value == 'paged' ? 'scroll' : 'paged',
+            ),
+          ),
+          if (controller.readerMode.value == 'paged')
+            _readerIconButton(
+              icon: Icons.swap_horiz_rounded,
+              tooltip: 'تبديل اتجاه القراءة'.tr,
+              onPressed: () => controller.setReadingDirection(
+                controller.readingDirection.value == 'rtl' ? 'ltr' : 'rtl',
+              ),
+            ),
+        ],
+      ];
 
   Widget _readerIconButton({
     required IconData icon,
@@ -1166,13 +1342,13 @@ class _ChapterViewState extends State<ChapterView> {
     );
   }
 
-  Future<void> _openNovelBookmarks() async {
+  Future<void> _openReaderBookmarks() async {
     await Get.bottomSheet(
       Obx(() {
-        final bookmarks = controller.novelBookmarks.toList(growable: false);
+        final bookmarks = controller.readerBookmarks.toList(growable: false);
         return SafeArea(
           child: SizedBox(
-            height: Get.height * 0.68,
+            height: Get.height * 0.78,
             child: Column(
               children: [
                 const SizedBox(height: 12),
@@ -1208,7 +1384,7 @@ class _ChapterViewState extends State<ChapterView> {
                   child: SizedBox(
                     width: double.infinity,
                     child: FilledButton.tonalIcon(
-                      onPressed: () => controller.saveNovelBookmark(),
+                      onPressed: () => controller.saveReaderBookmark(),
                       icon: const Icon(Icons.bookmark_add_outlined),
                       label: Text('حفظ موضع القراءة'.tr),
                     ),
@@ -1265,7 +1441,7 @@ class _ChapterViewState extends State<ChapterView> {
                               ),
                               trailing: IconButton(
                                 tooltip: 'حذف'.tr,
-                                onPressed: () => controller.removeNovelBookmark(
+                                onPressed: () => controller.removeReaderBookmark(
                                   '${item['id'] ?? ''}',
                                 ),
                                 icon: Icon(Icons.delete_outline_rounded,
@@ -1273,7 +1449,7 @@ class _ChapterViewState extends State<ChapterView> {
                               ),
                               onTap: () {
                                 Get.back();
-                                controller.openNovelBookmark(item);
+                                controller.openReaderBookmark(item);
                               },
                             );
                           },
@@ -1302,10 +1478,10 @@ class _ChapterViewState extends State<ChapterView> {
       );
       return;
     }
-    await Get.bottomSheet(
+      await Get.bottomSheet(
       SafeArea(
         child: SizedBox(
-          height: Get.height * 0.68,
+          height: Get.height * 0.78,
           child: Column(
             children: [
               const SizedBox(height: 12),
@@ -1336,6 +1512,7 @@ class _ChapterViewState extends State<ChapterView> {
               Expanded(
                 child: Obx(() {
                   controller.chapterNavigationRevision.value;
+                  controller.readerBookmarks.length;
                   return ListView.separated(
                   padding: const EdgeInsets.fromLTRB(14, 0, 14, 18),
                   itemCount: chapters.length,
@@ -1344,6 +1521,7 @@ class _ChapterViewState extends State<ChapterView> {
                     final item = chapters[index];
                     final current = controller.isCurrentChapter(item);
                     final isRead = controller.isChapterRead(item.chapterId);
+                    final bookmark = controller.bookmarkForChapter(item.chapterId);
                     return ListTile(
                       dense: true,
                       shape: RoundedRectangleBorder(
@@ -1365,16 +1543,34 @@ class _ChapterViewState extends State<ChapterView> {
                               fontWeight: current
                                   ? FontWeight.w800
                                   : FontWeight.w600)),
-                      trailing: isRead
-                          ? Text(
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (bookmark != null)
+                            IconButton(
+                              tooltip: 'الانتقال إلى العلامة المرجعية'.tr,
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () {
+                                Get.back();
+                                controller.openReaderBookmark(bookmark);
+                              },
+                              icon: const Icon(
+                                Icons.bookmark_rounded,
+                                color: Color(0xff31c46c),
+                                size: 21,
+                              ),
+                            ),
+                          if (isRead)
+                            Text(
                               'مقروء'.tr,
                               style: TextStyle(
                                 color: AppColors.primary,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
                               ),
-                            )
-                          : null,
+                            ),
+                        ],
+                      ),
                       onTap: current
                           ? null
                           : () {
@@ -1400,6 +1596,13 @@ class _ChapterViewState extends State<ChapterView> {
 
   bool _isLocalReaderPage(String imageReference) =>
       imageReference.startsWith('/');
+
+  void _markPageLoadedAndPreservePosition(int index, String imageReference) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      controller.markPageLoaded(index, pageReference: imageReference);
+      _restoreScrollAnchorAfterImageLayout();
+    });
+  }
 
   Widget _buildPagedImage(
     BuildContext context,
@@ -1518,8 +1721,7 @@ class _ChapterViewState extends State<ChapterView> {
         () {
           final isLocalPage = _isLocalReaderPage(imageUrl);
           if (isLocalPage) {
-            WidgetsBinding.instance.addPostFrameCallback((_) =>
-                controller.markPageLoaded(pageIndex, pageReference: imageUrl));
+            _markPageLoadedAndPreservePosition(pageIndex, imageUrl);
           }
           final selectedFit = controller.readerFit.value;
           final decodeWidth = selectedFit == 'natural'
@@ -1548,8 +1750,7 @@ class _ChapterViewState extends State<ChapterView> {
                 httpHeaders: _imageHeaders(imageUrl),
                 memCacheWidth: decodeWidth,
                 imageBuilder: (context, imageProvider) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) =>
-                      controller.markPageLoaded(pageIndex, pageReference: imageUrl));
+                  _markPageLoadedAndPreservePosition(pageIndex, imageUrl);
                   return Image(
                     image: imageProvider,
                     width: double.infinity,
