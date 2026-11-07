@@ -420,6 +420,8 @@ class TeamXSource extends ContentSource {
     final statusLabel = _fieldValue(document, 'الحالة');
     final typeLabel = _fieldValue(document, 'النوع');
     final artistLabel = _fieldValue(document, 'الرسام');
+    var authorLabel = _fieldValue(document, 'المؤلف');
+    if (authorLabel.isEmpty) authorLabel = _fieldValue(document, 'الكاتب');
     final rating = SourceValues.rating(
       mangaHtmlText(document.querySelector('#average_rating')),
     );
@@ -434,6 +436,7 @@ class TeamXSource extends ContentSource {
         'genres': genres,
         'status': statusLabel,
         if (typeLabel.isNotEmpty) 'type': typeLabel,
+        'author': authorLabel,
         'artist': artistLabel,
         'updated_on': latestDate,
         if (rating.isNotEmpty) 'rating': rating,

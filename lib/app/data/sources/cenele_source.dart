@@ -135,8 +135,9 @@ abstract class CeneleSource extends ContentSource {
         'synopsis': description,
         'genres': genres,
         'status': _metaValue(document, 'الحالة'),
-        'author': _metaValue(document, 'المؤلف'),
-        'artist': _metaValue(document, 'المترجم'),
+        'author': _metaAny(document, const ['المؤلف', 'الكاتب']),
+        'artist': _metaAny(document, const ['الرسام', 'الفنان']),
+        'translator': _metaAny(document, const ['المترجم', 'الترجمة']),
         'total_chapters': chapters.length,
         'latest_chapter_number': chapters.isEmpty ? 0 : chapters.first['number'],
         'chapters': chapters,
@@ -385,6 +386,14 @@ abstract class CeneleSource extends ContentSource {
     final values = document.querySelectorAll('.page-numbers').map(mangaHtmlText)
         .map(int.tryParse).whereType<int>();
     return values.fold(1, (largest, value) => value > largest ? value : largest);
+  }
+
+  String _metaAny(Document document, List<String> labels) {
+    for (final label in labels) {
+      final value = _metaValue(document, label);
+      if (value.isNotEmpty) return value;
+    }
+    return '';
   }
 
   String _metaValue(Document document, String label) {

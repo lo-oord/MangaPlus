@@ -70,6 +70,11 @@ class HistoryView extends GetView<HistoryController> {
                 child: CachedNetworkImage(
                   imageUrl: history.coverImage,
                   cacheManager: MangaCoverCacheManager.instance,
+                  httpHeaders: MangaCoverCacheManager.requestHeadersForWorkUrl(
+                    history.coverImage.isNotEmpty
+                        ? history.coverImage
+                        : history.comicId,
+                  ),
                   width: 85,
                   height: 114,
                   fit: BoxFit.cover,

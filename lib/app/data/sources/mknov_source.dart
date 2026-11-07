@@ -412,13 +412,7 @@ class MknovSource extends ContentSource {
       ? raw.map((value) => value.toString().trim()).where((value) => value.isNotEmpty).toSet().toList(growable: false)
       : const [];
 
-  String _normalizeStatus(dynamic raw) {
-    final status = '${raw ?? ''}'.trim();
-    return switch (status) {
-      'متوقفة' || 'متوقف' => 'متوقف مؤقتًا',
-      _ => status,
-    };
-  }
+  String _normalizeStatus(dynamic raw) => SourceValues.status(raw);
 
   String _workId(String raw) {
     final uri = Uri.tryParse(raw);

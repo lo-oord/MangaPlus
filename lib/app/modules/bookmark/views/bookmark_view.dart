@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/models/bookmark.dart';
 import 'package:mangaplus/app/modules/bookmark/controllers/bookmark_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
@@ -210,7 +211,9 @@ class BookmarkView extends GetView<BookmarkController> {
         final bookmark = bookmarks[index];
         final rawRating = bookmark.rating.trim();
         final rating = rawRating.isEmpty || rawRating == '0.0' ? '—' : rawRating;
-        final status = bookmark.status.trim().isEmpty ? 'غير معروف'.tr : bookmark.status;
+        final status = bookmark.status.trim().isEmpty
+            ? 'غير معروف'.tr
+            : localizeContentStatusOr(bookmark.status, 'غير معروف'.tr);
         return Align(
           alignment: Alignment.topCenter,
           child: SizedBox(

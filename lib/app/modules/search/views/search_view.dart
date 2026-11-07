@@ -6,6 +6,7 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/models/comic.dart';
 import 'package:mangaplus/app/data/services/bookmark_state_service.dart';
+import 'package:mangaplus/app/data/sources/source_values.dart';
 import 'package:mangaplus/app/modules/search/controllers/search_controller.dart'
     as search_controller;
 import 'package:mangaplus/app/routes/app_pages.dart';
@@ -197,8 +198,7 @@ class _SearchComicTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isNovel = const {'novel', 'light novel', 'رواية'}
-        .contains(comic.type.trim().toLowerCase());
+    final isNovel = SourceValues.isNovelType(comic.type);
     final genreText = comic.genres.isNotEmpty
         ? comic.genres.take(3).map(localizeContentGenre).join(' • ')
         : isNovel
@@ -206,13 +206,10 @@ class _SearchComicTile extends StatelessWidget {
             : localizeContentType(comic.type);
     final rawStatus = comic.status?.trim() ?? '';
     final statusText = rawStatus.isEmpty
-        ? 'غير محدد'.tr
-        : localizeContentStatus(rawStatus);
-    final normalizedStatus = statusText.toLowerCase();
-    final isOngoing = normalizedStatus == 'مستمر'.tr.toLowerCase() ||
-        normalizedStatus == 'ongoing';
-    final isCompleted = normalizedStatus == 'مكتمل'.tr.toLowerCase() ||
-        normalizedStatus == 'completed';
+        ? 'غير معروف'.tr
+        : localizeContentStatusOr(rawStatus, 'غير معروف'.tr);
+    final isOngoing = rawStatus == SourceValues.statusOngoing;
+    final isCompleted = rawStatus == SourceValues.statusCompleted;
     final statusIcon = isOngoing
         ? Icons.autorenew_rounded
         : isCompleted
@@ -317,19 +314,6 @@ class _SearchComicTile extends StatelessWidget {
                           color: AppColors.textSecondary,
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                    if (comic.source.trim().isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        comic.source,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],

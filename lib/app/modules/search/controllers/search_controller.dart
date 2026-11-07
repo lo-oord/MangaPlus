@@ -6,6 +6,7 @@ import 'package:mangaplus/app/data/models/comic.dart';
 import 'package:mangaplus/app/data/services/bookmark_state_service.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
 import 'package:mangaplus/app/data/sources/search_relevance.dart';
+import 'package:mangaplus/app/data/sources/source_values.dart';
 
 class SearchController extends GetxController {
   final ComicService _comicService = ComicService();
@@ -44,8 +45,7 @@ class SearchController extends GetxController {
   }
 
   bool _matchesContentFilter(ComicsList comic) {
-    final isNovel = const {'novel', 'light novel', 'رواية'}
-        .contains(comic.type.trim().toLowerCase());
+    final isNovel = SourceValues.isNovelType(comic.type);
     switch (contentFilter.value) {
       case 'novel':
         return isNovel;
@@ -61,7 +61,9 @@ class SearchController extends GetxController {
     for (var index = 0; index < _allSearchResults.length; index++) {
       originalOrder[_allSearchResults[index].comicId] = index;
     }
-    final filtered = _allSearchResults.where(_matchesContentFilter).toList();
+    final filtered = _dedupeWorks(
+      _allSearchResults.where(_matchesContentFilter).toList(),
+    );
     final favoriteById = <String, bool>{};
     final scoreById = <String, int>{};
     final workKeyById = <String, String>{};
@@ -96,19 +98,32 @@ class SearchController extends GetxController {
     comicsList.assignAll(filtered);
   }
 
-  int _chapterCount(ComicsList comic) {
-    final value = comic.totalChapters
-        .replaceAll('٠', '0')
-        .replaceAll('١', '1')
-        .replaceAll('٢', '2')
-        .replaceAll('٣', '3')
-        .replaceAll('٤', '4')
-        .replaceAll('٥', '5')
-        .replaceAll('٦', '6')
-        .replaceAll('٧', '7')
-        .replaceAll('٨', '8')
-        .replaceAll('٩', '9');
-    return int.tryParse(value.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+  int _chapterCount(ComicsList comic) =>
+      int.tryParse(SourceValues.chapterCount(comic.totalChapters)) ?? 0;
+
+  /// Collapses the same work returned by several sources into one result,
+  /// keeping the copy with the fullest catalog (a saved favourite wins first).
+  List<ComicsList> _dedupeWorks(List<ComicsList> comics) {
+    final byWork = <String, ComicsList>{};
+    for (final comic in comics) {
+      final key =
+          '${SearchRelevance.workKey(comic)}|${SearchRelevance.normalize(comic.title)}';
+      final existing = byWork[key];
+      if (existing == null) {
+        byWork[key] = comic;
+        continue;
+      }
+      final existingFavorite =
+          BookmarkStateService.instance.contains(existing.comicId);
+      final candidateFavorite =
+          BookmarkStateService.instance.contains(comic.comicId);
+      if (candidateFavorite != existingFavorite) {
+        if (candidateFavorite) byWork[key] = comic;
+        continue;
+      }
+      if (_chapterCount(comic) > _chapterCount(existing)) byWork[key] = comic;
+    }
+    return byWork.values.toList(growable: false);
   }
 
   void searchComics(String searchQuery) {

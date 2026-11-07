@@ -78,14 +78,14 @@ class ComicsList {
   });
 
   factory ComicsList.fromJson(Map<String, dynamic> json) => ComicsList(
-        comicId: json["comicId"],
-        title: json["title"],
-        link: json["link"],
-        image: json["image"],
-        type: json["type"],
-        chapter: json["chapter"],
-        rating: json["rating"],
-        status: json["status"] ?? '',
+        comicId: '${json["comicId"] ?? json["url"] ?? ''}',
+        title: '${json["title"] ?? ''}',
+        link: '${json["link"] ?? json["comicId"] ?? json["url"] ?? ''}',
+        image: '${json["image"] ?? json["image_url"] ?? ''}',
+        type: '${json["type"] ?? ''}',
+        chapter: '${json["chapter"] ?? ''}',
+        rating: '${json["rating"] ?? ''}',
+        status: json["status"]?.toString() ?? '',
         latestChapterDate: json["latestChapterDate"]?.toString() ?? '',
         genres: json["genres"] is List
             ? (json["genres"] as List).map((value) => value.toString()).toList()

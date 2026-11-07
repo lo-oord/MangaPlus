@@ -383,13 +383,7 @@ class MangaTekSource extends ContentSource {
     return slug.isEmpty || number.isEmpty ? null : (slug, number);
   }
 
-  String _status(String value) => switch (value.toLowerCase()) {
-        'ongoing' => 'ongoing',
-        'completed' => 'completed',
-        'hiatus' => 'on_hiatus',
-        'cancelled' || 'dropped' => 'cancelled',
-        _ => value,
-      };
+  String _status(String value) => SourceValues.status(value);
 
   String _coverUrl(dynamic value) {
     final raw = '$value'.trim();

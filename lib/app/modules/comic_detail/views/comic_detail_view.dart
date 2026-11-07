@@ -136,7 +136,11 @@ class ComicDetailView extends GetView<ComicDetailController> {
       });
   Widget _buildHero(BuildContext context, ComicDetail comic) {
     final stats = <Widget>[
-      _HeroStat(icon: Icons.menu_book_rounded, value: comic.totalChapters, label: 'فصل'.tr),
+      _HeroStat(
+        icon: Icons.menu_book_rounded,
+        value: comic.totalChapters.trim().isEmpty ? '—' : comic.totalChapters,
+        label: 'فصل'.tr,
+      ),
       if (comic.rating.trim().isNotEmpty && comic.rating != '0.0')
         _HeroStat(icon: Icons.star_rounded, value: comic.rating, label: ''),
       if (comic.genres.isNotEmpty)
@@ -225,6 +229,18 @@ class ComicDetailView extends GetView<ComicDetailController> {
                               const SizedBox(height: 5),
                               Text(comic.nativeTitle, maxLines: 1, overflow: TextOverflow.ellipsis,
                                   style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                            ],
+                            if (comic.alternativeTitles.isNotEmpty) ...[
+                              const SizedBox(height: 3),
+                              Text(
+                                comic.alternativeTitles.take(2).join(' • '),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 11,
+                                ),
+                              ),
                             ],
                             const SizedBox(height: 13),
                             Wrap(spacing: 12, runSpacing: 8, children: stats),
@@ -335,9 +351,15 @@ class ComicDetailView extends GetView<ComicDetailController> {
 
   Widget _buildBody(BuildContext context, ComicDetail comic) {
     final isNovel = comic.type.trim().toLowerCase() == 'novel';
-    final source = controller.comicDetailData.value.source;
-    final hasMetadata = [source, comic.status, comic.type, comic.updatedOn, comic.releaseYear]
-        .any((value) => value.trim().isNotEmpty && value != '0' && value != '0.0');
+    final hasMetadata = [
+      comic.author,
+      comic.artist,
+      comic.translator,
+      comic.status,
+      comic.type,
+      comic.updatedOn,
+      comic.releaseYear,
+    ].any((value) => value.trim().isNotEmpty && value != '0' && value != '0.0');
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
       child: Column(
@@ -364,7 +386,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
           ],
           if (hasMetadata) ...[
             const SizedBox(height: 16),
-            _MetadataGrid(comic: comic, source: source),
+            _MetadataGrid(comic: comic),
           ],
 
         ],
@@ -478,129 +500,107 @@ class _InfoCard extends StatelessWidget {
 }
 
 class _MetadataGrid extends StatelessWidget {
-  const _MetadataGrid({required this.comic, required this.source});
+  const _MetadataGrid({required this.comic});
   final ComicDetail comic;
-  final String source;
+
   @override
   Widget build(BuildContext context) {
-    final values = <(IconData, String, String)>[
-      (Icons.public_rounded, 'المصدر'.tr, source),
+    // Every fact lives in its own cell so a value can never land under the
+    // wrong label. Source names stay internal and are intentionally absent.
+    final people = <(IconData, String, String)>[
+      if (comic.author.trim().isNotEmpty)
+        (Icons.person_outline_rounded, 'المؤلف'.tr, comic.author),
+      if (comic.artist.trim().isNotEmpty)
+        (Icons.brush_outlined, 'الرسام'.tr, comic.artist),
+      if (comic.translator.trim().isNotEmpty)
+        (Icons.translate_rounded, 'المترجم'.tr, comic.translator),
+    ];
+    final facts = <(IconData, String, String)>[
       (Icons.palette_outlined, 'النوع'.tr, localizeContentType(comic.type)),
-      (Icons.circle_outlined, 'الحالة'.tr, localizeContentStatus(comic.status)),
+      (Icons.circle_outlined, 'الحالة'.tr,
+          comic.status.trim().isEmpty
+              ? ''
+              : localizeContentStatusOr(comic.status, 'غير معروف'.tr)),
       (Icons.calendar_today_rounded, 'تاريخ النشر'.tr,
-          comic.releaseYear.trim().isNotEmpty ? comic.releaseYear : comic.updatedOn),
+          comic.releaseYear.trim().isNotEmpty
+              ? comic.releaseYear
+              : comic.updatedOn),
     ];
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
-      decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.divider.withValues(alpha: 0.8))),
-      child: Row(
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.divider.withValues(alpha: 0.8)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (people.isNotEmpty) ...[
+            _MetadataRow(values: people),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Divider(
+                height: 1,
+                color: AppColors.divider.withValues(alpha: 0.8),
+              ),
+            ),
+          ],
+          _MetadataRow(values: facts),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetadataRow extends StatelessWidget {
+  const _MetadataRow({required this.values});
+  final List<(IconData, String, String)> values;
+
+  @override
+  Widget build(BuildContext context) => Row(
         children: List.generate(values.length, (index) {
           final entry = values[index];
           return Expanded(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 3),
-              decoration: index == 0 ? null : BoxDecoration(
-                border: BorderDirectional(start: BorderSide(color: AppColors.divider.withValues(alpha: 0.8)))),
+              decoration: index == 0
+                  ? null
+                  : BoxDecoration(
+                      border: BorderDirectional(
+                        start: BorderSide(
+                          color: AppColors.divider.withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  index == 0
-                      ? _SourceLogo(source: source)
-                      : Icon(entry.$1, size: 20, color: AppColors.primary),
+                  Icon(entry.$1, size: 20, color: AppColors.primary),
                   const SizedBox(height: 7),
-                  Text(entry.$2, maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
+                  Text(entry.$2,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 10,
+                      )),
                   const SizedBox(height: 3),
                   Text(entry.$3.trim().isEmpty ? 'غير معروف'.tr : entry.$3,
-                      maxLines: 2, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w700)),
+                      maxLines: 2,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      )),
                 ],
               ),
             ),
           );
         }),
-      ),
-    );
-  }
-}
-class _SourceLogo extends StatelessWidget {
-  const _SourceLogo({required this.source});
-
-  final String source;
-
-  String get _normalizedSource =>
-      source.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
-
-  String? get localLogoAsset {
-    final value = _normalizedSource;
-    if (value.contains('mangatek')) {
-      return 'assets/images/mangatek_source_logo.png';
-    }
-    return null;
-  }
-
-  String? get logoUrl {
-    final value = _normalizedSource;
-    if (value.contains('kolnovel')) return 'https://kolnovel.com/favicon.ico';
-    if (value.contains('kawaii')) {
-      return 'https://kawaiimanga.org/logo.png';
-    }
-    if (value.contains('swat')) {
-      return 'https://meshmanga.com/_next/static/media/swatManga.795f6613.png';
-    }
-    if (value.contains('azora')) {
-      return 'https://storage.azorafly.com/public/upload/2025/12/24/c925c7f3-2310-4e90-9b62-7fae04fe1c36.webp';
-    }
-    if (value.contains('mangatime')) {
-      return 'https://mangatime.org/brand/v2/icons/icon-192.png';
-    }
-    if (value.contains('mangaonline') || value.contains('onma')) {
-      return 'https://onma.top/uploads/logo.png';
-    }
-    if (value.contains('lava')) {
-      return 'https://lavascans.com/wp-content/uploads/2024/09/2024-09-28-10-58-25-1727564305679-192x192.png';
-    }
-    if (value.contains('mangatek')) return null;
-    if (value.contains('mknov')) return 'https://mknov.com/logo.png';
-    if (value.contains('cenele')) {
-      return 'https://cenele.com/wp-content/uploads/2026/08/cropped-%D9%81%D8%B6%D8%A7%D8%A1-%D8%B1%D9%88%D8%A7%D9%8A%D8%A7%D8%AA.png';
-    }
-    if (value.contains('mangadar')) {
-      return 'https://mangadar.com/wp-content/uploads/2026/04/Logo.png';
-    }
-    if (value.contains('procomic')) return 'https://procomic.pro/favicon.svg';
-    if (value.contains('asgard')) return 'https://asgardscans.com/asgard.png';
-    if (value.contains('seanovel') || value.contains('بحرالروايات')) {
-      return 'https://seanovel.org/logo.webp';
-    }
-    return null;
-  }
-
-  Widget _fallback() => Icon(Icons.public_rounded, size: 22, color: AppColors.primary);
-
-  @override
-  Widget build(BuildContext context) {
-    final asset = localLogoAsset;
-    if (asset != null) {
-      return Image.asset(
-        asset,
-        width: 24,
-        height: 24,
-        fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => _fallback(),
       );
-    }
-    final url = logoUrl;
-    if (url == null) return _fallback();
-    return CachedNetworkImage(
-      imageUrl: url,
-      width: 24,
-      height: 24,
-      fit: BoxFit.contain,
-      errorWidget: (_, __, ___) => _fallback(),
-    );
-  }
 }
 
 class _SectionTitle extends StatelessWidget {

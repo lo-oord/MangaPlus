@@ -41,6 +41,7 @@ class MangaSwatSource extends ContentSource {
     final image = poster is Map ? (poster['medium'] ?? poster['thumbnail'] ?? '').toString() : '';
     final genres = _genres(data['genres']);
     final description = _stripTags((data['story'] ?? '').toString());
+    final chapters = await _allChapters(id);
     return {
       ...item(
         title: (data['title'] ?? '').toString(), url: _seriesUrl(id, (data['slug'] ?? '').toString()),
@@ -51,8 +52,12 @@ class MangaSwatSource extends ContentSource {
       'status': data['status'] is Map ? (data['status']['name'] ?? '').toString() : (data['status'] ?? '').toString(),
       'year': data['published'] ?? '',
       'author': data['author'] ?? '', 'artist': data['artist'] ?? '',
-      'total_chapters': data['chapters_count'] ?? 0,
-      'chapters': await _allChapters(id),
+      // The fetched list is the source of truth; the API counter is only a
+      // fallback when the list itself is empty.
+      'total_chapters': chapters.isEmpty
+          ? data['chapters_count'] ?? 0
+          : chapters.length,
+      'chapters': chapters,
     };
   }
 

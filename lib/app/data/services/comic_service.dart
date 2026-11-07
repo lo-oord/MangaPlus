@@ -1,6 +1,8 @@
+import 'package:mangaplus/app/core/utils/chapter_reference_identity.dart';
 import 'package:mangaplus/app/data/models/chapter.dart';
 import 'package:mangaplus/app/data/models/comic.dart';
 import 'package:mangaplus/app/data/models/comic_detail.dart';
+import 'package:mangaplus/app/data/sources/manga_html_utils.dart';
 import 'package:mangaplus/app/data/sources/manga_source_registry.dart';
 import 'package:mangaplus/app/data/sources/source_base.dart';
 import 'package:mangaplus/app/data/sources/source_values.dart';
@@ -39,142 +41,280 @@ class ComicService {
   final _kolNovel = MangaSourceRegistry.kolNovel;
   static const String sourceName = 'Team X';
 
+  /// Converts one raw source result into the shared card model.
+  ///
+  /// Normalising here means a source can expose `cover_image`, a relative
+  /// image path, an Arabic status or a nested chapter list and still reach the
+  /// UI in exactly the same shape as every other source.
   static ComicsList mapComicItem(Map<String, dynamic> item) {
-    final title = '${item['title'] ?? ''}'.trim();
-    final id = '${item['url'] ?? ''}'.trim();
-    final number = item['latest_chapter_number'];
-    final chapterName = '${item['latest_chapter_name'] ?? ''}'.trim();
-    final rawNumber = number?.toString().trim() ?? '';
-    final nameNumber = RegExp(r'\d+(?:\.\d+)?').firstMatch(chapterName)?.group(0);
-    final chapter = rawNumber.isNotEmpty && rawNumber != 'null'
+    final id = SourceValues.firstText([
+      item['url'],
+      item['link'],
+      item['comicId'],
+    ]);
+    final chapterName = SourceValues.text(item['latest_chapter_name']);
+    final rawNumber = SourceValues.text(item['latest_chapter_number']);
+    final nameNumber =
+        RegExp(r'\d+(?:\.\d+)?').firstMatch(chapterName)?.group(0);
+    final chapter = rawNumber.isNotEmpty &&
+            !const {'0', 'null', 'nan'}.contains(rawNumber.toLowerCase())
         ? rawNumber
         : nameNumber ?? '';
+    final sourceId = SourceValues.firstText([item['source_id']]);
+    final fallbackType = SourceValues.canonicalType(
+      [item['category'], item['source_kind'], item['kind']],
+      fallback: sourceId.toLowerCase().contains('novel') ||
+              sourceId.toLowerCase().contains('seanovel')
+          ? 'novel'
+          : 'manga',
+    );
     return ComicsList(
       comicId: id,
-      title: title,
+      title: SourceValues.text(item['title']),
       link: id,
-      image: '${item['image_url'] ?? ''}',
-      type: '${item['type'] ?? 'manga'}',
+      image: SourceValues.image(item, baseUrl: id),
+      type: SourceValues.canonicalType(
+        [
+          item['type'],
+          item['seriesType'],
+          item['series_type'],
+          item['content_type'],
+          item['format'],
+        ],
+        fallback: fallbackType,
+      ),
       chapter: chapter,
-      rating: _cardRating(item),
-      status: _cardStatus(item),
-      latestChapterDate: '${item['latest_chapter_date'] ?? ''}',
-      genres: item['genres'] is List
-          ? (item['genres'] as List).map((value) => value.toString()).toList()
-          : const [],
-      totalChapters: _cardChapterCount(item),
-      source: '${item['source'] ?? item['source_id'] ?? ''}',
+      rating: SourceValues.rating(item),
+      status: SourceValues.status(
+        SourceValues.lookup(item, const [
+              'status',
+              'seriesStatus',
+              'series_status',
+              'state',
+              'progress',
+              'publication_status',
+              'publicationStatus',
+            ]) ??
+            '',
+      ),
+      latestChapterDate: SourceValues.text(
+        item['latest_chapter_date'] ??
+            item['updated_on'] ??
+            item['updated_at'],
+      ),
+      genres: _genres(item['genres'] ?? item['tags'] ?? item['categories']),
+      totalChapters: SourceValues.chapterCount(
+        item['chapters'] is List ? item['chapters'] : item,
+      ),
+      source: SourceValues.firstText([item['source'], item['source_id']]),
     );
   }
 
-  static String _cardRating(Map<String, dynamic> item) =>
-      SourceValues.rating(item);
+  /// Converts a raw `details()` payload into the shared detail model.
+  ///
+  /// The chapter count always describes the chapter list that was actually
+  /// produced, so the number shown to the user can never disagree with the
+  /// list rendered below it.
+  static ComicDetail mapComicDetail(
+    Map<String, dynamic> raw, {
+    required String comicId,
+    String fallbackType = 'manga',
+  }) {
+    final chapters = mapChapters(raw, comicId);
+    final title = SourceValues.text(raw['title']);
+    final nativeTitle = _nativeTitle(raw, title);
+    final totalChapters = chapters.isNotEmpty
+        ? '${chapters.length}'
+        : SourceValues.chapterCount(raw);
+    return ComicDetail(
+      comicId: SourceValues.firstText([raw['url'], comicId]),
+      coverImage: SourceValues.image(raw, baseUrl: comicId),
+      title: title,
+      nativeTitle: nativeTitle,
+      alternativeTitles: _alternativeTitles(
+        raw,
+        title: title,
+        nativeTitle: nativeTitle,
+      ),
+      genres: _genres(raw['genres'] ?? raw['tags'] ?? raw['categories']),
+      releaseYear: SourceValues.year(SourceValues.firstText([
+        raw['release_year'],
+        raw['year'],
+        raw['published'],
+        raw['releaseDate'],
+        raw['published_at'],
+      ])),
+      author: SourceValues.firstText([
+        raw['author'],
+        raw['writer'],
+        raw['creator'],
+      ]),
+      artist: SourceValues.firstText([
+        raw['artist'],
+        raw['illustrator'],
+      ]),
+      translator: SourceValues.firstText([
+        raw['translator'],
+        raw['translation'],
+      ]),
+      status: SourceValues.status(SourceValues.firstText([
+        raw['status'],
+        raw['seriesStatus'],
+        raw['publication_status'],
+        raw['state'],
+        raw['progress'],
+      ])),
+      type: SourceValues.canonicalType([
+        raw['type'],
+        raw['seriesType'],
+        raw['content_type'],
+        raw['format'],
+        raw['category'],
+      ], fallback: fallbackType),
+      totalChapters: totalChapters,
+      updatedOn: _formatDate(SourceValues.firstText([
+        raw['updated_on'],
+        raw['updated_at'],
+        raw['latest_chapter_date'],
+      ])),
+      rating: SourceValues.rating(raw),
+      synopsis: _plainText(SourceValues.firstText([
+        raw['synopsis'],
+        raw['description'],
+        raw['summary'],
+        raw['postContent'],
+      ])),
+      chapters: chapters,
+    );
+  }
 
-  static String _detailImage(Map<String, dynamic> raw) {
+  /// Builds the chapter list for one work, dropping invalid references and
+  /// duplicate chapters so the same chapter can never be counted twice.
+  static List<Chapter> mapChapters(Map<String, dynamic> raw, String comicId) {
+    final rawChapters = raw['chapters'];
+    if (rawChapters is! List) return const [];
+    final seen = <String>{};
+    final chapters = <Chapter>[];
+    for (final entry in rawChapters) {
+      if (entry is! Map) continue;
+      final chapter = Map<String, dynamic>.from(entry);
+      final reference = _chapterReference(
+        chapter['url'] ??
+            chapter['chapter_url'] ??
+            chapter['chapterUrl'] ??
+            chapter['chapter_id'] ??
+            chapter['chapterId'] ??
+            chapter['id'],
+        baseUrl: comicId,
+      );
+      if (reference == null) continue;
+      final identity = ChapterReferenceIdentity.identity(
+        reference,
+        baseReference: comicId,
+      );
+      if (identity.isEmpty || !seen.add(identity)) continue;
+      final number = SourceValues.firstText([
+        chapter['number'],
+        chapter['chapter_number'],
+        chapter['chapterNumber'],
+      ]);
+      var title = SourceValues.text(chapter['title'] ?? chapter['name']);
+      if (title.isEmpty && number.isNotEmpty) title = 'الفصل $number';
+      chapters.add(Chapter(
+        chapterId: reference,
+        title: title.isEmpty ? 'فصل' : title,
+        link: reference,
+        releaseTime: _formatDate(SourceValues.firstText([
+          chapter['release_date'],
+          chapter['date'],
+          chapter['published_at'],
+          chapter['created_at'],
+        ])),
+      ));
+    }
+    return chapters;
+  }
+
+  static List<String> _genres(dynamic raw) {
+    if (raw is! List) return const [];
+    final seen = <String>{};
+    final genres = <String>[];
+    for (final entry in raw) {
+      final value = entry is Map
+          ? SourceValues.firstText([
+              entry['name'],
+              entry['title'],
+              entry['label'],
+              entry['value'],
+            ])
+          : SourceValues.text(entry);
+      if (value.isEmpty || !seen.add(value.toLowerCase())) continue;
+      genres.add(value);
+    }
+    return genres;
+  }
+
+  static String _nativeTitle(Map<String, dynamic> raw, String title) {
+    final value = SourceValues.firstText([
+      raw['native_title'],
+      raw['nativeTitle'],
+      raw['original_title'],
+      raw['originalTitle'],
+      raw['japanese_title'],
+    ]);
+    if (value.isEmpty || _sameText(value, title)) return '';
+    return value;
+  }
+
+  static List<String> _alternativeTitles(
+    Map<String, dynamic> raw, {
+    required String title,
+    required String nativeTitle,
+  }) {
+    final values = <String>[];
     for (final key in const [
-      'image_url',
-      'image',
-      'cover_image',
-      'coverImage',
-      'cover_url',
-      'coverUrl',
-      'cover',
-      'thumbnail',
-      'poster',
+      'alternate_titles',
+      'alternateTitles',
+      'alternative_titles',
+      'alternativeTitles',
+      'aliases',
+      'altTitles',
     ]) {
-      final value = _findCardValue(raw, key, 0);
-      final image = _imageText(value, 0);
-      if (image.isNotEmpty) return image;
-    }
-    return '';
-  }
-
-  static String _imageText(dynamic value, int depth) {
-    if (depth > 4 || value == null) return '';
-    if (value is String) {
-      final text = value.trim();
-      return text.startsWith('http') || text.startsWith('/') ? text : '';
-    }
-    if (value is List) {
-      for (final entry in value) {
-        final image = _imageText(entry, depth + 1);
-        if (image.isNotEmpty) return image;
-      }
-      return '';
-    }
-    if (value is Map) {
-      for (final key in const [
-        'desktop',
-        'mobile',
-        'card',
-        'url',
-        'src',
-        'image',
-        'cover',
-      ]) {
-        if (!value.containsKey(key)) continue;
-        final image = _imageText(value[key], depth + 1);
-        if (image.isNotEmpty) return image;
+      final value = raw[key];
+      if (value is List) {
+        for (final entry in value) {
+          values.add(entry is Map
+              ? SourceValues.firstText([
+                  entry['title'],
+                  entry['name'],
+                  entry['label'],
+                  entry['value'],
+                ])
+              : SourceValues.text(entry));
+        }
+      } else if (value is String) {
+        values.addAll(value.split(RegExp(r'\s*[•|؛]\s*')));
       }
     }
-    return '';
+    final seen = <String>{title.toLowerCase(), nativeTitle.toLowerCase()};
+    return values
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty && seen.add(value.toLowerCase()))
+        .take(6)
+        .toList(growable: false);
   }
 
-  static String _cardStatus(Map<String, dynamic> item) {
-    final value = _nestedCardValue(item, const [
-      'status',
-      'state',
-      'progress',
-      'publication_status',
-      'publicationStatus',
-      'series_status',
-      'seriesStatus',
-    ]);
-    if (value is Map) {
-      return '${value['name'] ?? value['title'] ?? value['label'] ?? value['value'] ?? ''}'.trim();
+  static bool _sameText(String left, String right) =>
+      left.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim() ==
+      right.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+
+  static String _plainText(String value) {
+    final text = value.trim();
+    if (text.isEmpty) return '';
+    if (!text.contains('<') && !text.contains('&')) {
+      return text.replaceAll(RegExp(r'\s+'), ' ');
     }
-    return value?.toString().trim() ?? '';
-  }
-
-  static String _cardChapterCount(Map<String, dynamic> item) {
-    final value = _nestedCardValue(item, const [
-      'total_chapters',
-      'totalChapters',
-      'chapter_count',
-      'chapterCount',
-      'chapters_count',
-      'chaptersCount',
-      'number_of_chapters',
-      'numberOfChapters',
-      'chapters',
-    ]);
-    if (value is List) return '${value.length}';
-    if (value == null) return '';
-    return value.toString().trim();
-  }
-
-  static dynamic _nestedCardValue(
-    Map<String, dynamic> item,
-    List<String> keys,
-  ) {
-    for (final key in keys) {
-      final value = _findCardValue(item, key, 0);
-      if (value != null && value.toString().trim().isNotEmpty) return value;
-    }
-    return null;
-  }
-
-  static dynamic _findCardValue(dynamic value, String key, int depth) {
-    if (depth > 3 || value == null) return null;
-    if (value is Map) {
-      if (value.containsKey(key)) return value[key];
-      for (final container in const ['data', 'details', 'stats', 'statistics', 'metadata']) {
-        if (!value.containsKey(container)) continue;
-        final found = _findCardValue(value[container], key, depth + 1);
-        if (found != null) return found;
-      }
-    }
-    return null;
+    return mangaHtmlToText(text);
   }
 
   ComicData _comicData(List<Map<String, dynamic>> items, {
@@ -384,7 +524,16 @@ class ComicService {
     _detailRequests[key] = request;
     try {
       final detail = await request;
-      _detailCache[key] = detail;
+      // A later fetch that comes back partial must not erase metadata we have
+      // already shown; keep the known values for empty fields.
+      final previous = _detailCache[key];
+      final resolved = previous == null
+          ? detail
+          : ComicDetailData(
+              comicDetail: detail.comicDetail.mergedWith(previous.comicDetail),
+              source: detail.source.isNotEmpty ? detail.source : previous.source,
+            );
+      _detailCache[key] = resolved;
       _detailCacheTimes[key] = DateTime.now();
       if (_detailCache.length > 100) {
         for (final oldKey in _detailCache.keys.take(25).toList()) {
@@ -392,7 +541,7 @@ class ComicService {
           _detailCacheTimes.remove(oldKey);
         }
       }
-      return detail;
+      return resolved;
     } catch (_) {
       if (cached != null) return cached;
       rethrow;
@@ -407,48 +556,10 @@ class ComicService {
     final source = _sourceResolver(comicId);
     if (source == null) throw StateError('لم يتم العثور على مصدر لهذا الرابط.');
     final raw = await source.details(comicId);
-    final rawChapters = raw['chapters'] is List
-        ? (raw['chapters'] as List)
-            .whereType<Map>()
-            .map((entry) => Map<String, dynamic>.from(entry))
-            .toList(growable: false)
-        : const <Map<String, dynamic>>[];
-    final chapters = rawChapters.map((entry) {
-      final url = _chapterReference(
-        entry['url'] ?? entry['chapter_url'] ?? entry['chapter_id'] ?? entry['id'],
-        baseUrl: comicId,
-      );
-      final id = url ?? '';
-      return Chapter(
-        chapterId: id,
-        title: '${entry['title'] ?? 'الفصل ${entry['number'] ?? entry['chapter_number'] ?? ''}'}'.trim(),
-        link: id,
-        releaseTime: _formatDate('${entry['release_date'] ?? entry['date'] ?? ''}'),
-      );
-    }).where((chapter) => chapter.chapterId.isNotEmpty).toList(growable: false);
-    final genres = raw['genres'] is List
-        ? (raw['genres'] as List).map((value) => value is Map ? '${value['name'] ?? value['title'] ?? ''}' : value.toString()).where((v) => v.trim().isNotEmpty).toList()
-        : <String>[];
-    final detail = ComicDetail(
-      comicId: '${raw['url'] ?? comicId}',
-      coverImage: _detailImage(raw),
-      title: '${raw['title'] ?? ''}',
-      nativeTitle: '${raw['native_title'] ?? ''}',
-      genres: genres,
-      releaseYear: '${raw['release_year'] ?? raw['year'] ?? ''}',
-      author: '${raw['author'] ?? raw['artist'] ?? ''}',
-      status: '${raw['status'] ?? ''}',
-      type: SourceValues.type([
-        raw['type'],
-        raw['seriesType'],
-        raw['content_type'],
-        raw['format'],
-      ]),
-      totalChapters: '${raw['total_chapters'] ?? chapters.length}',
-      updatedOn: _formatDate('${raw['updated_on'] ?? raw['updated_at'] ?? ''}'),
-      rating: '${raw['rating'] ?? ''}',
-      synopsis: '${raw['synopsis'] ?? raw['description'] ?? ''}',
-      chapters: chapters,
+    final detail = mapComicDetail(
+      raw,
+      comicId: comicId,
+      fallbackType: source.kind,
     );
     final sourceName = source.id == 'azora' &&
             detail.type.trim().toLowerCase() == 'novel'
@@ -623,7 +734,7 @@ class ComicService {
     }
   }
 
-  String? _firstChapterReference(
+  static String? _firstChapterReference(
     Iterable<dynamic> values, {
     String? baseUrl,
   }) {
@@ -634,7 +745,7 @@ class ComicService {
     return null;
   }
 
-  String? _chapterReference(dynamic value, {String? baseUrl}) {
+  static String? _chapterReference(dynamic value, {String? baseUrl}) {
     if (value is Map) {
       return _firstChapterReference([
         value['url'],
@@ -658,7 +769,7 @@ class ComicService {
     return base.resolveUri(uri).toString();
   }
 
-  String _formatDate(String value) {
+  static String _formatDate(String value) {
     final date = DateTime.tryParse(value.trim());
     if (date == null) return value;
     final local = date.toLocal();

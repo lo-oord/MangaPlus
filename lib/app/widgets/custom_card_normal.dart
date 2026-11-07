@@ -5,6 +5,7 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/cache/manga_cover_cache_manager.dart';
 import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/services/bookmark_state_service.dart';
+import 'package:mangaplus/app/data/sources/source_values.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 
 class CustomCardNormal extends StatelessWidget {
@@ -111,7 +112,9 @@ class CustomCardNormal extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: CachedNetworkImage(
+              child: imageUrl.trim().isEmpty
+                  ? _coverPlaceholder(width, coverHeight)
+                  : CachedNetworkImage(
                 imageUrl: imageUrl,
                 cacheManager: MangaCoverCacheManager.instance,
                 httpHeaders: _imageHeaders(imageUrl),
@@ -243,9 +246,10 @@ class CustomCardNormal extends StatelessWidget {
   }
 
   Color _statusColor(String value) {
-    final statusText = localizeContentStatus(value).toLowerCase();
-    if (statusText == 'مستمر'.tr.toLowerCase() || statusText == 'ongoing') return const Color(0xff43b581);
-    if (statusText == 'متوقف مؤقتًا'.tr.toLowerCase() || statusText == 'paused' || statusText == 'hiatus') return const Color(0xffe5a947);
+    final status = SourceValues.status(value);
+    if (status == SourceValues.statusOngoing) return const Color(0xff43b581);
+    if (status == SourceValues.statusHiatus) return const Color(0xffe5a947);
+    if (status == SourceValues.statusCancelled) return const Color(0xffd9534f);
     return AppColors.textSecondary;
   }
 
