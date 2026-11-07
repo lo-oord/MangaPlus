@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/utils/reader_load_issue.dart';
 import 'package:mangaplus/app/data/models/chapter.dart';
+import 'package:mangaplus/app/data/sources/hijala_image_provider.dart';
 import 'package:mangaplus/app/modules/chapter/controllers/chapter_controller.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
@@ -1613,6 +1614,7 @@ class _ChapterViewState extends State<ChapterView> {
   ) {
     return Obx(() {
       final isLocalPage = _isLocalReaderPage(imageUrl);
+      final isHijalaPair = HijalaImageProvider.handles(imageUrl);
       if (isLocalPage) {
         WidgetsBinding.instance.addPostFrameCallback((_) =>
             controller.markPageLoaded(pageIndex, pageReference: imageUrl));
@@ -1643,7 +1645,23 @@ class _ChapterViewState extends State<ChapterView> {
                 return const Center(child: MangaPlusLogo(size: 56));
               },
             )
-          : CachedNetworkImage(
+          : isHijalaPair
+              ? Image(
+                  image: HijalaImageProvider(imageUrl),
+                  width: double.infinity,
+                  height: double.infinity,
+                  fit: fit,
+                  filterQuality: FilterQuality.medium,
+                  gaplessPlayback: true,
+                  frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                    if (frame != null || wasSynchronouslyLoaded) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) =>
+                          controller.markPageLoaded(pageIndex, pageReference: imageUrl));
+                    }
+                    return child;
+                  },
+                )
+              : CachedNetworkImage(
               key: ValueKey('$imageUrl#${controller.pageRetryToken(pageIndex)}'),
               imageUrl: imageUrl,
               httpHeaders: _imageHeaders(imageUrl),
@@ -1722,6 +1740,7 @@ class _ChapterViewState extends State<ChapterView> {
       child: Obx(
         () {
           final isLocalPage = _isLocalReaderPage(imageUrl);
+          final isHijalaPair = HijalaImageProvider.handles(imageUrl);
           if (isLocalPage) {
             _markPageLoadedAndPreservePosition(pageIndex, imageUrl);
           }
@@ -1746,6 +1765,21 @@ class _ChapterViewState extends State<ChapterView> {
                   return const Center(child: MangaPlusLogo(size: 56));
                 },
               )
+              : isHijalaPair
+              ? Image(
+                  image: HijalaImageProvider(imageUrl),
+                  width: double.infinity,
+                  fit: _imageFit(controller.readerFit.value),
+                  filterQuality: FilterQuality.medium,
+                  alignment: Alignment.topCenter,
+                  gaplessPlayback: true,
+                  frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                    if (frame != null || wasSynchronouslyLoaded) {
+                      _markPageLoadedAndPreservePosition(pageIndex, imageUrl);
+                    }
+                    return child;
+                  },
+                )
               : CachedNetworkImage(
                 key: ValueKey('$imageUrl#${controller.pageRetryToken(pageIndex)}'),
                 imageUrl: imageUrl,

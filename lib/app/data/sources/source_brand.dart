@@ -44,8 +44,6 @@ class SourceBrand {
     'kolnovel': 'https://kolnovel.com',
     'procomic': 'https://procomic.pro',
     'hijala': 'https://hijala.com',
-    'asgard': 'https://asgardscans.com',
-    'asgard scans': 'https://asgardscans.com',
     'sea novel': 'https://seanovel.org',
     'seanovel': 'https://seanovel.org',
   };

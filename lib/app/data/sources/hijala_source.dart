@@ -166,6 +166,19 @@ class HijalaSource extends ContentSource {
     if (pages.isEmpty) {
       throw Exception('Hijala: لا توجد صور متاحة لهذا الفصل.');
     }
+    // The official Keiyoushi extension stitches every two half-images when
+    // this marker is present. Hijala currently uses that anti-scraping reader.
+    if (document.querySelector('#chapter-pages-js-before') != null) {
+      final paired = <String>[];
+      for (var i = 0; i + 1 < pages.length; i += 2) {
+        paired.add(_pairUrl(pages[i], pages[i + 1]));
+      }
+      if (paired.isNotEmpty) {
+        pages
+          ..clear()
+          ..addAll(paired);
+      }
+    }
 
     final context = _chapterContexts[chapterUrl];
     final number = '${context?['number'] ?? _chapterNumberFromUrl(chapterUrl)}';
@@ -334,6 +347,14 @@ class HijalaSource extends ContentSource {
       return uri.replace(scheme: 'https', host: 'hijala.com').toString();
     }
     return absolute;
+  }
+
+  String _pairUrl(String left, String right) {
+    final query = Uri(queryParameters: {
+      'leftImage': left,
+      'rightImage': right,
+    }).query;
+    return 'hijala-pair://page?$query';
   }
 
   String _numberFromText(String text) {

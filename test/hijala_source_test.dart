@@ -125,6 +125,27 @@ void main() {
     ]);
   });
 
+  test('reader pairs scrambled pages using the official Hijala marker', () async {
+    final source = HijalaSource(client: _FixtureClient({
+      '/solo-leveling-4/': '''
+        <script id="chapter-pages-js-before"></script>
+        <div id="readerarea">
+          <img src="https://hijala.com/wp-content/uploads/manga/ab12/04-left.webp">
+          <img src="https://hijala.com/wp-content/uploads/manga/ab12/04-right.webp">
+        </div>
+      ''',
+    }));
+
+    final chapter = await source.chapterImages(
+      'https://hijala.com/solo-leveling-4/',
+    );
+
+    final page = (chapter?['pages'] as List).single as String;
+    expect(page, startsWith('hijala-pair://page?'));
+    expect(page, contains('leftImage='));
+    expect(page, contains('rightImage='));
+  });
+
   test('Hijala handles its own pages but not unrelated domains', () {
     final source = HijalaSource(client: _FixtureClient(const {}));
     expect(source.handles('https://www.hijala.com/solo-leveling/'), isTrue);

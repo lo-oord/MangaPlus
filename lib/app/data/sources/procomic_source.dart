@@ -24,7 +24,12 @@ class ProComicSource extends ContentSource {
   @override String get id => 'procomic';
   @override String get name => 'ProComic';
   @override String get kind => 'manga';
-  @override List<String> get hosts => const ['procomic.pro', 'cdn2.procomic.pro', 'app.procomic.pro'];
+  @override List<String> get hosts => const [
+        'procomic.pro',
+        'procomic.net',
+        'cdn2.procomic.pro',
+        'app.procomic.pro',
+      ];
 
   @override
   Future<List<Map<String, dynamic>>> search(String query) async {
@@ -45,7 +50,7 @@ class ProComicSource extends ContentSource {
     final id = _contentId(url);
     if (id <= 0) throw Exception('ProComic: رابط السلسلة غير صالح.');
     final raw = await _get('/content/$id');
-    final chapters = await _chaptersFromPage(raw);
+    final chapters = await _chapters(raw);
     final entry = _item(raw);
     entry.addAll({
       'native_title': _text(_metadata(raw)['originalTitle']),
@@ -117,10 +122,15 @@ class ProComicSource extends ContentSource {
     final html = utf8.decode(response.bodyBytes, allowMalformed: true).replaceAll(r'\/', '/');
     final appImages = <String>[];
     final cdnImages = <String>[];
+    final allImages = <String>[];
     final chapterId = _chapterId(url);
-    final pattern = RegExp(r'https://(?:cdn\d+|app)\.procomic\.pro/[^"\\\s<>]+?\.(?:avif|webp|jpg|jpeg|png)', caseSensitive: false);
+    final pattern = RegExp(
+      r'https://(?:[^/"\\\s<>]+\.)?procomic\.(?:pro|net|im)/[^"\\\s<>]+?(?:\.(?:avif|webp|jpg|jpeg|png)|/api/cdn-image)',
+      caseSensitive: false,
+    );
     for (final match in pattern.allMatches(html)) {
       final image = match.group(0)!;
+      if (!allImages.contains(image)) allImages.add(image);
       final isChapterImage = chapterId.isNotEmpty &&
           image.contains('/$chapterId/');
       if (!isChapterImage) continue;
@@ -132,9 +142,61 @@ class ProComicSource extends ContentSource {
     }
     final images = appImages.length > 1
         ? appImages
-        : [...appImages, ...cdnImages];
+        : [...appImages, ...cdnImages].isNotEmpty
+            ? [...appImages, ...cdnImages]
+            : allImages;
     if (images.isEmpty) return null;
     return {'title': 'الفصل ${_chapterNumber(url)}', 'chapter_number': _chapterNumber(url), 'pages': images, 'images': images.map((e) => {'url': e}).toList(), 'url': url};
+  }
+
+  Future<List<Map<String, dynamic>>> _chapters(Map<String, dynamic> raw) async {
+    final apiChapters = await _chaptersFromApi(raw);
+    if (apiChapters.isNotEmpty) return apiChapters;
+    return _chaptersFromPage(raw);
+  }
+
+  Future<List<Map<String, dynamic>>> _chaptersFromApi(Map<String, dynamic> raw) async {
+    final id = _int(raw['id']);
+    final type = _text(raw['type']);
+    if (id <= 0 || type.isEmpty) return const [];
+    try {
+      final response = await _client.get(
+        Uri.parse('$_api/$type/$id/chapters').replace(
+          queryParameters: const {'limit': '100', 'order': 'desc', 'page': '1'},
+        ),
+        headers: _headers,
+      ).timeout(_timeout);
+      if (response.statusCode < 200 || response.statusCode >= 300) return const [];
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes, allowMalformed: true));
+      if (decoded is! Map) return const [];
+      final data = decoded['data'];
+      if (data is! List) return const [];
+      final slug = _text(raw['slug']);
+      final result = <Map<String, dynamic>>[];
+      for (final value in data.whereType<Map>()) {
+        final chapter = Map<String, dynamic>.from(value);
+        if (_text(chapter['language']).isNotEmpty &&
+            _text(chapter['language']).toUpperCase() != 'AR') continue;
+        if (chapter['lockedForever'] == true ||
+            chapter['lockedByCoins'] == true ||
+            chapter['lockedByShortlink'] == true ||
+            chapter['lockedByExclusive'] == true) continue;
+        final number = _text(chapter['chapter_number']);
+        final chapterId = _int(chapter['id']);
+        if (number.isEmpty || chapterId <= 0) continue;
+        result.add({
+          'title': 'الفصل $number${_text(chapter['title']).isEmpty || _text(chapter['title']) == number ? '' : ' - ${_text(chapter['title'])}'}',
+          'number': double.tryParse(number) ?? number,
+          'chapter_number': number,
+          'chapter_id': chapterId,
+          'url': '$_site/ar/chapter/$slug-$number-$chapterId',
+          if (_text(chapter['published_at']).isNotEmpty) 'release_date': _text(chapter['published_at']),
+        });
+      }
+      return result;
+    } catch (_) {
+      return const [];
+    }
   }
 
   Future<List<Map<String, dynamic>>> _chaptersFromPage(Map<String, dynamic> raw) async {
