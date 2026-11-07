@@ -242,6 +242,10 @@ class ComicDetailView extends GetView<ComicDetailController> {
                                 ),
                               ),
                             ],
+                            if (comic.status.trim().isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              _buildStatusBadge(comic),
+                            ],
                             const SizedBox(height: 13),
                             Wrap(spacing: 12, runSpacing: 8, children: stats),
                             if (comic.genres.isNotEmpty) ...[
@@ -303,6 +307,48 @@ class ComicDetailView extends GetView<ComicDetailController> {
       ),
     );
   }
+  /// Small status pill that uses the same canonical states and colours as the
+  /// rest of the app. Unknown values keep their source text instead of being
+  /// replaced by a misleading default.
+  Widget _buildStatusBadge(ComicDetail comic) {
+    final status = comic.status.trim();
+    final normalized = status.toLowerCase();
+    final color = normalized.contains('complet') || normalized.contains('مكتمل')
+        ? AppColors.success
+        : normalized.contains('hiatus') || normalized.contains('متوقف')
+            ? AppColors.warning
+            : normalized.contains('cancel') || normalized.contains('ملغ')
+                ? AppColors.error
+                : AppColors.primary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            localizeContentStatusOr(status, 'غير معروف'.tr),
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _coverArtwork(
     String imagePath, {
     required BoxFit fit,
@@ -327,7 +373,11 @@ class ComicDetailView extends GetView<ComicDetailController> {
         httpHeaders: _imageHeaders(imagePath),
         fit: fit,
         alignment: alignment,
-        placeholder: (_, __) => Container(color: AppColors.card),
+        placeholder: (_, __) => Container(
+          color: AppColors.card,
+          alignment: Alignment.center,
+          child: MangaPlusLogo(size: logoSize * 0.8),
+        ),
         errorWidget: (_, __, ___) => Center(
           child: MangaPlusLogo(size: logoSize),
         ),
