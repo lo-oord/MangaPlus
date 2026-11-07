@@ -6,6 +6,7 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/data/models/user_profile.dart';
 import 'package:mangaplus/app/modules/profile/controllers/profile_controller.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/mangaplus_app_bar.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 class ProfileDetailsView extends GetView<ProfileController> {
@@ -15,18 +16,15 @@ class ProfileDetailsView extends GetView<ProfileController> {
   Widget build(BuildContext context) => ThemeAwareBuilder(
         builder: (context) => Scaffold(
           backgroundColor: AppColors.background,
-          appBar: AppBar(
-            title: Text('الملف الشخصي'.tr),
-            centerTitle: true,
-            backgroundColor: AppColors.background,
-            foregroundColor: AppColors.textPrimary,
-            elevation: 0,
-          ),
+          appBar: MangaPlusAppBar(title: 'الملف الشخصي'.tr),
           body: Obx(() {
             final account = controller.accountProfile.value;
             final registered = account != null && !account.isGuest;
             if (controller.accountLoading.value) {
-              return const Center(child: MangaPlusLoader(size: 68));
+              return BrandState(
+                title: 'جارٍ تحميل الملف الشخصي'.tr,
+                loading: true,
+              );
             }
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),

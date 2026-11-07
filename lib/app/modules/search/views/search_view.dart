@@ -10,6 +10,7 @@ import 'package:mangaplus/app/modules/search/controllers/search_controller.dart'
     as search_controller;
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/mangaplus_app_bar.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 class SearchView extends GetView<search_controller.SearchController> {
@@ -19,12 +20,7 @@ class SearchView extends GetView<search_controller.SearchController> {
   Widget build(BuildContext context) {
     return ThemeAwareBuilder(builder: (context) => Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.textPrimary,
-        elevation: 0,
-        title: Text('بحث'.tr),
-      ),
+      appBar: MangaPlusAppBar(title: 'بحث'.tr),
       body: Column(
         children: [
           Padding(

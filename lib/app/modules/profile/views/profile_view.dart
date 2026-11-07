@@ -8,6 +8,7 @@ import 'package:mangaplus/app/modules/profile/controllers/profile_controller.dar
 import 'package:mangaplus/app/modules/profile/views/reading_stats_panel.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/mangaplus_app_bar.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 class ProfileView extends GetView<ProfileController> {
@@ -16,13 +17,7 @@ class ProfileView extends GetView<ProfileController> {
   @override
   Widget build(BuildContext context) => ThemeAwareBuilder(builder: (context) => Scaffold(
         backgroundColor: AppColors.background,
-        appBar: AppBar(
-          title: Text('الإعدادات'.tr),
-          centerTitle: true,
-          backgroundColor: AppColors.background,
-          foregroundColor: AppColors.textPrimary,
-          elevation: 0,
-        ),
+        appBar: MangaPlusAppBar(title: 'الإعدادات'.tr),
         body: Obx(() {
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),

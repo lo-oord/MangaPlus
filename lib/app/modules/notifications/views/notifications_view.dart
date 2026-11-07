@@ -5,6 +5,7 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/data/models/app_notification.dart';
 import 'package:mangaplus/app/modules/notifications/controllers/notifications_controller.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/mangaplus_app_bar.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 class NotificationsView extends GetView<NotificationsController> {
@@ -14,13 +15,7 @@ class NotificationsView extends GetView<NotificationsController> {
   Widget build(BuildContext context) => ThemeAwareBuilder(
         builder: (context) => Scaffold(
           backgroundColor: AppColors.background,
-          appBar: AppBar(
-            title: Text('الإشعارات'.tr),
-            centerTitle: true,
-            backgroundColor: AppColors.background,
-            foregroundColor: AppColors.textPrimary,
-            elevation: 0,
-          ),
+          appBar: MangaPlusAppBar(title: 'الإشعارات'.tr),
           body: Obx(() {
             if (controller.isLoading.value) {
               return BrandState(title: 'جارٍ تحميل الإشعارات'.tr, loading: true);

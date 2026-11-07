@@ -4,6 +4,8 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/modules/genre_detail/controllers/genre_detail_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/mangaplus_app_bar.dart';
+import 'package:mangaplus/app/core/utils/bidi_text.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 import 'package:mangaplus/app/widgets/custom_card_normal.dart';
 
@@ -14,20 +16,26 @@ class GenreDetailView extends GetView<GenreDetailController> {
   Widget build(BuildContext context) {
     return ThemeAwareBuilder(builder: (context) => Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.textPrimary,
-        elevation: 0,
-        title: Obx(() => Text(
-              controller.genreTitle.value.isEmpty
-                  ? 'التصنيف'.tr
-                  : controller.genreTitle.value,
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            )),
+      appBar: MangaPlusAppBar(
+        centerTitle: false,
+        titleWidget: Obx(
+          () => Text(
+            controller.genreTitle.value.isEmpty
+                ? 'التصنيف'.tr
+                : controller.genreTitle.value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textDirection: bidiTextDirection(
+              controller.genreTitle.value,
+              fallback: TextDirection.rtl,
+            ),
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
       ),
       body: Obx(() {
         if (controller.isLoading.value) {

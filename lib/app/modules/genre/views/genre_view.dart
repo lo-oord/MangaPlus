@@ -4,6 +4,7 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/modules/genre/controllers/genre_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/mangaplus_app_bar.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 class GenreView extends GetView<GenreController> {
@@ -13,13 +14,7 @@ class GenreView extends GetView<GenreController> {
   Widget build(BuildContext context) {
     return ThemeAwareBuilder(builder: (context) => Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text('التصنيفات'.tr),
-        centerTitle: true,
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.textPrimary,
-        elevation: 0,
-      ),
+      appBar: MangaPlusAppBar(title: 'التصنيفات'.tr),
       body: Obx(() {
         if (controller.isLoading.value) {
           return BrandState(title: 'جارٍ تحميل التصنيفات'.tr, loading: true);

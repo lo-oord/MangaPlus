@@ -5,6 +5,7 @@ import 'package:mangaplus/app/data/models/bookmark.dart';
 import 'package:mangaplus/app/modules/bookmark/controllers/bookmark_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/mangaplus_app_bar.dart';
 import 'package:mangaplus/app/widgets/custom_card_normal.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
@@ -16,12 +17,8 @@ class BookmarkView extends GetView<BookmarkController> {
     return ThemeAwareBuilder(
       builder: (context) => Scaffold(
         backgroundColor: AppColors.background,
-        appBar: AppBar(
-          title: Text('الإشارات المرجعية'.tr),
-          centerTitle: true,
-          backgroundColor: AppColors.background,
-          foregroundColor: AppColors.textPrimary,
-          elevation: 0,
+        appBar: MangaPlusAppBar(
+          title: 'الإشارات المرجعية'.tr,
           actions: [Obx(() {
             if (controller.selectedBookmarkIds.isNotEmpty) {
               return Row(
@@ -381,11 +378,7 @@ class _DropsauceImportDialog extends StatelessWidget {
                         ),
                         child: Row(
                           children: [
-                            SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
-                            ),
+                            const MangaPlusLoader(size: 18),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(

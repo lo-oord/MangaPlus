@@ -931,7 +931,7 @@ class _ReadingStatsPanelState extends State<ReadingStatsPanel> {
                 child: TextButton.icon(
                   onPressed: controller.isSyncing.value ? null : controller.syncNow,
                   icon: controller.isSyncing.value
-                      ? SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+                      ? const MangaPlusLoader(size: 15)
                       : const Icon(Icons.sync_rounded, size: 16),
                   label: Text('مزامنة الآن'.tr, style: const TextStyle(fontSize: 11)),
                 ),

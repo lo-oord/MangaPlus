@@ -922,23 +922,7 @@ class _ChapterListState extends State<_ChapterList> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              width: 30,
-              height: 30,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  CircularProgressIndicator(
-                    value: progress?.clamp(0.0, 1.0),
-                    strokeWidth: 3,
-                    strokeCap: StrokeCap.round,
-                    color: AppColors.primary,
-                    backgroundColor: AppColors.divider,
-                  ),
-                  Icon(Icons.downloading_rounded, size: 14, color: AppColors.primary),
-                ],
-              ),
-            ),
+            MangaPlusLoader(size: 30, progress: progress),
             const SizedBox(height: 2),
             Text(progress == null ? '…' : '${(progress * 100).round()}%',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 9, fontWeight: FontWeight.w700)),
@@ -1188,8 +1172,7 @@ class _SelectionBottomBar extends StatelessWidget {
                       ? null
                       : () => controller.downloadSelectedChapters(comic),
                   icon: controller.isBulkDownloading.value
-                      ? SizedBox(width: 19, height: 19, child: CircularProgressIndicator(
-                          strokeWidth: 2, color: AppColors.primary))
+                      ? const MangaPlusLoader(size: 19)
                       : Icon(Icons.download_rounded, color: AppColors.primary),
                 ),
               ],

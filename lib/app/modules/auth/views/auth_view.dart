@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/modules/auth/controllers/auth_controller.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/mangaplus_app_bar.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 class AuthView extends GetView<AuthController> {
@@ -12,12 +13,7 @@ class AuthView extends GetView<AuthController> {
   Widget build(BuildContext context) {
     return ThemeAwareBuilder(builder: (context) => Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('حساب MangaPlus'),
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.textPrimary,
-        elevation: 0,
-      ),
+      appBar: const MangaPlusAppBar(title: 'حساب MangaPlus'),
       body: SafeArea(
         child: Obx(() => controller.emailVerificationRequired.value ? _verificationView() : _formView()),
       ),
@@ -56,7 +52,11 @@ class AuthView extends GetView<AuthController> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                 ),
                 child: controller.isBusy.value
-                    ? const SizedBox(height: 21, width: 21, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    ? const MangaPlusLoader(
+                        size: 21,
+                        color: Colors.white,
+                        trackColor: Colors.white24,
+                      )
                     : Text(controller.isCompletingGoogle.value ? 'إكمال الملف' : (controller.isRegister.value ? 'إنشاء الحساب' : 'تسجيل الدخول'), style: const TextStyle(fontWeight: FontWeight.w700)),
               )),
           Obx(() => controller.isCompletingGoogle.value ? const SizedBox.shrink() : const SizedBox(height: 14)),
@@ -297,7 +297,7 @@ class AuthView extends GetView<AuthController> {
                 if (context.mounted) setState(() => busy = false);
               }
             },
-            child: busy ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('إرسال'),
+            child: busy ? const MangaPlusLoader(size: 18) : const Text('إرسال'),
           ),
         ],
       );

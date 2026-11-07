@@ -8,6 +8,7 @@ import 'package:mangaplus/app/data/models/history.dart';
 import 'package:mangaplus/app/modules/history/controllers/history_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/mangaplus_app_bar.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 class HistoryView extends GetView<HistoryController> {
@@ -17,13 +18,7 @@ class HistoryView extends GetView<HistoryController> {
   Widget build(BuildContext context) {
     return ThemeAwareBuilder(builder: (context) => Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text('سجل القراءة'.tr),
-        centerTitle: true,
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.textPrimary,
-        elevation: 0,
-      ),
+      appBar: MangaPlusAppBar(title: 'سجل القراءة'.tr),
       body: Obx(() {
         if (controller.isLoading.value) {
           return BrandState(title: 'جارٍ تحميل سجل القراءة'.tr, loading: true);

@@ -7,6 +7,7 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/modules/local_library/controllers/local_library_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/mangaplus_app_bar.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 class LocalLibraryView extends GetView<LocalLibraryController> {
@@ -16,11 +17,8 @@ class LocalLibraryView extends GetView<LocalLibraryController> {
   Widget build(BuildContext context) {
     return ThemeAwareBuilder(builder: (context) => Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.textPrimary,
-        elevation: 0,
-        title: Text('التخزين المحلي'.tr),
+      appBar: MangaPlusAppBar(
+        title: 'التخزين المحلي'.tr,
         actions: [
           Obx(() => IconButton(
                 tooltip: controller.isSelectionMode.value

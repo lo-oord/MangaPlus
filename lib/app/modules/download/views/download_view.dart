@@ -6,6 +6,7 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/data/models/download_task.dart';
 import 'package:mangaplus/app/modules/download/controllers/download_controller.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
+import 'package:mangaplus/app/widgets/mangaplus_app_bar.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 class DownloadView extends GetView<DownloadController> {
@@ -15,12 +16,7 @@ class DownloadView extends GetView<DownloadController> {
   Widget build(BuildContext context) {
     return ThemeAwareBuilder(builder: (context) => Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.textPrimary,
-        elevation: 0,
-        title: Text('التحميلات'.tr),
-      ),
+      appBar: MangaPlusAppBar(title: 'التحميلات'.tr),
       body: Obx(() {
         final tasks = controller.manager.tasks;
         if (tasks.isEmpty) {

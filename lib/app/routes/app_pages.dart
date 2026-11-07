@@ -62,16 +62,22 @@ class AppPages {
       name: _Paths.COMIC_DETAIL,
       page: () => const ComicDetailView(),
       binding: ComicDetailBinding(),
+      transition: Transition.rightToLeftWithFade,
+      transitionDuration: const Duration(milliseconds: 280),
     ),
     GetPage(
       name: _Paths.CHAPTER,
       page: () => const ChapterView(),
       binding: ChapterBinding(),
+      transition: Transition.fadeIn,
+      transitionDuration: const Duration(milliseconds: 180),
     ),
     GetPage(
       name: _Paths.GENRE_DETAIL,
       page: () => const GenreDetailView(),
       binding: GenreDetailBinding(),
+      transition: Transition.rightToLeftWithFade,
+      transitionDuration: const Duration(milliseconds: 240),
     ),
     GetPage(
       name: _Paths.MAIN,
@@ -87,6 +93,7 @@ class AppPages {
       name: _Paths.LOCAL_LIBRARY,
       page: () => const LocalLibraryView(),
       binding: LocalLibraryBinding(),
+      transition: Transition.rightToLeftWithFade,
     ),
     GetPage(
       name: _Paths.SEARCH,
@@ -102,6 +109,7 @@ class AppPages {
       name: _Paths.PROFILE_DETAILS,
       page: () => const ProfileDetailsView(),
       binding: ProfileBinding(),
+      transition: Transition.rightToLeftWithFade,
     ),
     GetPage(
       name: _Paths.HISTORY,
