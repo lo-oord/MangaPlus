@@ -9,6 +9,7 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/models/comic_detail.dart';
 import 'package:mangaplus/app/data/services/chapter_update_service.dart';
+import 'package:mangaplus/app/data/sources/source_brand.dart';
 import 'package:mangaplus/app/modules/comic_detail/controllers/comic_detail_controller.dart';
 import 'package:mangaplus/app/modules/home/controllers/home_controller.dart';
 import 'package:mangaplus/app/modules/main/controllers/main_controller.dart';
@@ -409,6 +410,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
       comic.type,
       comic.updatedOn,
       comic.releaseYear,
+      controller.comicDetailData.value.source,
     ].any((value) => value.trim().isNotEmpty && value != '0' && value != '0.0');
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
@@ -436,7 +438,10 @@ class ComicDetailView extends GetView<ComicDetailController> {
           ],
           if (hasMetadata) ...[
             const SizedBox(height: 16),
-            _MetadataGrid(comic: comic),
+            _MetadataGrid(
+              comic: comic,
+              sourceName: controller.comicDetailData.value.source,
+            ),
           ],
 
         ],
@@ -550,8 +555,9 @@ class _InfoCard extends StatelessWidget {
 }
 
 class _MetadataGrid extends StatelessWidget {
-  const _MetadataGrid({required this.comic});
+  const _MetadataGrid({required this.comic, required this.sourceName});
   final ComicDetail comic;
+  final String sourceName;
 
   @override
   Widget build(BuildContext context) {
@@ -597,6 +603,41 @@ class _MetadataGrid extends StatelessWidget {
             ),
           ],
           _MetadataRow(values: facts),
+          if (sourceName.trim().isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Divider(
+                height: 1,
+                color: AppColors.divider.withValues(alpha: 0.8),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  Icon(Icons.language_rounded, size: 20, color: AppColors.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'المصدر'.tr,
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                    ),
+                  ),
+                  const Spacer(),
+                  Flexible(
+                    child: SourceBrandMark(
+                      source: sourceName,
+                      workUrl: comic.comicId,
+                      nameColor: AppColors.textPrimary,
+                      fontSize: 12,
+                      iconSize: 17,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

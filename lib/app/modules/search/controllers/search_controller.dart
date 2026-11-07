@@ -13,7 +13,7 @@ class SearchController extends GetxController {
   final TextEditingController textController = TextEditingController();
   final RxList<ComicsList> comicsList = <ComicsList>[].obs;
   final RxList<ComicsList> suggestions = <ComicsList>[].obs;
-  final RxString contentFilter = 'all'.obs;
+  final RxString typeFilter = 'all'.obs;
   final RxBool isLoading = false.obs;
   final RxBool isLoadingSuggestions = false.obs;
   final RxBool hasError = false.obs;
@@ -36,33 +36,36 @@ class SearchController extends GetxController {
   }
 
   List<ComicsList> get visibleSuggestions =>
-      suggestions.where(_matchesContentFilter).toList(growable: false);
+      suggestions.where(_matchesTypeFilter).toList(growable: false);
 
-  void setContentFilter(String value) {
-    if (!const {'all', 'manga', 'novel'}.contains(value)) return;
-    contentFilter.value = value;
-    _applyContentFilter();
-  }
-
-  bool _matchesContentFilter(ComicsList comic) {
-    final isNovel = SourceValues.isNovelType(comic.type);
-    switch (contentFilter.value) {
-      case 'novel':
-        return isNovel;
-      case 'manga':
-        return !isNovel;
-      default:
-        return true;
+  List<String> get availableTypes {
+    final types = <String>{};
+    for (final comic in [...suggestions, ..._allSearchResults]) {
+      final type = SourceValues.canonicalType(comic.type, fallback: '');
+      if (type.isNotEmpty) types.add(type);
     }
+    if (typeFilter.value != 'all') types.add(typeFilter.value);
+    return types.toList(growable: false);
   }
 
-  void _applyContentFilter() {
+  void setTypeFilter(String value) {
+    if (value != 'all' && !availableTypes.contains(value)) return;
+    typeFilter.value = value;
+    _applyTypeFilter();
+  }
+
+  bool _matchesTypeFilter(ComicsList comic) {
+    if (typeFilter.value == 'all') return true;
+    return SourceValues.canonicalType(comic.type, fallback: '') == typeFilter.value;
+  }
+
+  void _applyTypeFilter() {
     final originalOrder = <String, int>{};
     for (var index = 0; index < _allSearchResults.length; index++) {
       originalOrder[_allSearchResults[index].comicId] = index;
     }
     final filtered = _dedupeWorks(
-      _allSearchResults.where(_matchesContentFilter).toList(),
+      _allSearchResults.where(_matchesTypeFilter).toList(),
     );
     final favoriteById = <String, bool>{};
     final scoreById = <String, int>{};

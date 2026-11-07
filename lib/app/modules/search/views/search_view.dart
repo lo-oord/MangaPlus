@@ -6,6 +6,7 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/models/comic.dart';
 import 'package:mangaplus/app/data/services/bookmark_state_service.dart';
+import 'package:mangaplus/app/data/sources/source_brand.dart';
 import 'package:mangaplus/app/data/sources/source_values.dart';
 import 'package:mangaplus/app/modules/search/controllers/search_controller.dart'
     as search_controller;
@@ -65,13 +66,16 @@ class SearchView extends GetView<search_controller.SearchController> {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Obx(() => Wrap(
-                  spacing: 8,
-                  children: [
+            child: Obx(() => SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(children: [
                     _filterChoice('all', 'الكل'.tr),
-                    _filterChoice('manga', 'مانجا'.tr),
-                    _filterChoice('novel', 'رواية'.tr),
-                  ],
+                    const SizedBox(width: 8),
+                    ...controller.availableTypes.map((type) => Padding(
+                          padding: const EdgeInsetsDirectional.only(end: 8),
+                          child: _filterChoice(type, localizeContentType(type)),
+                        )),
+                  ]),
                 )),
           ),
           Expanded(
@@ -126,11 +130,11 @@ class SearchView extends GetView<search_controller.SearchController> {
   }
 
   Widget _filterChoice(String value, String label) {
-    final selected = controller.contentFilter.value == value;
+    final selected = controller.typeFilter.value == value;
     return ChoiceChip(
       label: Text(label),
       selected: selected,
-      onSelected: (_) => controller.setContentFilter(value),
+      onSelected: (_) => controller.setTypeFilter(value),
       selectedColor: AppColors.primary.withValues(alpha: 0.18),
       side: BorderSide(
         color: selected ? AppColors.primary : AppColors.divider,
@@ -317,6 +321,20 @@ class _SearchComicTile extends StatelessWidget {
                         ),
                       ),
                     ],
+                    const SizedBox(height: 7),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 5,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        _SearchMetaPill(
+                          icon: Icons.category_outlined,
+                          text: localizeContentType(comic.type),
+                          color: AppColors.primary,
+                        ),
+                        _SourceMetaBadge(comic: comic),
+                      ],
+                    ),
                     const SizedBox(height: 9),
                     Wrap(
                       spacing: 6,
@@ -388,4 +406,27 @@ class _SearchMetaPill extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SourceMetaBadge extends StatelessWidget {
+  const _SourceMetaBadge({required this.comic});
+
+  final ComicsList comic;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        constraints: const BoxConstraints(maxWidth: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+        decoration: BoxDecoration(
+          color: AppColors.searchBar,
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: SourceBrandMark(
+          source: comic.source,
+          workUrl: comic.link,
+          nameColor: AppColors.textPrimary,
+          fontSize: 10,
+          iconSize: 13,
+        ),
+      );
 }
