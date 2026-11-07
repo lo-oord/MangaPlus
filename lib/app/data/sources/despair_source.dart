@@ -57,16 +57,24 @@ abstract class DespairSource extends ContentSource {
   }) async {
     final safePage = page < 1 ? 1 : page;
     final term = query.trim().replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+    final stableOrder = order.contains(',') ? order : '$order,id.asc';
     final uri = Uri.parse('$_api/$_workTable').replace(queryParameters: {
       'select': '*',
       if (term.isNotEmpty)
         'or': '(title_ar.ilike."*$term*",title_en.ilike."*$term*")',
-      'order': order,
+      'order': stableOrder,
       'limit': '24',
       'offset': '${(safePage - 1) * 24}',
     });
     final rows = await _getList(uri);
-    return rows.map(_mapWork).toList(growable: false);
+    final workIds = rows.map((row) => SourceValues.firstText([row['id'], row['slug']]));
+    final ratings = kind == 'novel'
+        ? await _ratingsByWorkIds(workIds)
+        : const <String, double>{};
+    return rows.map((row) {
+      final id = SourceValues.firstText([row['id'], row['slug']]);
+      return _mapWork(row, ratingOverride: ratings[id]);
+    }).toList(growable: false);
   }
 
   @override
@@ -76,7 +84,11 @@ abstract class DespairSource extends ContentSource {
     final work = await _work(slug);
     if (work == null) throw Exception('$name: لم يتم العثور على العمل.');
     final chapters = await _chapters('${work['id'] ?? ''}', slug);
-    final item = _mapWork(work);
+    final workId = SourceValues.firstText([work['id'], work['slug']]);
+    final ratings = kind == 'novel'
+        ? await _ratingsByWorkIds([workId])
+        : const <String, double>{};
+    final item = _mapWork(work, ratingOverride: ratings[workId]);
     item['chapters'] = chapters;
     item['total_chapters'] = chapters.length;
     item['latest_chapter_number'] = chapters.isEmpty ? '' : chapters.first['number'];
@@ -139,9 +151,10 @@ abstract class DespairSource extends ContentSource {
   }
 
   Future<Map<String, dynamic>?> _work(String slug) async {
+    final escaped = slug.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
     final uri = Uri.parse('$_api/$_workTable').replace(queryParameters: {
       'select': '*',
-      'slug': 'eq.$slug',
+      'or': '(slug.eq."$escaped",id.eq."$escaped")',
       'limit': '1',
     });
     final rows = await _getList(uri);
@@ -194,6 +207,30 @@ abstract class DespairSource extends ContentSource {
     return rows.isEmpty ? null : rows.first;
   }
 
+  Future<Map<String, double>> _ratingsByWorkIds(Iterable<String> values) async {
+    final ids = values.map((value) => value.trim()).where((value) => value.isNotEmpty).toSet();
+    if (ids.isEmpty) return const {};
+    final quotedIds = ids.map((id) => '"${id.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"').join(',');
+    final uri = Uri.parse('$_api/work_ratings').replace(queryParameters: {
+      'select': 'work_id,stars',
+      'work_id': 'in.($quotedIds)',
+      'limit': '1000',
+    });
+    final rows = await _getList(uri);
+    final totals = <String, double>{};
+    final counts = <String, int>{};
+    for (final row in rows) {
+      final id = SourceValues.text(row['work_id']);
+      final stars = double.tryParse('${row['stars'] ?? ''}');
+      if (id.isEmpty || stars == null || !stars.isFinite || stars <= 0) continue;
+      totals.update(id, (total) => total + stars, ifAbsent: () => stars);
+      counts.update(id, (count) => count + 1, ifAbsent: () => 1);
+    }
+    return {
+      for (final id in totals.keys) id: totals[id]! / counts[id]!,
+    };
+  }
+
   Future<List<Map<String, dynamic>>> _getList(Uri uri) async {
     final response = await _client.get(uri, headers: {
       'apikey': _anonKey,
@@ -201,6 +238,9 @@ abstract class DespairSource extends ContentSource {
       'Accept': 'application/json',
       'User-Agent': 'MangaPlus Android',
     }).timeout(const Duration(seconds: 25));
+    // PostgREST answers with 416 when offset reaches beyond the final row;
+    // treat that as the natural end of infinite scrolling, not a retry error.
+    if (response.statusCode == 416) return const [];
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('$name: فشل الاتصال بالمصدر (${response.statusCode}).');
     }
@@ -209,8 +249,8 @@ abstract class DespairSource extends ContentSource {
     return decoded.whereType<Map>().map((row) => Map<String, dynamic>.from(row)).toList(growable: false);
   }
 
-  Map<String, dynamic> _mapWork(Map<String, dynamic> raw) {
-    final slug = '${raw['slug'] ?? ''}'.trim();
+  Map<String, dynamic> _mapWork(Map<String, dynamic> raw, {double? ratingOverride}) {
+    final slug = SourceValues.firstText([raw['slug'], raw['id']]);
     final titleAr = '${raw['title_ar'] ?? ''}'.trim();
     final titleEn = '${raw['title_en'] ?? ''}'.trim();
     final title = titleAr.isNotEmpty ? titleAr : titleEn;
@@ -230,7 +270,7 @@ abstract class DespairSource extends ContentSource {
       type: kind,
       genres: genres,
       description: synopsis,
-      rating: SourceValues.rating(raw['rating']),
+      rating: SourceValues.rating(ratingOverride ?? raw['rating_avg'] ?? raw['rating']),
     );
     item.addAll({
       'native_title': titleEn,

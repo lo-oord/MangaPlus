@@ -115,12 +115,18 @@ void main() {
       final client = _JsonFixtureClient((uri) {
         if (uri.path.endsWith('/manga_works')) {
           return [
-            {'id': 'm1', 'slug': 'manga-one', 'title_ar': 'مانجا', 'cover_url': 'https://img.example/manga.jpg', 'genres': ['أكشن'], 'chapters_count': 1},
+            {'id': 'm1', 'slug': 'manga-one', 'title_ar': 'مانجا', 'cover_url': 'https://img.example/manga.jpg', 'genres': ['أكشن'], 'chapters_count': 1, 'rating_avg': 8.7, 'rating_count': 12},
           ];
         }
         if (uri.path.endsWith('/novel_works')) {
           return [
             {'id': 'n1', 'slug': 'novel-one', 'title_ar': 'رواية', 'cover_url': 'https://img.example/novel.jpg', 'genres': ['خيال'], 'chapters_count': 0},
+          ];
+        }
+        if (uri.path.endsWith('/work_ratings')) {
+          return [
+            {'work_id': 'n1', 'stars': 9},
+            {'work_id': 'n1', 'stars': 10},
           ];
         }
         if (uri.path.endsWith('/chapters')) {
@@ -151,7 +157,9 @@ void main() {
       final mangaWork = (await manga.latest()).single;
       final novelWork = (await novels.latest()).single;
       expect(mangaWork['type'], 'manga');
+      expect(mangaWork['rating'], '8.7');
       expect(novelWork['type'], 'novel');
+      expect(novelWork['rating'], '9.5');
       expect(novelWork['url'], 'https://despair-world.com/series/novel-one?mangaplus_source=despair_novels');
       expect(novelWork['total_chapters'], isNull);
       final detail = await novels.details(novelWork['url'] as String);
@@ -159,10 +167,40 @@ void main() {
       final chapterUrl = (detail['chapters'] as List).single['url'] as String;
       final content = await novels.chapterContent(chapterUrl);
       expect(content?['content'], 'نص الفصل');
+      expect(detail['rating'], '9.5');
 
       final mangaDetail = await manga.details(mangaWork['url'] as String);
       final mangaChapterUrl = (mangaDetail['chapters'] as List).single['url'] as String;
       expect((await manga.chapterImages(mangaChapterUrl))?['pages'], ['https://img.example/1.webp']);
+    });
+
+    test('loads novel pages until PostgREST end, uses id when slug is absent, and shows ratings', () async {
+      final client = _JsonFixtureClient(
+        (uri) {
+          if (uri.path.endsWith('/novel_works')) {
+            return [
+              {'id': 'id-only-novel', 'slug': null, 'title_ar': 'رواية بلا slug', 'cover_url': 'https://img.example/novel.webp'},
+            ];
+          }
+          if (uri.path.endsWith('/work_ratings')) {
+            return [
+              {'work_id': 'id-only-novel', 'stars': 8},
+              {'work_id': 'id-only-novel', 'stars': 10},
+            ];
+          }
+          return [];
+        },
+        statusCodeForUri: (uri) => uri.path.endsWith('/novel_works') && uri.queryParameters['offset'] == '24' ? 416 : 200,
+      );
+      final source = DespairNovelsSource(client: client);
+      final firstPage = await source.latest();
+      expect(firstPage.single['title'], 'رواية بلا slug');
+      expect(firstPage.single['url'], 'https://despair-world.com/series/id-only-novel?mangaplus_source=despair_novels');
+      expect(firstPage.single['rating'], '9.0');
+      expect(await source.latest(page: 2), isEmpty);
+      final detail = await source.details(firstPage.single['url'] as String);
+      expect(detail['title'], 'رواية بلا slug');
+      expect(detail['rating'], '9.0');
     });
   });
 
@@ -195,9 +233,14 @@ class _FixtureClient extends http.BaseClient {
 }
 
 class _JsonFixtureClient extends http.BaseClient {
-  _JsonFixtureClient(this.handler);
+  _JsonFixtureClient(this.handler, {this.statusCodeForUri});
   final List<Map<String, dynamic>> Function(Uri uri) handler;
+  final int Function(Uri uri)? statusCodeForUri;
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async =>
-      http.StreamedResponse(Stream.value(utf8.encode(jsonEncode(handler(request.url)))), 200, headers: const {'content-type': 'application/json'});
+      http.StreamedResponse(
+        Stream.value(utf8.encode(jsonEncode(handler(request.url)))),
+        statusCodeForUri?.call(request.url) ?? 200,
+        headers: const {'content-type': 'application/json'},
+      );
 }
