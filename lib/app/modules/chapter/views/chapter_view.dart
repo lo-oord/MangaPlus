@@ -1592,20 +1592,28 @@ class _ChapterViewState extends State<ChapterView> {
         .where((url) => !_isLocalReaderPage(url))
         .where(_preloadedImages.add)
         .toList(growable: false);
-    await Future.wait(urls.map((url) async {
-      try {
-        await precacheImage(
-          CachedNetworkImageProvider(
-            url,
-            headers: _imageHeaders(url),
-          ),
-          context,
-        );
-      } catch (error) {
-        _preloadedImages.remove(url);
-        debugPrint('Unable to preload Team X page: $error');
-      }
-    }));
+    // Decode in small batches: a whole adjacent chapter can hold well over a
+    // hundred pages, and warming them all at once spikes memory on low-end
+    // devices. Batching keeps the boundary warm without the spike.
+    const batchSize = 3;
+    for (var offset = 0; offset < urls.length; offset += batchSize) {
+      if (!context.mounted) return;
+      final batch = urls.skip(offset).take(batchSize);
+      await Future.wait(batch.map((url) async {
+        try {
+          await precacheImage(
+            CachedNetworkImageProvider(
+              url,
+              headers: _imageHeaders(url),
+            ),
+            context,
+          );
+        } catch (error) {
+          _preloadedImages.remove(url);
+          debugPrint('Unable to preload page: $error');
+        }
+      }));
+    }
   }
 
   void _preloadAdjacentChapterImages(

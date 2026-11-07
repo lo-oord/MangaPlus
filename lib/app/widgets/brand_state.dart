@@ -43,17 +43,30 @@ class _MangaPlusLoaderState extends State<MangaPlusLoader>
   @override
   void initState() {
     super.initState();
-    _controller.repeat();
+    if (widget.progress == null) _controller.repeat();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _syncAnimation();
+  }
+
+  @override
+  void didUpdateWidget(MangaPlusLoader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.progress != widget.progress) _syncAnimation();
+  }
+
+  /// Determinate progress needs no ticker: the ring already shows real work,
+  /// so download lists with many small loaders stay static and cheap.
+  void _syncAnimation() {
     final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    if (reduceMotion && _controller.isAnimating) {
-      _controller.stop();
-    } else if (!reduceMotion && !_controller.isAnimating) {
+    final shouldAnimate = widget.progress == null && !reduceMotion;
+    if (shouldAnimate && !_controller.isAnimating) {
       _controller.repeat();
+    } else if (!shouldAnimate && _controller.isAnimating) {
+      _controller.stop();
     }
   }
 
@@ -84,33 +97,35 @@ class _MangaPlusLoaderState extends State<MangaPlusLoader>
       ),
     );
 
-    final loader = SizedBox.square(
-      dimension: size,
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          final turns = _controller.value;
-          final pulse = 1.0 + 0.045 * math.sin(turns * 2 * math.pi);
-          return Stack(
-            alignment: Alignment.center,
-            children: [
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: _LoaderRingPainter(
-                    color: color,
-                    trackColor: track,
-                    progress: value,
-                    rotation: turns * 2.0 * math.pi,
-                    strokeWidth: strokeWidth,
-                  ),
+    Widget ringAt(double turns) => Stack(
+          alignment: Alignment.center,
+          children: [
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _LoaderRingPainter(
+                  color: color,
+                  trackColor: track,
+                  progress: value,
+                  rotation: turns * 2.0 * math.pi,
+                  strokeWidth: strokeWidth,
                 ),
               ),
-              Transform.scale(scale: pulse, child: child),
-            ],
-          );
-        },
-        child: mark,
-      ),
+            ),
+            Transform.scale(
+              scale: 1.0 + 0.045 * math.sin(turns * 2 * math.pi),
+              child: mark,
+            ),
+          ],
+        );
+
+    final loader = SizedBox.square(
+      dimension: size,
+      child: value != null
+          ? ringAt(0)
+          : AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) => ringAt(_controller.value),
+            ),
     );
 
     // Below 44px the badge would be unreadable; the caller usually shows the

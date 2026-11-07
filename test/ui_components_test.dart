@@ -89,6 +89,19 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets('determinate progress needs no running animation',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: Center(child: MangaPlusLoader(progress: 0.2))),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(tester.binding.transientCallbackCount, 0);
+    expect(find.text('20%'), findsOneWidget);
+  });
+
   testWidgets('MangaPlusLoader honours reduced motion', (tester) async {
     await tester.pumpWidget(
       const MediaQuery(
