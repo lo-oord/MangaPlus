@@ -25,6 +25,10 @@ class GalaxyNovelsSource extends ContentSource {
   };
   static const Duration _timeout = Duration(seconds: 35);
   static const int _searchPageSize = 20;
+  static final Map<String, ({DateTime at, Map<String, dynamic> values})>
+  _latestMetadataCache = {};
+  static final Map<String, Future<Map<String, dynamic>>>
+  _latestMetadataRequests = {};
 
   final http.Client _client;
 
@@ -112,7 +116,7 @@ class GalaxyNovelsSource extends ContentSource {
     final safePage = page < 1 ? 1 : page;
     final uri = Uri.parse('$_site/novels/')
         .replace(queryParameters: {'sort': 'new', 'page': '$safePage'});
-    return _archiveItems(await _document(uri.toString()));
+    return _withLatestMetadata(_archiveItems(await _document(uri.toString())));
   }
 
   @override
@@ -143,9 +147,7 @@ class GalaxyNovelsSource extends ContentSource {
         .where((genre) => genre.isNotEmpty)
         .toSet()
         .toList(growable: false);
-    final status = mangaHtmlText(
-      document.querySelector('span.wor-cover-status'),
-    );
+    final status = _status(document);
     final rating = _rating(
       document.querySelectorAll('[data-current-average]'),
       document.querySelectorAll('[class*="rating"]'),
@@ -276,7 +278,10 @@ class GalaxyNovelsSource extends ContentSource {
       );
       entry.addAll({
         'native_title': title,
-        'status': mangaHtmlText(card.querySelector('span.wor-cover-status')),
+        'status': SourceValues.firstText([
+          mangaHtmlText(card.querySelector('.wor-novel-card__status')),
+          mangaHtmlText(card.querySelector('span.wor-cover-status')),
+        ]),
         'latest_chapter_date': chapterTime,
         'updated_on': chapterTime,
         'total_chapters': '',
@@ -284,6 +289,95 @@ class GalaxyNovelsSource extends ContentSource {
       results.add(entry);
     }
     return results;
+  }
+
+  Future<List<Map<String, dynamic>>> _withLatestMetadata(
+    List<Map<String, dynamic>> items,
+  ) async {
+    final enriched = items.map(Map<String, dynamic>.from).toList();
+    const batchSize = 5;
+    for (var start = 0; start < enriched.length; start += batchSize) {
+      final end = start + batchSize > enriched.length
+          ? enriched.length
+          : start + batchSize;
+      final values = await Future.wait([
+        for (final entry in enriched.skip(start).take(end - start))
+          _latestMetadata('${entry['url'] ?? ''}')
+              .catchError((_) => <String, dynamic>{}),
+      ]);
+      for (var index = 0; index < values.length; index++) {
+        enriched[start + index].addAll(values[index]);
+      }
+    }
+    return enriched;
+  }
+
+  Future<Map<String, dynamic>> _latestMetadata(String rawUrl) async {
+    final url = _workUrl(rawUrl);
+    if (url.isEmpty) return const {};
+    final cached = _latestMetadataCache[url];
+    if (cached != null &&
+        DateTime.now().difference(cached.at) < const Duration(minutes: 10)) {
+      return cached.values;
+    }
+    final inFlight = _latestMetadataRequests[url];
+    if (inFlight != null) return inFlight;
+    final request = _fetchLatestMetadata(url);
+    _latestMetadataRequests[url] = request;
+    try {
+      final values = await request;
+      _latestMetadataCache[url] = (at: DateTime.now(), values: values);
+      return values;
+    } finally {
+      if (identical(_latestMetadataRequests[url], request)) {
+        _latestMetadataRequests.remove(url);
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>> _fetchLatestMetadata(String url) async {
+    final document = await _document(url);
+    final rating = _rating(
+      document.querySelectorAll(
+        '[data-current-average], [itemprop="ratingValue"], [data-rating]',
+      ),
+      document.querySelectorAll('[class*="rating"]'),
+    );
+    final chapterTime = SourceValues.firstText([
+      document
+          .querySelector('article.wor-novel-chapter-item time[datetime]')
+          ?.attributes['datetime'],
+      document
+          .querySelector('time[data-wor-relative-time][datetime]')
+          ?.attributes['datetime'],
+      document.querySelector('time[datetime]')?.attributes['datetime'],
+    ]);
+    final status = _status(document);
+    return {
+      if (rating.isNotEmpty) 'rating': rating,
+      if (status.isNotEmpty) 'status': status,
+      if (chapterTime.isNotEmpty) 'latest_chapter_date': chapterTime,
+      if (chapterTime.isNotEmpty) 'updated_on': chapterTime,
+    };
+  }
+
+  String _status(Document document) {
+    final coverStatus = mangaHtmlText(
+      document.querySelector('span.wor-cover-status'),
+    );
+    if (coverStatus.isNotEmpty) return coverStatus;
+    final identity = document.querySelector(
+      '.wor-single-identity__item--status',
+    );
+    if (identity == null) return '';
+    final value = mangaHtmlText(
+      identity.querySelector('strong, b, [data-status]'),
+    );
+    if (value.isNotEmpty) return value;
+    return mangaHtmlText(identity).replaceFirst(
+      RegExp(r'^(?:الحالة|status)\s*[:：]?\s*', caseSensitive: false),
+      '',
+    );
   }
 
   Future<({List<Map<String, dynamic>> chapters, int total})> _chapters(
@@ -394,7 +488,12 @@ class GalaxyNovelsSource extends ContentSource {
   String _rating(Iterable<Element> values, Iterable<Element> labels) {
     for (final element in values) {
       final value = SourceValues.rating(
-        element.attributes['data-current-average'],
+        SourceValues.firstText([
+          element.attributes['data-current-average'],
+          element.attributes['data-rating'],
+          element.attributes['content'],
+          element.text,
+        ]),
       );
       if (value.isNotEmpty) return value;
     }

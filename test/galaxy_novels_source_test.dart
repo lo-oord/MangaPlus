@@ -81,24 +81,38 @@ void main() {
       () async {
         final source = GalaxyNovelsSource(
           client: MockClient((request) async {
-            expect(request.url.host, 'galaxynovels.com');
-            expect(request.url.path, '/novels/');
-            expect(request.url.queryParameters['sort'], 'new');
-            expect(request.url.queryParameters['page'], '2');
-            return http.Response(
-              '''
+            if (request.url.path == '/novels/') {
+              expect(request.url.host, 'galaxynovels.com');
+              expect(request.url.queryParameters['sort'], 'new');
+              expect(request.url.queryParameters['page'], '2');
+              return http.Response(
+                '''
             <article class="wor-novel-card">
               <a class="wor-novel-card__cover" href="/novel/example/">
                 <img class="wor-cover-img" src="/covers/example.webp">
               </a>
               <h3><a href="/novel/example/">رواية أحدث</a></h3>
-              <span class="wor-cover-status">مستمرة</span>
-              <time datetime="2026-11-07T12:00:00+00:00">قبل يوم</time>
+              <span class="wor-novel-card__status wor-novel-card__status--ongoing">مستمرة</span>
             </article>
             ''',
-              200,
-              headers: {'content-type': 'text/html; charset=utf-8'},
-            );
+                200,
+                headers: {'content-type': 'text/html; charset=utf-8'},
+              );
+            }
+            if (request.url.path == '/novel/example/') {
+              return http.Response(
+                '''
+                <span class="wor-single-identity__item--status">الحالة <strong>مستمرة</strong></span>
+                <div class="rating"><span data-current-average="4.8">4.8</span></div>
+                <article class="wor-novel-chapter-item">
+                  <time datetime="2026-11-07T12:00:00+00:00">قبل يوم</time>
+                </article>
+                ''',
+                200,
+                headers: {'content-type': 'text/html; charset=utf-8'},
+              );
+            }
+            throw StateError('Unexpected request: ${request.url}');
           }),
         );
 
@@ -110,6 +124,7 @@ void main() {
           'https://galaxynovels.com/covers/example.webp',
         );
         expect(results.single['status'], 'مستمرة');
+        expect(results.single['rating'], '4.8');
         expect(
           results.single['latest_chapter_date'],
           '2026-11-07T12:00:00+00:00',
