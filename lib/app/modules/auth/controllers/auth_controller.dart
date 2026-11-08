@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/data/models/user_profile.dart';
 import 'package:mangaplus/app/data/services/account_sync_service.dart';
 import 'package:mangaplus/app/data/services/auth_service.dart';
@@ -47,10 +48,50 @@ class AuthController extends GetxController {
     ArabCountry('AE', 'الإمارات'), ArabCountry('YE', 'اليمن'),
   ];
 
+  static const _localAccountKey = 'localAccount';
+
   @override
   void onInit() {
     super.onInit();
     profile.value = Get.arguments is UserProfile ? Get.arguments as UserProfile : null;
+  }
+
+  Future<void> _saveLocalAccountIfAny() async {
+    final profile = profile.value;
+    if (profile == null) return;
+    try {
+      final storage = GetStorage();
+      if (profile.uid.isEmpty) {
+        await storage.remove(_localAccountKey);
+        return;
+      }
+      await storage.write(_localAccountKey, _encodeLocalAccount(profile));
+    } catch (_) {
+      // Local profile cache is best-effort.
+    }
+  }
+
+  Map<String, dynamic>? _encodeLocalAccount(UserProfile account) {
+    return {
+      'uid': account.uid,
+      'email': account.email,
+      'displayName': account.displayName,
+      'username': account.username,
+      'countryCode': account.countryCode,
+      'countryName': account.countryName,
+      'createdAt': account.createdAt.toIso8601String(),
+      if (account.birthDate != null) 'birthDate': account.birthDate!.toIso8601String(),
+      'gender': account.gender,
+      'bio': account.bio,
+      'photoUrl': account.photoUrl,
+      'photoData': account.photoData,
+      'isGuest': account.isGuest,
+      'emailVerified': account.emailVerified,
+      'isVerified': account.isVerified,
+      'isOfficialDeveloper': account.isOfficialDeveloper,
+      'syncFavorites': account.syncFavorites,
+      'privacy': account.privacy.toMap(),
+    };
   }
 
   @override
@@ -225,10 +266,12 @@ class AuthController extends GetxController {
         }
       } else {
         profile.value = await service.signInEmail(email.text, password.text);
-        if (service.currentUser?.emailVerified != true && service.currentUser?.isAnonymous != true) {
+        if (service.currentUser?.emailVerified != true &&
+            service.currentUser?.isAnonymous != true) {
           emailVerificationRequired.value = true;
         } else {
           unawaited(AccountSyncService().syncLocalData());
+          unawaited(_saveLocalAccountIfAny());
           Get.back(result: profile.value);
         }
       }
@@ -248,7 +291,9 @@ class AuthController extends GetxController {
     try {
       final result = await service.signInGoogle();
       if (result == null) return;
-      if (result.username.isEmpty || result.countryCode.isEmpty || result.gender.isEmpty) {
+      if (result.username.isEmpty ||
+          result.countryCode.isEmpty ||
+          result.gender.isEmpty) {
         profile.value = result;
         isCompletingGoogle.value = true;
         isRegister.value = false;
@@ -259,6 +304,7 @@ class AuthController extends GetxController {
       } else {
         profile.value = result;
         unawaited(AccountSyncService().syncLocalData());
+        unawaited(_saveLocalAccountIfAny());
         Get.back(result: result);
       }
     } catch (error) {
@@ -273,6 +319,7 @@ class AuthController extends GetxController {
     isBusy.value = true;
     try {
       profile.value = await service.continueAsGuest();
+      unawaited(_saveLocalAccountIfAny());
       Get.back(result: profile.value);
     } catch (error) {
       _message('تعذر بدء وضع الضيف', _friendlyError(error));
@@ -289,6 +336,7 @@ class AuthController extends GetxController {
       if (service.currentUser?.emailVerified == true) {
         profile.value = refreshed;
         emailVerificationRequired.value = false;
+        unawaited(_saveLocalAccountIfAny());
         Get.back(result: refreshed);
       } else {
         _message('لم يتم التحقق بعد', 'افتح رسالة التحقق ثم اضغط هذا الزر مرة أخرى.');

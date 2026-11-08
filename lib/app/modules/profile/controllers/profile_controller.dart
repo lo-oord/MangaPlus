@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/theme/theme_mode_preference.dart';
@@ -16,6 +17,73 @@ import 'package:mangaplus/app/data/services/chapter_update_service.dart';
 import 'package:mangaplus/app/modules/history/controllers/history_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 
+/// Sole local copy of the last known signed-in profile.
+///
+/// This is intentionally small and opinionated: it is a resilient read cache,
+/// not a second authority. Firebase Auth / Firestore remain the only source of
+/// truth for authentication and profile edits. This local copy exists only so
+/// the app can still show a recognisable account while offline and so an open
+/// session is never cleared just because Firestore happened to be unreachable.
+const String _localAccountKey = 'localAccount';
+
+UserProfile? _decodeLocalAccount(dynamic value) {
+  if (value == null) return null;
+  final map = value is Map<String, dynamic> ? value : <String, dynamic>{};
+  final uid = map['uid'];
+  if (uid is! String || uid.isEmpty) return null;
+  final createdAt = map['createdAt'];
+  if (createdAt == null) return null;
+  return UserProfile(
+    uid: uid,
+    email: map['email'] as String? ?? '',
+    displayName: map['displayName'] as String? ?? '',
+    username: map['username'] as String? ?? '',
+    countryCode: map['countryCode'] as String? ?? '',
+    countryName: map['countryName'] as String? ?? '',
+    createdAt: _parseLocalDate(createdAt),
+    birthDate: map['birthDate'] as DateTime?,
+    gender: map['gender'] as String? ?? '',
+    bio: map['bio'] as String? ?? '',
+    photoUrl: map['photoUrl'] as String? ?? '',
+    photoData: map['photoData'] as String? ?? '',
+    isGuest: map['isGuest'] == true,
+    emailVerified: map['emailVerified'] == true,
+    isVerified: map['isVerified'] == true,
+    isOfficialDeveloper: map['isOfficialDeveloper'] == true,
+    syncFavorites: map['syncFavorites'] != false,
+    privacy: UserPrivacy.fromMap(map['privacy']),
+  );
+}
+
+Map<String, dynamic>? _encodeLocalAccount(UserProfile account) {
+  return {
+    'uid': account.uid,
+    'email': account.email,
+    'displayName': account.displayName,
+    'username': account.username,
+    'countryCode': account.countryCode,
+    'countryName': account.countryName,
+    'createdAt': account.createdAt.toIso8601String(),
+    if (account.birthDate != null) 'birthDate': account.birthDate!.toIso8601String(),
+    'gender': account.gender,
+    'bio': account.bio,
+    'photoUrl': account.photoUrl,
+    'photoData': account.photoData,
+    'isGuest': account.isGuest,
+    'emailVerified': account.emailVerified,
+    'isVerified': account.isVerified,
+    'isOfficialDeveloper': account.isOfficialDeveloper,
+    'syncFavorites': account.syncFavorites,
+    'privacy': account.privacy.toMap(),
+  };
+}
+
+DateTime _parseLocalDate(dynamic value) {
+  if (value is DateTime) return value;
+  if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
+  return DateTime.tryParse('$value') ?? DateTime.now();
+}
+
 class ProfileController extends GetxController {
   final GetStorage _storage = GetStorage();
   final RxString selectedLanguage = 'ar_SA'.obs;
@@ -26,9 +94,11 @@ class ProfileController extends GetxController {
   final RxBool favoritesNotificationsEnabled = false.obs;
   final RxBool mangaNotificationsEnabled = true.obs;
   final RxBool novelNotificationsEnabled = true.obs;
+  final RxBool recentOfflineAuthAction = false.obs;
   int _themeRevision = 0;
   late final AuthService? _auth;
   StreamSubscription<User?>? _authStateSubscription;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   bool get canChangePassword {
     final user = _auth?.currentUser;
@@ -47,26 +117,95 @@ class ProfileController extends GetxController {
     favoritesNotificationsEnabled.value = chapterService.backgroundEnabled;
     mangaNotificationsEnabled.value = chapterService.mangaNotificationsEnabled;
     novelNotificationsEnabled.value = chapterService.novelNotificationsEnabled;
-    _authStateSubscription = _auth?.authStateChanges.listen((user) {
-      if (user == null) {
-        accountProfile.value = null;
-        accountLoading.value = false;
-      } else {
-        unawaited(_loadAccount());
-      }
-    });
+
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen(
+      _onConnectivityChanged,
+      onError: (_) => null,
+    );
+
+    final currentUser = _auth?.currentUser;
+    if (currentUser == null) {
+      accountProfile.value = null;
+      accountLoading.value = false;
+    } else if (currentUser.isAnonymous) {
+      unawaited(_loadAccount());
+    } else {
+      unawaited(_loadAccount());
+    }
+
+    _authStateSubscription = _auth?.authStateChanges.listen(_onAuthStateChanged);
     super.onInit();
   }
 
-  Future<void> _loadAccount() async {
+  Future<void> _onAuthStateChanged(User? user) async {
+    if (user == null) {
+      _clearCachedAuthState();
+      accountProfile.value = null;
+      accountLoading.value = false;
+      return;
+    }
+
+    if (user.isAnonymous) {
+      unawaited(_loadAccount());
+      return;
+    }
+
+    if (accountProfile.value == null) {
+      unawaited(_loadAccount(allowOfflineFallback: true));
+      return;
+    }
+
+    final current = _auth?.currentUser;
+    if (current != null &&
+        current.uid == user.uid &&
+        !current.isAnonymous) {
+      try {
+        await current.reload();
+        unawaited(_loadAccount(allowOfflineFallback: true));
+        return;
+      } catch (_) {
+        // Keep existing profile and retry later.
+      }
+    }
+
+    unawaited(_loadAccount(allowOfflineFallback: true));
+  }
+
+  Future<void> _clearCachedAuthState() async {
+    try {
+      await _storage.remove(_localAccountKey);
+    } catch (_) {
+      // Best-effort cleanup; profile rendering does not depend on this.
+    }
+  }
+
+  Future<void> _loadAccount({bool allowOfflineFallback = false}) async {
     final themeRevisionAtStart = _themeRevision;
     final auth = _auth;
     final user = auth?.currentUser;
+
     if (auth == null || user == null) {
       accountProfile.value = null;
       accountLoading.value = false;
       return;
     }
+
+    if (user.isAnonymous) {
+      try {
+        final profile = await auth
+            .loadProfile(user.uid)
+            .timeout(const Duration(seconds: 15));
+        if (auth.currentUser?.uid == user.uid) {
+          accountProfile.value = profile;
+          await _saveLocalAccount(profile);
+        }
+      } catch (_) {
+        // Guest profile may not exist remotely yet; keep existing UI state.
+      }
+      accountLoading.value = false;
+      return;
+    }
+
     accountLoading.value = true;
     UserProfile? loadedProfile;
     try {
@@ -75,16 +214,48 @@ class ProfileController extends GetxController {
           .timeout(const Duration(seconds: 15));
       if (auth.currentUser?.uid == user.uid) {
         accountProfile.value = loadedProfile;
+        await _saveLocalAccount(loadedProfile);
       }
     } catch (error) {
       _message('تعذر تحميل الحساب'.tr, error.toString());
     } finally {
       accountLoading.value = false;
     }
+
+    if (loadedProfile == null &&
+        allowOfflineFallback &&
+        auth.currentUser?.uid == user.uid &&
+        !user.isAnonymous) {
+      final cached = _readLocalAccount();
+      if (cached != null && cached.uid == user.uid) {
+        accountProfile.value = cached;
+      }
+    }
+
     if (loadedProfile != null &&
         !user.isAnonymous &&
         auth.currentUser?.uid == user.uid) {
       unawaited(_loadSettingsAndSync(auth, user.uid, themeRevisionAtStart));
+    }
+  }
+
+  UserProfile? _readLocalAccount() {
+    try {
+      return _decodeLocalAccount(_storage.read(_localAccountKey));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _saveLocalAccount(UserProfile? account) async {
+    try {
+      if (account == null) {
+        await _storage.remove(_localAccountKey);
+        return;
+      }
+      await _storage.write(_localAccountKey, _encodeLocalAccount(account));
+    } catch (_) {
+      // Local profile cache is best-effort; the app remains usable.
     }
   }
 
@@ -128,7 +299,9 @@ class ProfileController extends GetxController {
     }
   }
 
-  Future<void> refreshAccount() => _loadAccount();
+  Future<void> refreshAccount() async {
+    await _loadAccount(allowOfflineFallback: true);
+  }
 
   Future<void> setFavoritesNotifications(bool value) async {
     favoritesNotificationsEnabled.value = value;
@@ -172,11 +345,15 @@ class ProfileController extends GetxController {
         throw Exception('الصورة أكبر من الحد المسموح. اختر صورة أصغر.');
       }
       final photoData = base64Encode(bytes);
-      accountProfile.value = await auth.updatePhotoData(photoData);
+      final updated = await auth.updatePhotoData(photoData);
+      accountProfile.value = updated;
+      unawaited(_saveLocalAccount(updated));
       _message('تم تحديث الصورة'.tr, 'تم حفظ صورة الملف الشخصي'.tr);
     } catch (error) {
       _message('تعذر حفظ الصورة'.tr, error.toString());
-    } finally { savingAccount.value = false; }
+    } finally {
+      savingAccount.value = false;
+    }
   }
 
   Future<void> updateDisplayName(String value) async {
@@ -184,11 +361,15 @@ class ProfileController extends GetxController {
     if (auth == null) return;
     savingAccount.value = true;
     try {
-      accountProfile.value = await auth.updateDisplayName(value);
+      final updated = await auth.updateDisplayName(value);
+      accountProfile.value = updated;
+      unawaited(_saveLocalAccount(updated));
       _message('تم حفظ التغييرات'.tr, 'تم تحديث الاسم الظاهر'.tr);
     } catch (error) {
       _message('تعذر حفظ الإعداد'.tr, error.toString());
-    } finally { savingAccount.value = false; }
+    } finally {
+      savingAccount.value = false;
+    }
   }
 
   Future<void> updateBio(String value) async {
@@ -196,11 +377,15 @@ class ProfileController extends GetxController {
     if (auth == null) return;
     savingAccount.value = true;
     try {
-      accountProfile.value = await auth.updateBio(value);
+      final updated = await auth.updateBio(value);
+      accountProfile.value = updated;
+      unawaited(_saveLocalAccount(updated));
       _message('تم حفظ التغييرات'.tr, 'تم تحديث النبذة'.tr);
     } catch (error) {
       _message('تعذر حفظ الإعداد'.tr, error.toString());
-    } finally { savingAccount.value = false; }
+    } finally {
+      savingAccount.value = false;
+    }
   }
 
 
@@ -210,13 +395,23 @@ class ProfileController extends GetxController {
     if (auth == null || current == null) return;
     savingAccount.value = true;
     try {
-      accountProfile.value = await auth.setFavoritesSync(enabled);
-      if (enabled) await AccountSyncService().syncLocalData(force: true);
-      _message(enabled ? 'تم تشغيل المزامنة'.tr : 'تم إيقاف المزامنة'.tr,
-          enabled ? 'ستتم مزامنة المفضلة وسجل القراءة مع حسابك'.tr : 'ستبقى بياناتك المحلية على هذا الجهاز'.tr);
+      final updated = await auth.setFavoritesSync(enabled);
+      accountProfile.value = updated;
+      unawaited(_saveLocalAccount(updated));
+      if (enabled) {
+        await AccountSyncService().syncLocalData(force: true);
+      }
+      _message(
+        enabled ? 'تم تشغيل المزامنة'.tr : 'تم إيقاف المزامنة'.tr,
+        enabled
+            ? 'ستتم مزامنة المفضلة وسجل القراءة مع حسابك'.tr
+            : 'ستبقى بياناتك المحلية على هذا الجهاز'.tr,
+      );
     } catch (error) {
       _message('تعذر حفظ الإعداد'.tr, error.toString());
-    } finally { savingAccount.value = false; }
+    } finally {
+      savingAccount.value = false;
+    }
   }
 
   Future<void> changePassword(String oldPassword, String newPassword) async {
@@ -292,7 +487,17 @@ class ProfileController extends GetxController {
   @override
   void onClose() {
     unawaited(_authStateSubscription?.cancel() ?? Future<void>.value());
+    unawaited(_connectivitySubscription?.cancel() ?? Future<void>.value());
     super.onClose();
+  }
+
+  Future<void> _onConnectivityChanged(List<ConnectivityResult> results) async {
+    if (results.any((result) => result != ConnectivityResult.none)) {
+      if (recentOfflineAuthAction.value) {
+        recentOfflineAuthAction.value = false;
+        await _loadAccount(allowOfflineFallback: true);
+      }
+    }
   }
 
   void _message(String title, String message) => Get.snackbar(title, message,
