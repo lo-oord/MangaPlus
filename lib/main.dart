@@ -22,6 +22,9 @@ import 'package:mangaplus/app/data/services/chapter_update_service.dart';
 import 'package:mangaplus/app/data/services/download_manager_service.dart';
 import 'package:mangaplus/app/data/services/account_sync_service.dart';
 import 'package:mangaplus/app/data/services/reading_stats_service.dart';
+import 'package:mangaplus/app/data/services/auth_service.dart';
+import 'package:mangaplus/app/modules/profile/controllers/profile_controller.dart';
+import 'package:mangaplus/app/data/models/user_profile.dart';
 import 'package:mangaplus/app/core/translations/app_translations.dart';
 
 import 'package:mangaplus/firebase_options.dart';
