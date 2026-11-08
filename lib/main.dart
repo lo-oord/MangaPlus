@@ -239,7 +239,6 @@ void _handleConnectivity(List<ConnectivityResult> results) {
     if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
     return DateTime.tryParse('$value') ?? DateTime.now();
   }
-}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
