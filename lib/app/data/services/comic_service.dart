@@ -340,7 +340,9 @@ class ComicService {
           (source.kind != 'manga' && source.kind != 'novel')) {
         throw StateError('لم يتم العثور على مصدر محتوى صالح.');
       }
-      final rawItems = await source.latest(page: page);
+      final rawItems = source is TeamXSource
+          ? await source.latestWithChapterDates(page: page)
+          : await source.latest(page: page);
       final taggedItems = rawItems.map((item) => {
             ...item,
             'source_id': item['source_id'] ?? source.id,

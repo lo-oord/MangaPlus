@@ -40,6 +40,7 @@ jobs:
         run: >-
           flutter analyze --no-pub
           lib/main.dart
+          lib/app/data/services/comic_service.dart
           lib/app/data/services/chapter_update_service.dart
           lib/app/modules/profile/controllers/profile_controller.dart
           lib/app/modules/chapter/controllers/chapter_controller.dart
@@ -47,6 +48,7 @@ jobs:
           lib/app/core/utils/reader_progress.dart
           lib/app/core/translations/ar_sa.dart
           lib/app/core/translations/en_us.dart
+          test/home_source_selection_test.dart
           test/reader_progress_test.dart
       - name: Run tests
         run: flutter test --no-pub

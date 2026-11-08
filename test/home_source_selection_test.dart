@@ -21,6 +21,25 @@ void main() {
     expect(result.comicsList.map((item) => item.source).toSet(), {source.name});
   });
 
+  test('selected Team X latest feed is ordered by chapter publication date', () async {
+    final source = TeamXSource(client: _teamXFeedClient());
+    final service = ComicService(
+      source: source,
+      sourceById: (id) => id == source.id ? source : null,
+    );
+
+    final result = await service.fetchComics(sourceId: source.id);
+
+    expect(
+      result.comicsList.map((item) => item.title).toList(),
+      ['Newer chapter', 'Older chapter'],
+    );
+    expect(
+      result.comicsList.map((item) => item.latestChapterDate).toList(),
+      ['2026-11-07T14:00:00.000Z', '2026-11-06T14:00:00.000Z'],
+    );
+  });
+
   test('source-specific genres and genre results exclude other sources', () async {
     final picked = _CatalogSource('picked', [
       _work('Picked action', '', ['أكشن']),
@@ -121,3 +140,35 @@ class _CatalogSource extends ContentSource {
   @override
   Future<Map<String, dynamic>?> streams(String url) async => null;
 }
+
+http.Client _teamXFeedClient() => MockClient((request) async {
+      if (request.url.path == '/') {
+        return http.Response('''
+          <div class="box">
+            <div class="uta">
+              <div class="imgu"><a href="/series/older"><img src="/older.jpg"></a></div>
+              <div class="info"><h3>Older chapter</h3><a href="/series/older/12">الفصل 12</a></div>
+            </div>
+            <div class="uta">
+              <div class="imgu"><a href="/series/newer"><img src="/newer.jpg"></a></div>
+              <div class="info"><h3>Newer chapter</h3><a href="/series/newer/8">الفصل 8</a></div>
+            </div>
+          </div>
+        ''', 200, headers: {'content-type': 'text/html; charset=utf-8'});
+      }
+      if (request.url.path == '/series/older') {
+        return http.Response('''
+          <div class="chapter-card" data-number="12" data-date="2026-11-06T14:00:00Z">
+            <span class="chapter-number">الفصل 12</span><h3 class="chapter-title">الفصل 12</h3>
+          </div>
+        ''', 200, headers: {'content-type': 'text/html; charset=utf-8'});
+      }
+      if (request.url.path == '/series/newer') {
+        return http.Response('''
+          <div class="chapter-card" data-number="8" data-date="2026-11-07T14:00:00Z">
+            <span class="chapter-number">الفصل 8</span><h3 class="chapter-title">الفصل 8</h3>
+          </div>
+        ''', 200, headers: {'content-type': 'text/html; charset=utf-8'});
+      }
+      return http.Response('not found', 404);
+    });
