@@ -108,6 +108,52 @@ class ProComicSource extends ContentSource {
     };
   }
 
+  Future<List<Map<String, dynamic>>> _chapterImagesFromHtml(String url) async {
+    final response = await _client.get(
+      Uri.parse(url),
+      headers: {
+        ..._headers,
+        'Accept': 'text/html,application/xhtml+xml',
+        'Referer': '$_site/',
+        'Sec-Fetch-Dest': 'image',
+        'Sec-Fetch-Mode': 'no-cors',
+      },
+    ).timeout(_timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      return const [];
+    }
+    final html = utf8.decode(response.bodyBytes, allowMalformed: true).replaceAll(r'\/', '/');
+    final chapterId = _chapterId(url);
+    final pageHrefs = <String>{};
+    final rawMatches = <String>[];
+    final imgMatches = RegExp(
+      r'https://(?:[^/"\\\s<>]+\.)?procomic\.(?:pro|net|im)/[^"\\\s<>]+?(?:\.(?:avif|webp|jpg|jpeg|png)|/api/cdn-image)',
+      caseSensitive: false,
+    ).allMatches(html);
+    for (final match in imgMatches) {
+      final image = match.group(0)!;
+      if (pageHrefs.add(image)) rawMatches.add(image);
+    }
+    final candidateImages = <String>[];
+    if (chapterId.isNotEmpty) {
+      final chapterRef = RegExp(r'/chapters/${RegExp.escape(chapterId)}/', caseSensitive: false);
+      for (final image in rawMatches) {
+        if (chapterRef.hasMatch(image)) candidateImages.add(image);
+      }
+      if (candidateImages.isEmpty) {
+        final altRef = RegExp(r'/chapters/[^/]+?/-?\d+-${RegExp.escape(chapterId)}(?:\?|$|/)', caseSensitive: false);
+        for (final image in rawMatches) {
+          if (altRef.hasMatch(image)) candidateImages.add(image);
+        }
+      }
+    }
+    if (candidateImages.isEmpty) {
+      candidateImages.addAll(rawMatches);
+    }
+    final pages = candidateImages.toList();
+    return pages.map((url) => {'url': url, 'pending': false}).toList(growable: false);
+  }
+
   @override
   Future<Map<String, dynamic>?> chapterImages(String url) async {
     final response = await _client.get(
@@ -118,7 +164,19 @@ class ProComicSource extends ContentSource {
         'Referer': '$_site/',
       },
     ).timeout(_timeout);
-    if (response.statusCode < 200 || response.statusCode >= 300) throw Exception('ProComic: فشل تحميل الفصل (${response.statusCode}).');
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final fallback = await _chapterImagesFromHtml(url);
+      if (fallback.isEmpty) {
+        return null;
+      }
+      return {
+        'title': 'الفصل ${_chapterNumber(url)}',
+        'chapter_number': _chapterNumber(url),
+        'pages': fallback.map((e) => e['url'] as String).toList(),
+        'images': fallback.map((e) => {'url': e['url']}).toList(),
+        'url': url,
+      };
+    }
     final html = utf8.decode(response.bodyBytes, allowMalformed: true).replaceAll(r'\/', '/');
     final appImages = <String>[];
     final cdnImages = <String>[];
@@ -145,14 +203,32 @@ class ProComicSource extends ContentSource {
         : [...appImages, ...cdnImages].isNotEmpty
             ? [...appImages, ...cdnImages]
             : allImages;
-    if (images.isEmpty) return null;
-    return {'title': 'الفصل ${_chapterNumber(url)}', 'chapter_number': _chapterNumber(url), 'pages': images, 'images': images.map((e) => {'url': e}).toList(), 'url': url};
+    if (images.isEmpty) {
+      final fallback = await _chapterImagesFromHtml(url);
+      if (fallback.isEmpty) return null;
+      return {
+        'title': 'الفصل ${_chapterNumber(url)}',
+        'chapter_number': _chapterNumber(url),
+        'pages': fallback.map((e) => e['url'] as String).toList(),
+        'images': fallback.map((e) => {'url': e['url']}).toList(),
+        'url': url,
+      };
+    }
+    return {
+      'title': 'الفصل ${_chapterNumber(url)}',
+      'chapter_number': _chapterNumber(url),
+      'pages': images,
+      'images': images.map((e) => {'url': e}).toList(),
+      'url': url,
+    };
   }
 
   Future<List<Map<String, dynamic>>> _chapters(Map<String, dynamic> raw) async {
     final apiChapters = await _chaptersFromApi(raw);
     if (apiChapters.isNotEmpty) return apiChapters;
-    return _chaptersFromPage(raw);
+    final pageChapters = await _chaptersFromPage(raw);
+    if (pageChapters.isNotEmpty) return pageChapters;
+    return const [];
   }
 
   Future<List<Map<String, dynamic>>> _chaptersFromApi(Map<String, dynamic> raw) async {
