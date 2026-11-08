@@ -54,6 +54,88 @@ void main() {
     expect(chapter?['chapter_number'], 326);
     expect(chapter?['content'], contains('نص الفصل'));
   });
+
+  test('latest list includes rating and publish/update dates from novel API',
+      () async {
+    final entries = [
+      _indexEntry(
+        'sea-older',
+        'رواية أقدم',
+        '2026-11-06T08:00:00.000Z',
+        '2026-10-01T08:00:00.000Z',
+      ),
+      _indexEntry(
+        'sea-newer',
+        'رواية أحدث',
+        '2026-11-07T21:30:00.000Z',
+        '2026-10-05T08:00:00.000Z',
+      ),
+    ];
+    final source = SeanovelSource(
+      client: MockClient((request) async {
+        if (request.url.path == '/api/search-index') return _json(entries);
+        final slug = request.url.pathSegments.last;
+        return _json({
+          'slug': slug,
+          'rating': slug == 'sea-newer' ? 4.6 : 3.8,
+          'last_updated': slug == 'sea-newer'
+              ? '2026-11-07T21:30:00.000Z'
+              : '2026-11-06T08:00:00.000Z',
+          'first_published_at': slug == 'sea-newer'
+              ? '2026-10-05T08:00:00.000Z'
+              : '2026-10-01T08:00:00.000Z',
+        });
+      }),
+    );
+
+    final items = await source.latest();
+
+    expect(items, hasLength(2));
+    expect(items.first['title'], 'رواية أحدث');
+    expect(items.first['rating'], '4.6');
+    expect(items.first['latest_chapter_date'], '2026-11-07T21:30:00.000Z');
+    expect(items.first['updated_on'], '2026-11-07T21:30:00.000Z');
+    expect(items.first['first_published_at'], '2026-10-05T08:00:00.000Z');
+    expect(items.first['release_year'], '2026');
+  });
+
+  test('search results include API rating and dates', () async {
+    final source = SeanovelSource(
+      client: MockClient((request) async {
+        if (request.url.path == '/api/search-index') {
+          return _json([
+            _indexEntry(
+              'sea-search-target',
+              'رواية بحث مميزة',
+              '2026-11-08T01:00:00.000Z',
+              '2026-09-01T01:00:00.000Z',
+            ),
+            _indexEntry(
+              'sea-search-other',
+              'عمل مختلف',
+              '2026-11-06T01:00:00.000Z',
+              '2026-08-01T01:00:00.000Z',
+            ),
+          ]);
+        }
+        expect(request.url.path, '/api/novel/sea-search-target');
+        return _json({
+          'slug': 'sea-search-target',
+          'rating': 4.9,
+          'last_updated': '2026-11-08T01:00:00.000Z',
+          'first_published_at': '2026-09-01T01:00:00.000Z',
+        });
+      }),
+    );
+
+    final results = await source.search('بحث');
+
+    expect(results, hasLength(1));
+    expect(results.single['title'], 'رواية بحث مميزة');
+    expect(results.single['rating'], '4.9');
+    expect(results.single['latest_chapter_date'], '2026-11-08T01:00:00.000Z');
+    expect(results.single['first_published_at'], '2026-09-01T01:00:00.000Z');
+  });
 }
 
 const _index = '''
@@ -71,3 +153,26 @@ const _novel = '''
 const _chapter = '''
 <html><body><h1 class="reader-chapter-title">بلورات مانا</h1><article class="reader-content"><p class="sr-only">وصف</p><p>نص الفصل الحقيقي.</p></article></body></html>
 ''';
+
+Map<String, dynamic> _indexEntry(
+  String slug,
+  String title,
+  String updatedAt,
+  String publishedAt,
+) => {
+      'slug': slug,
+      'title_ar': title,
+      'title_original': 'Original $slug',
+      'status': 'ongoing',
+      'genres': ['خيال'],
+      'chapters_count': 20,
+      'last_updated': updatedAt,
+      'first_published_at': publishedAt,
+      'cover_version': '2',
+    };
+
+http.Response _json(dynamic body) => http.Response(
+      jsonEncode(body),
+      200,
+      headers: {'content-type': 'application/json; charset=utf-8'},
+    );

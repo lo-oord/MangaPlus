@@ -20,6 +20,10 @@ class SeanovelSource extends ContentSource {
         'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
   };
   static const Duration _timeout = Duration(seconds: 35);
+  static final Map<String, ({DateTime at, Map<String, dynamic> values})>
+      _novelMetadataCache = {};
+  static final Map<String, Future<Map<String, dynamic>>>
+      _novelMetadataRequests = {};
 
   final http.Client _client;
 
@@ -36,14 +40,18 @@ class SeanovelSource extends ContentSource {
   List<String> get hosts => const ['seanovel.org'];
 
   @override
-  Future<List<Map<String, dynamic>>> search(String query) async {
+  Future<List<Map<String, dynamic>>> search(String query) =>
+      _searchPage(query, page: 1);
+
+  Future<List<Map<String, dynamic>>> _searchPage(
+    String query, {
+    required int page,
+  }) async {
     final value = query.trim().toLowerCase();
     if (value.isEmpty) return const [];
     final entries = await _searchIndex();
-    return entries
-        .where((entry) => _matches(value, entry))
-        .map(_indexItem)
-        .toList(growable: false);
+    final matches = entries.where((entry) => _matches(value, entry)).toList();
+    return _itemsWithMetadata(_page(matches, page));
   }
 
   @override
@@ -51,7 +59,7 @@ class SeanovelSource extends ContentSource {
     final entries = await _searchIndex();
     entries.sort(
         (a, b) => _text(b['last_updated']).compareTo(_text(a['last_updated'])));
-    return _page(entries, page).map(_indexItem).toList(growable: false);
+    return _itemsWithMetadata(_page(entries, page));
   }
 
   @override
@@ -63,7 +71,7 @@ class SeanovelSource extends ContentSource {
     String query = '',
     int page = 2,
   }) async {
-    if (query.trim().isNotEmpty) return search(query);
+    if (query.trim().isNotEmpty) return _searchPage(query, page: page);
     return latest(page: page);
   }
 
@@ -77,9 +85,6 @@ class SeanovelSource extends ContentSource {
     if (title.isEmpty) throw Exception('SeaNovel: لم يتم العثور على الرواية.');
     final cover =
         mangaImageUrl(document.querySelector('img.novel-cover'), _site);
-    final description = mangaHtmlText(
-      document.querySelector('.novel-description, [class*="description"]'),
-    );
     final author = mangaHtmlText(
       document.querySelector('.novel-author, [class*="author"]'),
     );
@@ -87,13 +92,29 @@ class SeanovelSource extends ContentSource {
       document.querySelector('.novel-status, [class*="status"]'),
     );
     final chapters = await _allChapters(slug);
-    final metadata =
-        (await _searchIndex()).cast<Map<String, dynamic>?>().firstWhere(
-                  (entry) => entry?['slug']?.toString() == slug,
-                  orElse: () => null,
-                ) ??
-            <String, dynamic>{};
+    Map<String, dynamic> metadata;
+    try {
+      metadata = await _novelMetadata(slug);
+    } catch (_) {
+      metadata = (await _searchIndex())
+              .cast<Map<String, dynamic>?>()
+              .firstWhere(
+                (entry) => entry?['slug']?.toString() == slug,
+                orElse: () => null,
+              ) ??
+          <String, dynamic>{};
+    }
     final type = SourceValues.type('novel');
+    final latestDate = SourceValues.firstText([
+      metadata['last_updated'],
+      chapters.isEmpty ? '' : chapters.last['release_date'],
+    ]);
+    final description = SourceValues.firstText([
+      mangaHtmlText(
+        document.querySelector('.novel-description, [class*="description"]'),
+      ),
+      metadata['description'],
+    ]);
     return item(
       title: title,
       url: novelUrl,
@@ -101,17 +122,22 @@ class SeanovelSource extends ContentSource {
       type: type,
       genres: _strings(metadata['genres']),
       description: description,
+      rating: SourceValues.rating(metadata['rating']),
     )..addAll({
         'native_title':
             _text(document.querySelector('.novel-original-title')?.text),
         'synopsis': description,
-        'author': author,
-        'status': status,
-        'total_chapters': chapters.length,
+        'author': author.isEmpty ? _text(metadata['author']) : author,
+        'status': status.isEmpty ? _text(metadata['status']) : status,
+        'total_chapters': chapters.isEmpty
+            ? metadata['chapters_count'] ?? 0
+            : chapters.length,
         'latest_chapter_number':
             chapters.isEmpty ? '' : chapters.last['number'] ?? '',
-        'latest_chapter_date':
-            chapters.isEmpty ? '' : chapters.last['release_date'] ?? '',
+        'latest_chapter_date': latestDate,
+        'updated_on': latestDate,
+        'first_published_at': _text(metadata['first_published_at']),
+        'release_year': SourceValues.year(metadata['first_published_at']),
         'chapters': chapters,
       });
   }
@@ -208,6 +234,79 @@ class SeanovelSource extends ContentSource {
     return data.whereType<Map<String, dynamic>>().toList(growable: false);
   }
 
+  Future<List<Map<String, dynamic>>> _itemsWithMetadata(
+    List<Map<String, dynamic>> entries,
+  ) async {
+    final results = <Map<String, dynamic>>[];
+    const batchSize = 6;
+    for (var start = 0; start < entries.length; start += batchSize) {
+      final end = start + batchSize > entries.length
+          ? entries.length
+          : start + batchSize;
+      final batch = await Future.wait([
+        for (final entry in entries.skip(start).take(end - start))
+          () async {
+            final enriched = Map<String, dynamic>.from(entry);
+            final slug = _text(entry['slug']);
+            if (slug.isNotEmpty) {
+              try {
+                final metadata = await _novelMetadata(slug);
+                for (final key in const [
+                  'rating',
+                  'last_updated',
+                  'first_published_at',
+                  'description',
+                  'author',
+                  'status',
+                  'genres',
+                  'chapters_count',
+                  'cover_version',
+                ]) {
+                  if (metadata[key] != null) enriched[key] = metadata[key];
+                }
+              } catch (_) {
+                // Keep the searchable index data if one novel's API call fails.
+              }
+            }
+            return _indexItem(enriched);
+          }(),
+      ]);
+      results.addAll(batch);
+    }
+    return results;
+  }
+
+  Future<Map<String, dynamic>> _novelMetadata(String slug) async {
+    final key = slug.trim();
+    if (key.isEmpty) return const {};
+    final cached = _novelMetadataCache[key];
+    if (cached != null &&
+        DateTime.now().difference(cached.at) < const Duration(minutes: 10)) {
+      return cached.values;
+    }
+    final inFlight = _novelMetadataRequests[key];
+    if (inFlight != null) return inFlight;
+    final request = _fetchNovelMetadata(key);
+    _novelMetadataRequests[key] = request;
+    try {
+      final values = await request;
+      _novelMetadataCache[key] = (at: DateTime.now(), values: values);
+      return values;
+    } finally {
+      if (identical(_novelMetadataRequests[key], request)) {
+        _novelMetadataRequests.remove(key);
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>> _fetchNovelMetadata(String slug) async {
+    final payload = await _json(
+      Uri.https('seanovel.org', '/api/novel/$slug').toString(),
+    );
+    if (payload is! Map) return const {};
+    return Map<String, dynamic>.from(payload);
+  }
+
   Map<String, dynamic> _indexItem(Map<String, dynamic> entry) {
     final slug = _text(entry['slug']);
     final version = _text(entry['cover_version']).ifEmpty('1');
@@ -218,12 +317,17 @@ class SeanovelSource extends ContentSource {
       image: cover,
       type: 'novel',
       genres: _strings(entry['genres']),
-      description: '',
+      description: _text(entry['description']),
+      rating: SourceValues.rating(entry['rating']),
     )..addAll({
         'status': _text(entry['status']),
         'author': _text(entry['author']),
         'total_chapters': entry['chapters_count'] ?? 0,
         'native_title': _text(entry['title_original']),
+        'latest_chapter_date': _text(entry['last_updated']),
+        'updated_on': _text(entry['last_updated']),
+        'first_published_at': _text(entry['first_published_at']),
+        'release_year': SourceValues.year(entry['first_published_at']),
       });
   }
 

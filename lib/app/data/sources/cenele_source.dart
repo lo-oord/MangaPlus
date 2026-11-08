@@ -31,6 +31,10 @@ abstract class CeneleSource extends ContentSource {
       _catalogCache = {};
   static final Map<String, Future<List<Map<String, dynamic>>>>
       _catalogRequests = {};
+  static final Map<String, ({DateTime at, Map<String, dynamic> values})>
+      _listingMetadataCache = {};
+  static final Map<String, Future<Map<String, dynamic>>>
+      _listingMetadataRequests = {};
 
   final bool isMangaSection;
 
@@ -64,7 +68,7 @@ abstract class CeneleSource extends ContentSource {
     });
     final searchDocument = await _document(searchUri.toString());
     final searchResults = _searchResults(searchDocument);
-    if (!isMangaSection) return searchResults;
+    if (!isMangaSection) return _withListingMetadata(searchResults);
 
     // Cenele's manga section is a category inside the shared WordPress search
     // index. Keep this adapter restricted to works in that category.
@@ -95,6 +99,11 @@ abstract class CeneleSource extends ContentSource {
 
   @override
   Future<List<Map<String, dynamic>>> catalog({int page = 1}) async {
+    if (!isMangaSection) {
+      final safePage = page < 1 ? 1 : page;
+      final document = await _document(_catalogUri(page: safePage).toString());
+      return _withListingMetadata(_catalogItems(document));
+    }
     final works = await _loadCatalog();
     final safePage = page < 1 ? 1 : page;
     final start = (safePage - 1) * 24;
@@ -120,6 +129,9 @@ abstract class CeneleSource extends ContentSource {
       throw Exception('$name: لم يتم العثور على تفاصيل العمل.');
 
     final chapters = await _chapters(document, html, target);
+    final latestDateLabel =
+        chapters.isEmpty ? '' : '${chapters.first['release_date'] ?? ''}';
+    final latestDate = _normalizeCeneleDate(latestDateLabel);
     final description = mangaHtmlText(
         document.querySelector('.nhv-novel-synopsis, .description-summary'));
     final genres = document
@@ -157,8 +169,9 @@ abstract class CeneleSource extends ContentSource {
         'total_chapters': chapters.length,
         'latest_chapter_number':
             chapters.isEmpty ? '' : chapters.first['number'] ?? '',
-        'latest_chapter_date':
-            chapters.isEmpty ? '' : chapters.first['release_date'] ?? '',
+        'latest_chapter_date': latestDate,
+        'latest_chapter_date_label': latestDateLabel,
+        'updated_on': latestDate,
         'chapters': chapters,
       });
   }
@@ -231,29 +244,8 @@ abstract class CeneleSource extends ContentSource {
     final seen = <String>{};
     final results = <Map<String, dynamic>>[];
     void collect(Document document) {
-      for (final card
-          in document.querySelectorAll('article.nhv-library-card')) {
-        final anchor = card.querySelector(
-            '.nhv-library-card__cover, .nhv-library-card__title a');
-        final href = anchor?.attributes['href'] ?? '';
-        final title =
-            mangaHtmlText(card.querySelector('.nhv-library-card__title a'));
-        final image =
-            mangaImageUrl(card.querySelector('img.wp-post-image'), _site);
-        if (title.isEmpty || href.isEmpty || !seen.add(href)) continue;
-        final genres = card
-            .querySelectorAll('.nhv-library-card__genres a')
-            .map(mangaHtmlText)
-            .where((value) => value.isNotEmpty)
-            .toList(growable: false);
-        results.add(_item(
-          title: title,
-          url: href,
-          image: image,
-          genres: genres,
-          description:
-              mangaHtmlText(card.querySelector('.nhv-library-card__excerpt')),
-        ));
+      for (final entry in _catalogItems(document)) {
+        if (seen.add('${entry['url']}')) results.add(entry);
       }
     }
 
@@ -278,6 +270,41 @@ abstract class CeneleSource extends ContentSource {
         collect(document);
       }
       if (failed) break;
+    }
+    return results;
+  }
+
+  List<Map<String, dynamic>> _catalogItems(Document document) {
+    final results = <Map<String, dynamic>>[];
+    final seen = <String>{};
+    for (final card in document.querySelectorAll('article.nhv-library-card')) {
+      final anchor = card.querySelector(
+        '.nhv-library-card__cover, .nhv-library-card__title a',
+      );
+      final href = anchor?.attributes['href'] ?? '';
+      final title = mangaHtmlText(card.querySelector('.nhv-library-card__title a'));
+      final image = mangaImageUrl(card.querySelector('img.wp-post-image'), _site);
+      if (title.isEmpty || href.isEmpty || !seen.add(href)) continue;
+      final genres = card
+          .querySelectorAll('.nhv-library-card__genres a')
+          .map(mangaHtmlText)
+          .where((value) => value.isNotEmpty)
+          .toList(growable: false);
+      final item = _item(
+        title: title,
+        url: href,
+        image: image,
+        genres: genres,
+        description: mangaHtmlText(
+          card.querySelector('.nhv-library-card__excerpt'),
+        ),
+      );
+      item.addAll({
+        'status': mangaHtmlText(card.querySelector('.nhv-library-card__status')),
+        'total_chapters':
+            mangaChapterNumber(mangaHtmlText(card.querySelector('.nhv-library-card__meta'))) ?? '',
+      });
+      results.add(item);
     }
     return results;
   }
@@ -307,6 +334,141 @@ abstract class CeneleSource extends ContentSource {
           url.trim().isNotEmpty &&
           seen.add(url);
     }).toList(growable: false);
+  }
+
+  Future<List<Map<String, dynamic>>> _withListingMetadata(
+    List<Map<String, dynamic>> items,
+  ) async {
+    final enriched = items.map((item) => Map<String, dynamic>.from(item)).toList();
+    const batchSize = 4;
+    for (var start = 0; start < enriched.length; start += batchSize) {
+      final end = start + batchSize > enriched.length
+          ? enriched.length
+          : start + batchSize;
+      final metadata = await Future.wait([
+        for (final item in enriched.skip(start).take(end - start))
+          _listingMetadata(item).catchError((_) => <String, dynamic>{}),
+      ]);
+      for (var index = 0; index < metadata.length; index++) {
+        enriched[start + index].addAll(metadata[index]);
+      }
+    }
+    return enriched;
+  }
+
+  Future<Map<String, dynamic>> _listingMetadata(
+    Map<String, dynamic> item,
+  ) async {
+    final url = _targetUrl('${item['url'] ?? ''}');
+    if (url.isEmpty) return const {};
+    final key = '$id|$url';
+    final cached = _listingMetadataCache[key];
+    if (cached != null &&
+        DateTime.now().difference(cached.at) < const Duration(minutes: 10)) {
+      return cached.values;
+    }
+    final inFlight = _listingMetadataRequests[key];
+    if (inFlight != null) return inFlight;
+    final request = _fetchListingMetadata(url, item);
+    _listingMetadataRequests[key] = request;
+    try {
+      final values = await request;
+      _listingMetadataCache[key] = (at: DateTime.now(), values: values);
+      return values;
+    } finally {
+      if (identical(_listingMetadataRequests[key], request)) {
+        _listingMetadataRequests.remove(key);
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>> _fetchListingMetadata(
+    String url,
+    Map<String, dynamic> item,
+  ) async {
+    final document = await _document(url);
+    final ratingNode = document.querySelector(
+      '.nhv-simple-rating__avg, [itemprop="ratingValue"], .rating .num',
+    );
+    final rating = SourceValues.rating(SourceValues.firstText([
+      ratingNode?.attributes['content'],
+      ratingNode?.attributes['data-rating'],
+      mangaHtmlText(ratingNode),
+    ]));
+    final latestChapter = document.querySelector('li.wp-manga-chapter');
+    final latestChapterTitle = mangaHtmlText(latestChapter?.querySelector('a'));
+    final dateText = SourceValues.firstText([
+      document
+          .querySelector('meta[property="article:modified_time"]')
+          ?.attributes['content'],
+      document.querySelector('meta[property="og:updated_time"]')
+          ?.attributes['content'],
+      latestChapter?.querySelector('time[datetime]')?.attributes['datetime'],
+      document.querySelector('time[datetime]')?.attributes['datetime'],
+      mangaHtmlText(latestChapter?.querySelector('.chapter-release-date')),
+    ]);
+    final date = _normalizeCeneleDate(dateText);
+    final status = _metaValue(document, 'الحالة');
+    final count = _metaValue(document, 'الفصول');
+    final description = mangaHtmlText(
+      document.querySelector('.nhv-novel-synopsis, .description-summary'),
+    );
+    return {
+      if (rating.isNotEmpty) 'rating': rating,
+      if (date.isNotEmpty) 'latest_chapter_date': date,
+      if (date.isNotEmpty) 'updated_on': date,
+      if (latestChapterTitle.isNotEmpty)
+        'latest_chapter_number': mangaChapterNumber(latestChapterTitle) ?? '',
+      if (status.isNotEmpty) 'status': status,
+      if (count.isNotEmpty)
+        'total_chapters': mangaChapterNumber(count) ?? item['total_chapters'] ?? '',
+      if (description.isNotEmpty) 'description': description,
+    };
+  }
+
+  String _normalizeCeneleDate(String value) {
+    final text = value.trim();
+    if (text.isEmpty) return '';
+    final parsed = DateTime.tryParse(text);
+    if (parsed != null) return parsed.toUtc().toIso8601String();
+    final digits = text
+        .replaceAll('٠', '0')
+        .replaceAll('١', '1')
+        .replaceAll('٢', '2')
+        .replaceAll('٣', '3')
+        .replaceAll('٤', '4')
+        .replaceAll('٥', '5')
+        .replaceAll('٦', '6')
+        .replaceAll('٧', '7')
+        .replaceAll('٨', '8')
+        .replaceAll('٩', '9')
+        .toLowerCase();
+    final match = RegExp(
+      r'(?:منذ|قبل)?\s*(\d+)\s*'
+      r'(ثانية|ثواني|دقيقة|دقائق|دقيقه|دقايق|ساعة|ساعات|ساعه|يوم|أيام|ايام|أسبوع|اسبوع|أسابيع|اسابيع|شهر|أشهر|اشهر|سنة|سنوات|minutes?|hours?|days?|weeks?|months?|years?)'
+      r'(?:\s+ago)?',
+    ).firstMatch(digits);
+    if (match == null) return '';
+    final amount = int.tryParse(match.group(1) ?? '') ?? 0;
+    final unit = (match.group(2) ?? '').trim();
+    final duration = switch (unit) {
+      'ثانية' || 'ثواني' => Duration(seconds: amount),
+      'دقيقة' || 'دقائق' || 'دقيقه' || 'دقايق' || 'minute' || 'minutes' =>
+        Duration(minutes: amount),
+      'ساعة' || 'ساعات' || 'ساعه' || 'hour' || 'hours' =>
+        Duration(hours: amount),
+      'يوم' || 'أيام' || 'ايام' || 'day' || 'days' => Duration(days: amount),
+      'أسبوع' || 'اسبوع' || 'أسابيع' || 'اسابيع' || 'week' || 'weeks' =>
+        Duration(days: amount * 7),
+      'شهر' || 'أشهر' || 'اشهر' || 'month' || 'months' =>
+        Duration(days: amount * 30),
+      'سنة' || 'سنوات' || 'year' || 'years' =>
+        Duration(days: amount * 365),
+      _ => null,
+    };
+    return duration == null
+        ? ''
+        : DateTime.now().toUtc().subtract(duration).toIso8601String();
   }
 
   Future<List<Map<String, dynamic>>> _chapters(

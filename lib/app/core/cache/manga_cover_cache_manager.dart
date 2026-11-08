@@ -18,12 +18,10 @@ class MangaCoverCacheManager {
       final host = uri.host.toLowerCase();
       headers['Referer'] = host == 'manga-cdn.kawaii-anime.com'
           ? 'https://kawaiimanga.org/'
-          : host == 'procomic.pro' || host.endsWith('.procomic.pro')
-              ? 'https://procomic.pro/'
-              : host == 'mangadar.com' || host.endsWith('.storage.mangadar.com')
-                  ? 'https://mangadar.com/'
-                  : host == 'hijala.com' || host.endsWith('.hijala.com')
-                      ? 'https://hijala.com/'
+              : host == 'procomic.pro' || host.endsWith('.procomic.pro')
+                  ? 'https://procomic.pro/'
+                  : host == 'mangadar.com' || host.endsWith('.storage.mangadar.com')
+                      ? 'https://mangadar.com/'
                       : '${uri.scheme == 'http' ? 'http' : 'https'}://${uri.host}/';
     }
     return headers;

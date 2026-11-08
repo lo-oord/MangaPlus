@@ -14,7 +14,6 @@ import 'cenele_source.dart';
 import 'mangadar_source.dart';
 import 'kolnovel_source.dart';
 import 'procomic_source.dart';
-import 'hijala_source.dart';
 import 'seanovel_source.dart';
 import 'despair_source.dart';
 import 'hizomanga_source.dart';
@@ -42,7 +41,6 @@ class MangaSourceRegistry {
   static final MangaDarSource mangaDar = MangaDarSource();
   static final KolNovelSource kolNovel = KolNovelSource();
   static final ProComicSource proComic = ProComicSource();
-  static final HijalaSource hijala = HijalaSource();
   static final SeanovelSource seaNovel = SeanovelSource();
   static final DespairMangaSource despairManga = DespairMangaSource();
   static final DespairNovelsSource despairNovels = DespairNovelsSource();
@@ -80,7 +78,6 @@ class MangaSourceRegistry {
         mangaDar,
         kolNovel,
         proComic,
-        hijala,
         seaNovel,
         despairManga,
         despairNovels,

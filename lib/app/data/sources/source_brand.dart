@@ -45,7 +45,6 @@ class SourceBrand {
     'galaxynovels': 'https://galaxynovels.com',
     'galaxy novels': 'https://galaxynovels.com',
     'procomic': 'https://procomic.pro',
-    'hijala': 'https://hijala.com',
     'despair manga': 'https://despair-world.com',
     'despair_manga': 'https://despair-world.com',
     'despair novels': 'https://despair-world.com',
