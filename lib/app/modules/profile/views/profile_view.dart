@@ -7,6 +7,7 @@ import 'package:mangaplus/app/data/models/user_profile.dart';
 import 'package:mangaplus/app/modules/profile/controllers/profile_controller.dart';
 import 'package:mangaplus/app/modules/profile/views/reading_stats_panel.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
+import 'package:mangaplus/app/modules/settings/views/settings_view.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/mangaplus_app_bar.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
@@ -17,7 +18,16 @@ class ProfileView extends GetView<ProfileController> {
   @override
   Widget build(BuildContext context) => ThemeAwareBuilder(builder: (context) => Scaffold(
         backgroundColor: AppColors.background,
-        appBar: MangaPlusAppBar(title: 'الإعدادات'.tr),
+        appBar: MangaPlusAppBar(
+          title: 'الحساب'.tr,
+          actions: [
+            IconButton(
+              icon: Icon(Icons.settings_rounded, color: AppColors.icon),
+              onPressed: () => Get.toNamed(Routes.SETTINGS),
+              tooltip: 'الإعدادات'.tr,
+            ),
+          ],
+        ),
         body: Obx(() {
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),

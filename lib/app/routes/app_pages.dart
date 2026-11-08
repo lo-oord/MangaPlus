@@ -29,6 +29,17 @@ import '../modules/profile/views/profile_view.dart';
 import '../modules/profile/views/profile_details_view.dart';
 import '../modules/search/bindings/search_binding.dart';
 import '../modules/search/views/search_view.dart';
+import '../modules/settings/bindings/settings_binding.dart';
+import '../modules/settings/views/settings_view.dart';
+import '../modules/settings/views/appearance_settings_view.dart';
+import '../modules/settings/views/reader_settings_view.dart';
+import '../modules/settings/views/language_region_view.dart';
+import '../modules/settings/views/storage_data_view.dart';
+import '../modules/settings/views/privacy_security_view.dart';
+import '../modules/settings/views/sync_connection_view.dart';
+import '../modules/settings/views/help_view.dart';
+import '../modules/settings/views/feedback_view.dart';
+import '../modules/settings/views/about_view.dart';
 import '../modules/splash/views/splash_view.dart';
 
 part 'app_routes.dart';
@@ -109,6 +120,65 @@ class AppPages {
       name: _Paths.PROFILE_DETAILS,
       page: () => const ProfileDetailsView(),
       binding: ProfileBinding(),
+      transition: Transition.rightToLeftWithFade,
+    ),
+    GetPage(
+      name: _Paths.SETTINGS,
+      page: () => const SettingsView(),
+      binding: SettingsBinding(),
+    ),
+    GetPage(
+      name: _Paths.APPEARANCE,
+      page: () => const AppearanceSettingsView(),
+      binding: SettingsBinding(),
+      transition: Transition.rightToLeftWithFade,
+    ),
+    GetPage(
+      name: _Paths.READER,
+      page: () => const ReaderSettingsView(),
+      binding: SettingsBinding(),
+      transition: Transition.rightToLeftWithFade,
+    ),
+    GetPage(
+      name: _Paths.LANGUAGE_REGION,
+      page: () => const LanguageRegionView(),
+      binding: SettingsBinding(),
+      transition: Transition.rightToLeftWithFade,
+    ),
+    GetPage(
+      name: _Paths.STORAGE,
+      page: () => const StorageDataView(),
+      binding: SettingsBinding(),
+      transition: Transition.rightToLeftWithFade,
+    ),
+    GetPage(
+      name: _Paths.PRIVACY_SECURITY,
+      page: () => const PrivacySecurityView(),
+      binding: SettingsBinding(),
+      transition: Transition.rightToLeftWithFade,
+    ),
+    GetPage(
+      name: _Paths.SYNC_CONNECTION,
+      page: () => const SyncConnectionView(),
+      binding: SettingsBinding(),
+      transition: Transition.rightToLeftWithFade,
+    ),
+    GetPage(
+      name: _Paths.HELP,
+      page: () => const HelpView(),
+      binding: SettingsBinding(),
+      transition: Transition.rightToLeftWithFade,
+    ),
+    GetPage(
+      name: _Paths.FEEDBACK,
+      page: () => const FeedbackView(),
+      binding: SettingsBinding(),
+      transition: Transition.rightToLeftWithFade,
+    ),
+    GetPage(
+      name: _Paths.ABOUT,
+      page: () => const AboutView(),
+      binding: SettingsBinding(),
       transition: Transition.rightToLeftWithFade,
     ),
     GetPage(

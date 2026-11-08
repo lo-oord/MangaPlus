@@ -15,6 +15,16 @@ abstract class Routes {
   static const SEARCH = _Paths.SEARCH;
   static const PROFILE = _Paths.PROFILE;
   static const PROFILE_DETAILS = _Paths.PROFILE_DETAILS;
+  static const SETTINGS = _Paths.SETTINGS;
+  static const APPEARANCE = _Paths.APPEARANCE;
+  static const READER = _Paths.READER;
+  static const LANGUAGE_REGION = _Paths.LANGUAGE_REGION;
+  static const STORAGE = _Paths.STORAGE;
+  static const PRIVACY_SECURITY = _Paths.PRIVACY_SECURITY;
+  static const SYNC_CONNECTION = _Paths.SYNC_CONNECTION;
+  static const HELP = _Paths.HELP;
+  static const FEEDBACK = _Paths.FEEDBACK;
+  static const ABOUT = _Paths.ABOUT;
   static const HISTORY = _Paths.HISTORY;
   static const DOWNLOAD = _Paths.DOWNLOAD;
   static const LOCAL_LIBRARY = _Paths.LOCAL_LIBRARY;
