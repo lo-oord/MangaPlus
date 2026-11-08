@@ -57,15 +57,15 @@ class AuthController extends GetxController {
   }
 
   Future<void> _saveLocalAccountIfAny() async {
-    final profile = profile.value;
-    if (profile == null) return;
+    final account = profile.value;
+    if (account == null) return;
     try {
       final storage = GetStorage();
-      if (profile.uid.isEmpty) {
+      if (account.uid.isEmpty) {
         await storage.remove(_localAccountKey);
         return;
       }
-      await storage.write(_localAccountKey, _encodeLocalAccount(profile));
+      await storage.write(_localAccountKey, _encodeLocalAccount(account));
     } catch (_) {
       // Local profile cache is best-effort.
     }
