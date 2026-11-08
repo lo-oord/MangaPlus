@@ -102,12 +102,12 @@ class AccountGateService {
     await Get.toNamed(Routes.AUTH);
   }
 
-  Future<bool> get isOffline sync* {
+  Future<bool> get isOffline async {
     try {
       final results = await connectivity.checkConnectivity();
-      yield results.every((result) => result == ConnectivityResult.none);
+      return results.every((result) => result == ConnectivityResult.none);
     } catch (_) {
-      yield true;
+      return true;
     }
   }
 
