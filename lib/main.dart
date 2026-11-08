@@ -157,6 +157,87 @@ void _handleConnectivity(List<ConnectivityResult> results) {
 }
 
 void main() async {
+  /// Best-effort restore of the account card using the local profile cache.
+  /// Keeps the UI from clearing the name/photo when the device is offline at
+  /// startup and Firebase Auth already has a persisted user.
+  Future<void> _tryRestoreCachedAccountIfAny() async {
+    try {
+      final storage = GetStorage();
+      final raw = storage.read('localAccount');
+      if (raw == null) return;
+      final map = raw is Map<String, dynamic> ? raw : <String, dynamic>{};
+      final uid = map['uid'];
+      if (uid is! String || uid.isEmpty) return;
+      final current = FirebaseAuth.instance.currentUser;
+      if (current == null || current.uid != uid) return;
+      if (current.isAnonymous) return;
+
+      // Only surface the cached profile when we are likely offline right now,
+      // so we do not show stale data after a real sign-out / session expiry.
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity.any((result) => result != ConnectivityResult.none)) {
+        return;
+      }
+
+      if (Get.isRegistered<AuthService>()) {
+        final auth = Get.find<AuthService>();
+        try {
+          final profile = await auth.loadProfile(uid).timeout(const Duration(seconds: 8));
+          if (profile != null &&
+              auth.currentUser?.uid == uid &&
+              !auth.currentUser!.isAnonymous) {
+            return;
+          }
+        } catch (_) {
+          // Fall back to the cached copy below.
+        }
+      }
+
+      final cached = _decodeLocalAccount(map);
+      if (cached != null) {
+        final controller = Get.isRegistered<ProfileController>()
+            ? Get.find<ProfileController>()
+            : null;
+        controller?.accountProfile.value = cached;
+      }
+    } catch (_) {
+      // Startup should never depend on this cache.
+    }
+  }
+
+  UserProfile? _decodeLocalAccount(Map<String, dynamic> map) {
+    final uid = map['uid'];
+    if (uid is! String || uid.isEmpty) return null;
+    final createdAt = map['createdAt'];
+    if (createdAt == null) return null;
+    return UserProfile(
+      uid: uid,
+      email: map['email'] as String? ?? '',
+      displayName: map['displayName'] as String? ?? '',
+      username: map['username'] as String? ?? '',
+      countryCode: map['countryCode'] as String? ?? '',
+      countryName: map['countryName'] as String? ?? '',
+      createdAt: _parseLocalDate(createdAt),
+      birthDate: map['birthDate'] as DateTime?,
+      gender: map['gender'] as String? ?? '',
+      bio: map['bio'] as String? ?? '',
+      photoUrl: map['photoUrl'] as String? ?? '',
+      photoData: map['photoData'] as String? ?? '',
+      isGuest: map['isGuest'] == true,
+      emailVerified: map['emailVerified'] == true,
+      isVerified: map['isVerified'] == true,
+      isOfficialDeveloper: map['isOfficialDeveloper'] == true,
+      syncFavorites: map['syncFavorites'] != false,
+      privacy: UserPrivacy.fromMap(map['privacy']),
+    );
+  }
+
+  DateTime _parseLocalDate(dynamic value) {
+    if (value is DateTime) return value;
+    if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
+    return DateTime.tryParse('$value') ?? DateTime.now();
+  }
+}
   WidgetsFlutterBinding.ensureInitialized();
   LicenseRegistry.addLicense(() async* {
     final licenseText = await rootBundle.loadString('assets/licenses/GPL-3.0.txt');
@@ -175,8 +256,6 @@ void main() async {
   } catch (error) {
     debugPrint('Unable to restore Firebase auth session: $error');
   }
-
-  FlutterError.onError = (errorDetails) {
     FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
   };
   // Pass all uncaught asynchronous errors that aren't handled by the Flutter framework to Crashlytics
@@ -213,6 +292,11 @@ void main() async {
   final initialLocale = savedLanguage == 'en_US'
       ? const Locale('en', 'US')
       : const Locale('ar', 'SA');
+
+  // Prefer the last known cached profile so the account row can render even
+  // when the device is offline at startup. This cache is only a read fallback;
+  // Firebase Auth / Firestore remain authoritative.
+  unawaited(_tryRestoreCachedAccountIfAny());
 
   if (!kIsWeb) {
     await setupFlutterNotifications(languageCode: savedLanguage);
