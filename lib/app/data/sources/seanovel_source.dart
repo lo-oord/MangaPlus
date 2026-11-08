@@ -49,12 +49,14 @@ class SeanovelSource extends ContentSource {
   @override
   Future<List<Map<String, dynamic>>> latest({int page = 1}) async {
     final entries = await _searchIndex();
-    entries.sort((a, b) => _text(b['last_updated']).compareTo(_text(a['last_updated'])));
+    entries.sort(
+        (a, b) => _text(b['last_updated']).compareTo(_text(a['last_updated'])));
     return _page(entries, page).map(_indexItem).toList(growable: false);
   }
 
   @override
-  Future<List<Map<String, dynamic>>> catalog({int page = 1}) => latest(page: page);
+  Future<List<Map<String, dynamic>>> catalog({int page = 1}) =>
+      latest(page: page);
 
   @override
   Future<List<Map<String, dynamic>>> nextPage({
@@ -73,7 +75,8 @@ class SeanovelSource extends ContentSource {
     final document = await _document(novelUrl);
     final title = mangaHtmlText(document.querySelector('h1.novel-title'));
     if (title.isEmpty) throw Exception('SeaNovel: لم يتم العثور على الرواية.');
-    final cover = mangaImageUrl(document.querySelector('img.novel-cover'), _site);
+    final cover =
+        mangaImageUrl(document.querySelector('img.novel-cover'), _site);
     final description = mangaHtmlText(
       document.querySelector('.novel-description, [class*="description"]'),
     );
@@ -84,11 +87,12 @@ class SeanovelSource extends ContentSource {
       document.querySelector('.novel-status, [class*="status"]'),
     );
     final chapters = await _allChapters(slug);
-    final metadata = (await _searchIndex()).cast<Map<String, dynamic>?>().firstWhere(
-          (entry) => entry?['slug']?.toString() == slug,
-          orElse: () => null,
-        ) ??
-        <String, dynamic>{};
+    final metadata =
+        (await _searchIndex()).cast<Map<String, dynamic>?>().firstWhere(
+                  (entry) => entry?['slug']?.toString() == slug,
+                  orElse: () => null,
+                ) ??
+            <String, dynamic>{};
     final type = SourceValues.type('novel');
     return item(
       title: title,
@@ -98,12 +102,16 @@ class SeanovelSource extends ContentSource {
       genres: _strings(metadata['genres']),
       description: description,
     )..addAll({
-        'native_title': _text(document.querySelector('.novel-original-title')?.text),
+        'native_title':
+            _text(document.querySelector('.novel-original-title')?.text),
         'synopsis': description,
         'author': author,
         'status': status,
         'total_chapters': chapters.length,
-        'latest_chapter_number': chapters.isEmpty ? 0 : chapters.last['number'],
+        'latest_chapter_number':
+            chapters.isEmpty ? '' : chapters.last['number'] ?? '',
+        'latest_chapter_date':
+            chapters.isEmpty ? '' : chapters.last['release_date'] ?? '',
         'chapters': chapters,
       });
   }
@@ -118,7 +126,9 @@ class SeanovelSource extends ContentSource {
       throw Exception('SeaNovel: رابط الفصل غير صالح.');
     }
     final segments = parsed.pathSegments;
-    if (segments.length != 4 || segments[0] != 'novels' || segments[2] != 'chapters') {
+    if (segments.length != 4 ||
+        segments[0] != 'novels' ||
+        segments[2] != 'chapters') {
       throw Exception('SeaNovel: رابط الفصل غير صالح.');
     }
     final chapterUrl = Uri.https('seanovel.org', parsed.path).toString();
@@ -137,7 +147,8 @@ class SeanovelSource extends ContentSource {
     );
     if (content.isEmpty) throw Exception('SeaNovel: محتوى الفصل فارغ.');
     final number = num.tryParse(segments.last) ?? segments.last;
-    final title = mangaHtmlText(document.querySelector('h1.reader-chapter-title'));
+    final title =
+        mangaHtmlText(document.querySelector('h1.reader-chapter-title'));
     final previous = _navigation(document, 'chapter-nav-prev');
     final next = _navigation(document, 'chapter-nav-next');
     return {
@@ -169,20 +180,26 @@ class SeanovelSource extends ContentSource {
         if (value is! Map) continue;
         final id = value['id'];
         if (id == null) continue;
-        final number = value['chapter_number'] ?? id;
+        final title = _text(value['title']);
+        final number = value['chapter_number'] ?? mangaChapterNumber(title);
+        final rawDate = _text(value['date']);
+        final releaseDate = mangaDateFromUnixSeconds(rawDate);
         chapters.add({
-          'title': _text(value['title']).ifEmpty('الفصل $number'),
+          'title': title.ifEmpty(number == null ? 'فصل' : 'الفصل $number'),
           'number': number,
-          'chapter_number': number,
+          'chapter_number': number ?? '',
           'url': '$_site/novels/$slug/chapters/$id',
-          'date': _text(value['date']),
+          'release_date': releaseDate,
+          'date': releaseDate,
         });
       }
       offset += raw.length;
       if (data['hasMore'] != true && raw.length < limit) break;
     }
     final seen = <String>{};
-    return chapters.where((chapter) => seen.add('${chapter['url']}')).toList(growable: false);
+    return chapters
+        .where((chapter) => seen.add('${chapter['url']}'))
+        .toList(growable: false);
   }
 
   Future<List<Map<String, dynamic>>> _searchIndex() async {
@@ -220,7 +237,8 @@ class SeanovelSource extends ContentSource {
     return values.contains(query);
   }
 
-  List<Map<String, dynamic>> _page(List<Map<String, dynamic>> values, int page) {
+  List<Map<String, dynamic>> _page(
+      List<Map<String, dynamic>> values, int page) {
     const size = 24;
     final start = ((page < 1 ? 1 : page) - 1) * size;
     if (start >= values.length) return const [];
@@ -229,7 +247,10 @@ class SeanovelSource extends ContentSource {
   }
 
   List<String> _strings(dynamic value) => value is List
-      ? value.map(_text).where((entry) => entry.isNotEmpty).toList(growable: false)
+      ? value
+          .map(_text)
+          .where((entry) => entry.isNotEmpty)
+          .toList(growable: false)
       : const [];
 
   String _slug(String raw) {
@@ -247,15 +268,18 @@ class SeanovelSource extends ContentSource {
   }
 
   Future<Document> _document(String url) async {
-    final response = await _client.get(Uri.parse(url), headers: _headers).timeout(_timeout);
+    final response =
+        await _client.get(Uri.parse(url), headers: _headers).timeout(_timeout);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('SeaNovel: فشل تحميل الصفحة (${response.statusCode}).');
     }
-    return html_parser.parse(utf8.decode(response.bodyBytes, allowMalformed: true));
+    return html_parser
+        .parse(utf8.decode(response.bodyBytes, allowMalformed: true));
   }
 
   Future<dynamic> _json(String url) async {
-    final response = await _client.get(Uri.parse(url), headers: _headers).timeout(_timeout);
+    final response =
+        await _client.get(Uri.parse(url), headers: _headers).timeout(_timeout);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('SeaNovel: فشل طلب API (${response.statusCode}).');
     }

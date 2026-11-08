@@ -9,31 +9,34 @@ import 'source_base.dart';
 import 'source_values.dart';
 
 class CeneleNovelSource extends CeneleSource {
-  CeneleNovelSource() : super(isMangaSection: false);
+  CeneleNovelSource({http.Client? client})
+      : super(isMangaSection: false, client: client);
 }
 
 class CeneleMangaSource extends CeneleSource {
-  CeneleMangaSource() : super(isMangaSection: true);
+  CeneleMangaSource({http.Client? client})
+      : super(isMangaSection: true, client: client);
 }
 
 /// Cenele's manga category contains text chapters, so both adapters use the
 /// novel reader while remaining separate sources in the app.
 abstract class CeneleSource extends ContentSource {
-  CeneleSource({required this.isMangaSection});
+  CeneleSource({required this.isMangaSection, http.Client? client})
+      : _client = client ?? http.Client();
 
   static const String _site = 'https://cenele.com';
   static const String _ajax = 'https://cenele.com/wp-admin/admin-ajax.php';
-  static final http.Client _client = http.Client();
+  final http.Client _client;
   static final Map<String, ({DateTime at, List<Map<String, dynamic>> items})>
       _catalogCache = {};
-  static final Map<String, Future<List<Map<String, dynamic>>>> _catalogRequests = {};
+  static final Map<String, Future<List<Map<String, dynamic>>>>
+      _catalogRequests = {};
 
   final bool isMangaSection;
 
   String get _scheme => isMangaSection ? 'cenele-manga' : 'cenele-novel';
-  String get _catalogPath => isMangaSection
-      ? '/cont-genre/%D9%85%D8%A7%D9%86%D8%AC%D8%A7/'
-      : '/cont/';
+  String get _catalogPath =>
+      isMangaSection ? '/cont-genre/%D9%85%D8%A7%D9%86%D8%AC%D8%A7/' : '/cont/';
 
   @override
   String get id => isMangaSection ? 'cenele_manga' : 'cenele_novels';
@@ -87,7 +90,8 @@ abstract class CeneleSource extends ContentSource {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> latest({int page = 1}) => catalog(page: page);
+  Future<List<Map<String, dynamic>>> latest({int page = 1}) =>
+      catalog(page: page);
 
   @override
   Future<List<Map<String, dynamic>>> catalog({int page = 1}) async {
@@ -99,7 +103,8 @@ abstract class CeneleSource extends ContentSource {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> nextPage({String query = '', int page = 2}) =>
+  Future<List<Map<String, dynamic>>> nextPage(
+          {String query = '', int page = 2}) =>
       query.trim().isEmpty ? catalog(page: page) : search(query);
 
   @override
@@ -109,16 +114,26 @@ abstract class CeneleSource extends ContentSource {
     final response = await _request(target);
     final html = utf8.decode(response.bodyBytes, allowMalformed: true);
     final document = html_parser.parse(html);
-    final title = mangaHtmlText(document.querySelector('.nhv-novel-title, h1.entry-title'));
-    if (title.isEmpty) throw Exception('$name: لم يتم العثور على تفاصيل العمل.');
+    final title = mangaHtmlText(
+        document.querySelector('.nhv-novel-title, h1.entry-title'));
+    if (title.isEmpty)
+      throw Exception('$name: لم يتم العثور على تفاصيل العمل.');
 
     final chapters = await _chapters(document, html, target);
-    final description = mangaHtmlText(document.querySelector('.nhv-novel-synopsis, .description-summary'));
-    final genres = document.querySelectorAll('.nhv-novel-genres a').map(mangaHtmlText)
-        .where((value) => value.isNotEmpty).toSet().toList(growable: false);
-    final image = mangaImageUrl(document.querySelector('.nhv-novel-cover img, img.wp-post-image'), _site);
+    final description = mangaHtmlText(
+        document.querySelector('.nhv-novel-synopsis, .description-summary'));
+    final genres = document
+        .querySelectorAll('.nhv-novel-genres a')
+        .map(mangaHtmlText)
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    final image = mangaImageUrl(
+        document.querySelector('.nhv-novel-cover img, img.wp-post-image'),
+        _site);
     final rating = SourceValues.rating(
-      mangaHtmlText(document.querySelector('.nhv-simple-rating__avg, [itemprop=ratingValue]')),
+      mangaHtmlText(document
+          .querySelector('.nhv-simple-rating__avg, [itemprop=ratingValue]')),
     );
     final result = _item(
       title: title,
@@ -130,7 +145,8 @@ abstract class CeneleSource extends ContentSource {
     // Cenele's manga category contains text chapters; keep its reader mode
     // textual even though search results are classified under the manga filter.
     result['type'] = 'novel';
-    return result..addAll({
+    return result
+      ..addAll({
         'description': description,
         'synopsis': description,
         'genres': genres,
@@ -139,7 +155,10 @@ abstract class CeneleSource extends ContentSource {
         'artist': _metaAny(document, const ['الرسام', 'الفنان']),
         'translator': _metaAny(document, const ['المترجم', 'الترجمة']),
         'total_chapters': chapters.length,
-        'latest_chapter_number': chapters.isEmpty ? 0 : chapters.first['number'],
+        'latest_chapter_number':
+            chapters.isEmpty ? '' : chapters.first['number'] ?? '',
+        'latest_chapter_date':
+            chapters.isEmpty ? '' : chapters.first['release_date'] ?? '',
         'chapters': chapters,
       });
   }
@@ -152,7 +171,8 @@ abstract class CeneleSource extends ContentSource {
     final target = _targetUrl(url);
     if (target.isEmpty) throw Exception('$name: رابط الفصل غير صالح.');
     final response = await _request(target);
-    final document = html_parser.parse(utf8.decode(response.bodyBytes, allowMalformed: true));
+    final document = html_parser
+        .parse(utf8.decode(response.bodyBytes, allowMalformed: true));
     // The reader now wraps the body in a `story-fold` element (older markup
     // used `story-layer`, and the webtoon/text container uses .text-chapter-content).
     // Direct-child paragraphs keep the promo/support blocks out of the body.
@@ -166,10 +186,15 @@ abstract class CeneleSource extends ContentSource {
         .map(mangaHtmlText)
         .where((value) => value.isNotEmpty && value != '*****')
         .toList(growable: false);
-    if (paragraphs.isEmpty) throw Exception('$name: لم يتم العثور على نص الفصل.');
+    if (paragraphs.isEmpty)
+      throw Exception('$name: لم يتم العثور على نص الفصل.');
     final chapterTitle = mangaHtmlText(document.querySelector('.chapter-name'));
-    final previous = _internalChapter(document.querySelector('.nhv-chapter-nav a.prev_page')?.attributes['href']);
-    final next = _internalChapter(document.querySelector('.nhv-chapter-nav a.next_page')?.attributes['href']);
+    final previous = _internalChapter(document
+        .querySelector('.nhv-chapter-nav a.prev_page')
+        ?.attributes['href']);
+    final next = _internalChapter(document
+        .querySelector('.nhv-chapter-nav a.next_page')
+        ?.attributes['href']);
     return {
       'title': chapterTitle.isEmpty ? 'الفصل' : chapterTitle,
       'chapter_number': mangaChapterNumber(chapterTitle) ?? '',
@@ -183,7 +208,8 @@ abstract class CeneleSource extends ContentSource {
 
   Future<List<Map<String, dynamic>>> _loadCatalog() async {
     final cached = _catalogCache[id];
-    if (cached != null && DateTime.now().difference(cached.at) < const Duration(minutes: 10)) {
+    if (cached != null &&
+        DateTime.now().difference(cached.at) < const Duration(minutes: 10)) {
       return cached.items;
     }
     final inFlight = _catalogRequests[id];
@@ -205,20 +231,28 @@ abstract class CeneleSource extends ContentSource {
     final seen = <String>{};
     final results = <Map<String, dynamic>>[];
     void collect(Document document) {
-      for (final card in document.querySelectorAll('article.nhv-library-card')) {
-        final anchor = card.querySelector('.nhv-library-card__cover, .nhv-library-card__title a');
+      for (final card
+          in document.querySelectorAll('article.nhv-library-card')) {
+        final anchor = card.querySelector(
+            '.nhv-library-card__cover, .nhv-library-card__title a');
         final href = anchor?.attributes['href'] ?? '';
-        final title = mangaHtmlText(card.querySelector('.nhv-library-card__title a'));
-        final image = mangaImageUrl(card.querySelector('img.wp-post-image'), _site);
+        final title =
+            mangaHtmlText(card.querySelector('.nhv-library-card__title a'));
+        final image =
+            mangaImageUrl(card.querySelector('img.wp-post-image'), _site);
         if (title.isEmpty || href.isEmpty || !seen.add(href)) continue;
-        final genres = card.querySelectorAll('.nhv-library-card__genres a').map(mangaHtmlText)
-            .where((value) => value.isNotEmpty).toList(growable: false);
+        final genres = card
+            .querySelectorAll('.nhv-library-card__genres a')
+            .map(mangaHtmlText)
+            .where((value) => value.isNotEmpty)
+            .toList(growable: false);
         results.add(_item(
           title: title,
           url: href,
           image: image,
           genres: genres,
-          description: mangaHtmlText(card.querySelector('.nhv-library-card__excerpt')),
+          description:
+              mangaHtmlText(card.querySelector('.nhv-library-card__excerpt')),
         ));
       }
     }
@@ -293,7 +327,8 @@ abstract class CeneleSource extends ContentSource {
         'meta_only': '1',
         'order': 'desc',
       });
-      final metadata = jsonDecode(utf8.decode(metadataResponse.bodyBytes, allowMalformed: true));
+      final metadata = jsonDecode(
+          utf8.decode(metadataResponse.bodyBytes, allowMalformed: true));
       final volumes = metadata is Map && metadata['volumes'] is List
           ? (metadata['volumes'] as List).whereType<Map>().toList()
           : const <Map>[];
@@ -310,7 +345,8 @@ abstract class CeneleSource extends ContentSource {
             'per_page': '50',
             'order': 'desc',
           });
-          final decoded = jsonDecode(utf8.decode(response.bodyBytes, allowMalformed: true));
+          final decoded =
+              jsonDecode(utf8.decode(response.bodyBytes, allowMalformed: true));
           if (decoded is! Map || decoded['success'] != true) break;
           final htmlFragment = '${decoded['html'] ?? ''}';
           if (htmlFragment.trim().isEmpty) break;
@@ -322,14 +358,22 @@ abstract class CeneleSource extends ContentSource {
             if (webUrl.isEmpty) continue;
             final label = mangaHtmlText(anchor);
             final title = mangaHtmlText(row.querySelector('.nhv-chapter-name'));
-            final numberValue = mangaChapterNumber(label) ?? mangaChapterNumber(rawUrl) ?? (chapters.length + 1);
+            final numberValue =
+                mangaChapterNumber(label) ?? mangaChapterNumber(rawUrl);
+            final displayNumber = numberValue == null ? '' : '$numberValue';
+            final releaseDate =
+                mangaHtmlText(row.querySelector('.chapter-release-date'));
             chapters.add({
               'id': row.attributes['data-chapter-id'] ?? '',
-              'title': title.isEmpty ? 'الفصل $numberValue' : 'الفصل $numberValue - $title',
+              'title': title.isEmpty
+                  ? (displayNumber.isEmpty ? 'فصل' : 'الفصل $displayNumber')
+                  : (displayNumber.isEmpty
+                      ? title
+                      : 'الفصل $displayNumber - $title'),
               'number': numberValue,
               'chapter_number': numberValue,
-              'release_date': mangaHtmlText(row.querySelector('.chapter-release-date')),
-              'date': mangaHtmlText(row.querySelector('.chapter-release-date')),
+              'release_date': releaseDate,
+              'date': releaseDate,
               'url': _internalChapter(webUrl),
             });
           }
@@ -337,28 +381,70 @@ abstract class CeneleSource extends ContentSource {
         }
       }
       final seen = <String>{};
-      return chapters.where((chapter) => seen.add('${chapter['url']}')).toList(growable: false);
+      return _sortChapters(
+        chapters.where((chapter) => seen.add('${chapter['url']}')).toList(),
+      );
     } catch (_) {
       return _visibleChapters(document, seriesUrl);
     }
   }
 
-  List<Map<String, dynamic>> _visibleChapters(Document document, String seriesUrl) =>
-      document.querySelectorAll('li.wp-manga-chapter').map((row) {
-        final anchor = row.querySelector('a');
-        final rawUrl = _absoluteUrl(anchor?.attributes['href'] ?? '');
-        final label = mangaHtmlText(anchor);
-        final number = mangaChapterNumber(label) ?? mangaChapterNumber(rawUrl) ?? 0;
-        final name = mangaHtmlText(row.querySelector('.nhv-chapter-name'));
-        return <String, dynamic>{
-          'title': name.isEmpty ? 'الفصل $number' : 'الفصل $number - $name',
-          'number': number,
-          'chapter_number': number,
-          'release_date': mangaHtmlText(row.querySelector('.chapter-release-date')),
-          'date': mangaHtmlText(row.querySelector('.chapter-release-date')),
-          'url': _internalChapter(rawUrl),
-        };
-      }).where((chapter) => '${chapter['url']}'.isNotEmpty).toList(growable: false);
+  List<Map<String, dynamic>> _visibleChapters(
+          Document document, String seriesUrl) =>
+      _sortChapters(document
+          .querySelectorAll('li.wp-manga-chapter')
+          .map((row) {
+            final anchor = row.querySelector('a');
+            final rawUrl = _absoluteUrl(anchor?.attributes['href'] ?? '');
+            final label = mangaHtmlText(anchor);
+            final number =
+                mangaChapterNumber(label) ?? mangaChapterNumber(rawUrl);
+            final name = mangaHtmlText(row.querySelector('.nhv-chapter-name'));
+            final displayNumber = number == null ? '' : '$number';
+            final releaseDate =
+                mangaHtmlText(row.querySelector('.chapter-release-date'));
+            return <String, dynamic>{
+              'title': name.isEmpty
+                  ? (displayNumber.isEmpty ? 'فصل' : 'الفصل $displayNumber')
+                  : (displayNumber.isEmpty
+                      ? name
+                      : 'الفصل $displayNumber - $name'),
+              'number': number,
+              'chapter_number': number,
+              'release_date': releaseDate,
+              'date': releaseDate,
+              'url': _internalChapter(rawUrl),
+            };
+          })
+          .where((chapter) => '${chapter['url']}'.isNotEmpty)
+          .toList());
+
+  List<Map<String, dynamic>> _sortChapters(
+    List<Map<String, dynamic>> chapters,
+  ) {
+    final indexed = chapters.asMap().entries.toList();
+    indexed.sort((leftEntry, rightEntry) {
+      final left = leftEntry.value;
+      final right = rightEntry.value;
+      final leftDate = DateTime.tryParse('${left['release_date'] ?? ''}');
+      final rightDate = DateTime.tryParse('${right['release_date'] ?? ''}');
+      if (leftDate != null && rightDate != null) {
+        final byDate = rightDate.compareTo(leftDate);
+        if (byDate != 0) return byDate;
+      }
+      final leftNumber = mangaChapterNumber('${left['number'] ?? ''}');
+      final rightNumber = mangaChapterNumber('${right['number'] ?? ''}');
+      if (leftNumber == null) {
+        return rightNumber == null
+            ? leftEntry.key.compareTo(rightEntry.key)
+            : 1;
+      }
+      if (rightNumber == null) return -1;
+      final byNumber = rightNumber.compareTo(leftNumber);
+      return byNumber == 0 ? leftEntry.key.compareTo(rightEntry.key) : byNumber;
+    });
+    return indexed.map((entry) => entry.value).toList(growable: false);
+  }
 
   Map<String, dynamic> _item({
     required String title,
@@ -367,7 +453,8 @@ abstract class CeneleSource extends ContentSource {
     List<String> genres = const [],
     String description = '',
     String rating = '',
-  }) => item(
+  }) =>
+      item(
         title: title.trim(),
         url: _internalSeries(url),
         image: image,
@@ -379,13 +466,18 @@ abstract class CeneleSource extends ContentSource {
 
   Uri _catalogUri({required int page}) {
     final path = page <= 1 ? _catalogPath : '${_catalogPath}page/$page/';
-    return Uri.parse('$_site$path').replace(queryParameters: {'m_orderby': 'latest'});
+    return Uri.parse('$_site$path')
+        .replace(queryParameters: {'m_orderby': 'latest'});
   }
 
   int _pageCount(Document document) {
-    final values = document.querySelectorAll('.page-numbers').map(mangaHtmlText)
-        .map(int.tryParse).whereType<int>();
-    return values.fold(1, (largest, value) => value > largest ? value : largest);
+    final values = document
+        .querySelectorAll('.page-numbers')
+        .map(mangaHtmlText)
+        .map(int.tryParse)
+        .whereType<int>();
+    return values.fold(
+        1, (largest, value) => value > largest ? value : largest);
   }
 
   String _metaAny(Document document, List<String> labels) {
@@ -400,13 +492,15 @@ abstract class CeneleSource extends ContentSource {
     for (final row in document.querySelectorAll('.nhv-novel-meta > div')) {
       final spans = row.querySelectorAll('span');
       final strong = row.querySelector('strong');
-      if (spans.any((span) => mangaHtmlText(span).contains(label))) return mangaHtmlText(strong);
+      if (spans.any((span) => mangaHtmlText(span).contains(label)))
+        return mangaHtmlText(strong);
     }
     return '';
   }
 
   Map<String, dynamic>? _frontConfig(String html) {
-    final match = RegExp(r'var nhvNovelV2 = (\{.*?\});', dotAll: true).firstMatch(html);
+    final match =
+        RegExp(r'var nhvNovelV2 = (\{.*?\});', dotAll: true).firstMatch(html);
     if (match == null) return null;
     try {
       final decoded = jsonDecode(match.group(1)!);
@@ -416,18 +510,24 @@ abstract class CeneleSource extends ContentSource {
     }
   }
 
-  String _internalSeries(String raw) => '$_scheme://series?url=${Uri.encodeQueryComponent(_absoluteUrl(raw))}';
+  String _internalSeries(String raw) =>
+      '$_scheme://series?url=${Uri.encodeQueryComponent(_absoluteUrl(raw))}';
 
   String _internalChapter(String? raw) {
     final url = _absoluteUrl(raw ?? '');
-    return url.isEmpty ? '' : '$_scheme://chapter?url=${Uri.encodeQueryComponent(url)}';
+    return url.isEmpty
+        ? ''
+        : '$_scheme://chapter?url=${Uri.encodeQueryComponent(url)}';
   }
 
   String _targetUrl(String raw) {
     final uri = Uri.tryParse(raw);
     if (uri == null) return '';
-    if (uri.scheme == _scheme) return _absoluteUrl(uri.queryParameters['url'] ?? '');
-    return uri.host == 'cenele.com' || uri.host == 'www.cenele.com' ? uri.toString() : '';
+    if (uri.scheme == _scheme)
+      return _absoluteUrl(uri.queryParameters['url'] ?? '');
+    return uri.host == 'cenele.com' || uri.host == 'www.cenele.com'
+        ? uri.toString()
+        : '';
   }
 
   String _absoluteUrl(String raw) {
@@ -440,11 +540,14 @@ abstract class CeneleSource extends ContentSource {
 
   Future<Document> _document(String url) async {
     final response = await _request(url);
-    return html_parser.parse(utf8.decode(response.bodyBytes, allowMalformed: true));
+    return html_parser
+        .parse(utf8.decode(response.bodyBytes, allowMalformed: true));
   }
 
   Future<http.Response> _request(String url) async {
-    final response = await _client.get(Uri.parse(url), headers: _headers).timeout(const Duration(seconds: 30));
+    final response = await _client
+        .get(Uri.parse(url), headers: _headers)
+        .timeout(const Duration(seconds: 30));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('$name: فشل طلب المصدر (${response.statusCode}).');
     }
@@ -452,13 +555,19 @@ abstract class CeneleSource extends ContentSource {
   }
 
   Future<http.Response> _post(Map<String, String> data) async {
-    final response = await _client.post(
-      Uri.parse(_ajax),
-      headers: {..._headers, 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'},
-      body: data,
-    ).timeout(const Duration(seconds: 30));
+    final response = await _client
+        .post(
+          Uri.parse(_ajax),
+          headers: {
+            ..._headers,
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+          },
+          body: data,
+        )
+        .timeout(const Duration(seconds: 30));
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('$name: فشل طلب البحث أو الفصول (${response.statusCode}).');
+      throw Exception(
+          '$name: فشل طلب البحث أو الفصول (${response.statusCode}).');
     }
     return response;
   }
@@ -466,6 +575,7 @@ abstract class CeneleSource extends ContentSource {
   Map<String, String> get _headers => const {
         'Accept': 'text/html,application/xhtml+xml,application/json',
         'Accept-Language': 'ar,en;q=0.8',
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+        'User-Agent':
+            'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
       };
 }

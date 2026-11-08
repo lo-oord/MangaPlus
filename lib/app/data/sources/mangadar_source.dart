@@ -67,7 +67,8 @@ class MangaDarSource extends ContentSource {
   Future<List<Map<String, dynamic>>> nextPage({
     String query = '',
     int page = 2,
-  }) => query.trim().isEmpty ? _catalog(page) : search(query);
+  }) =>
+      query.trim().isEmpty ? _catalog(page) : search(query);
 
   Future<List<Map<String, dynamic>>> _catalog(int page) async {
     final path = page <= 1 ? '/manga/' : '/manga/page/$page/';
@@ -107,7 +108,8 @@ class MangaDarSource extends ContentSource {
     final author = info['المؤلف'] ?? '';
     final artist = info['الرسام'] ?? '';
     final published = info['منشور'] ?? '';
-    final releaseYear = RegExp(r'\b(19|20)\d{2}\b').firstMatch(published)?.group(0) ?? '';
+    final releaseYear =
+        RegExp(r'\b(19|20)\d{2}\b').firstMatch(published)?.group(0) ?? '';
 
     return item(
       title: title,
@@ -117,8 +119,7 @@ class MangaDarSource extends ContentSource {
       genres: genres,
       description: description,
       rating: rating,
-    )
-      ..addAll({
+    )..addAll({
         'native_title': subtitle,
         'synopsis': description,
         'author': author,
@@ -127,7 +128,10 @@ class MangaDarSource extends ContentSource {
         'release_year': releaseYear,
         'published': published,
         'total_chapters': chapters.length,
-        'latest_chapter_number': chapters.isEmpty ? 0 : chapters.first['number'],
+        'latest_chapter_number':
+            chapters.isEmpty ? '' : chapters.first['number'] ?? '',
+        'latest_chapter_date':
+            chapters.isEmpty ? '' : chapters.first['release_date'] ?? '',
         'chapters': chapters,
       });
   }
@@ -144,7 +148,8 @@ class MangaDarSource extends ContentSource {
         '${Uri.encodeComponent(parts.$2)}/';
     final document = await _document(chapterUrl);
     final pages = <String>[];
-    for (final image in document.querySelectorAll('img[data-mds], img.h-page-img')) {
+    for (final image
+        in document.querySelectorAll('img[data-mds], img.h-page-img')) {
       final encoded = image.attributes['data-mds']?.trim();
       var pageUrl = '';
       if (encoded != null && encoded.isNotEmpty) {
@@ -218,14 +223,13 @@ class MangaDarSource extends ContentSource {
     }
     return _chaptersFromHtml(document, slug);
   }
+
   Future<List<Map<String, dynamic>>> _chaptersFromApi(
     Document document,
     String slug,
   ) async {
     final bodyClass = document.body?.attributes['class'] ?? '';
-    final postId = RegExp(r'\bpostid-(\d+)\b')
-        .firstMatch(bodyClass)
-        ?.group(1);
+    final postId = RegExp(r'\bpostid-(\d+)\b').firstMatch(bodyClass)?.group(1);
     if (postId == null) return const [];
     final endpoint = Uri.parse(
       '$_site/wp-json/mangadar/v1/manga/$postId/chapters',
@@ -250,6 +254,7 @@ class MangaDarSource extends ContentSource {
       if (decoded is! Map) return const {};
       return Map<String, dynamic>.from(decoded);
     }
+
     final firstPage = await fetchPage(1);
     final results = <Map<String, dynamic>>[];
     void addRecords(dynamic value) {
@@ -261,23 +266,25 @@ class MangaDarSource extends ContentSource {
         if (parts == null || parts.$1 != slug) continue;
         final numberText = '${record['number'] ?? ''}'.trim();
         final title = '${record['title'] ?? ''}'.trim();
-        final number = mangaChapterNumber(numberText.isEmpty ? title : numberText);
+        final number =
+            mangaChapterNumber(numberText.isEmpty ? title : numberText);
         final date = mangaDateFromUnixSeconds(
           '${record['date'] ?? record['created_at'] ?? ''}',
         );
         results.add({
           if (record['id'] != null) 'id': record['id'],
           'title': title.isEmpty
-              ? 'الفصل ${numberText.isEmpty ? parts.$2 : numberText}'
+              ? (number == null ? 'فصل' : 'الفصل $number')
               : title,
-          'number': number ?? 0,
-          'chapter_number': number ?? (numberText.isEmpty ? parts.$2 : numberText),
+          'number': number,
+          'chapter_number': number ?? numberText,
           'release_date': date,
           'date': date,
           'url': url,
         });
       }
     }
+
     addRecords(firstPage['items']);
     final totalPages = int.tryParse('${firstPage['total_pages'] ?? 1}') ?? 1;
     for (var page = 2; page <= totalPages; page++) {
@@ -285,13 +292,13 @@ class MangaDarSource extends ContentSource {
       addRecords(nextPage['items']);
     }
     final seen = <String>{};
-    final unique = results.where((chapter) =>
-        seen.add('${chapter['url']}')).toList();
-    unique.sort((a, b) =>
-        (mangaChapterNumber('${b['number']}') ?? 0)
-            .compareTo(mangaChapterNumber('${a['number']}') ?? 0));
+    final unique =
+        results.where((chapter) => seen.add('${chapter['url']}')).toList();
+    unique.sort((a, b) => (mangaChapterNumber('${b['number']}') ?? 0)
+        .compareTo(mangaChapterNumber('${a['number']}') ?? 0));
     return unique;
   }
+
   List<Map<String, dynamic>> _chaptersFromHtml(
     Document document,
     String slug,
@@ -307,9 +314,10 @@ class MangaDarSource extends ContentSource {
       final rowText = mangaHtmlText(anchor.parent);
       final date = _dateFromText(rowText);
       results.add({
-        'title': title.isEmpty ? 'الفصل ${parts.$2}' : title,
-        'number': number ?? 0,
-        'chapter_number': number ?? parts.$2,
+        'title':
+            title.isEmpty ? (number == null ? 'فصل' : 'الفصل $number') : title,
+        'number': number,
+        'chapter_number': number,
         'release_date': date,
         'date': date,
         'url': href,
@@ -339,9 +347,8 @@ class MangaDarSource extends ContentSource {
         });
       }
     }
-    results.sort((a, b) =>
-        (mangaChapterNumber('${b['number']}') ?? 0)
-            .compareTo(mangaChapterNumber('${a['number']}') ?? 0));
+    results.sort((a, b) => (mangaChapterNumber('${b['number']}') ?? 0)
+        .compareTo(mangaChapterNumber('${a['number']}') ?? 0));
     return results;
   }
 
@@ -365,7 +372,8 @@ class MangaDarSource extends ContentSource {
         if (url.isNotEmpty) return url;
       }
     }
-    final ogImage = document.querySelector('meta[property="og:image"]')
+    final ogImage = document
+        .querySelector('meta[property="og:image"]')
         ?.attributes['content'];
     return mangaAbsoluteUrl(_site, ogImage);
   }
@@ -392,9 +400,10 @@ class MangaDarSource extends ContentSource {
   }
 
   Future<Document> _document(String url) async {
-    final response = await _client.get(Uri.parse(url), headers: _pageHeaders).timeout(
-          const Duration(seconds: 25),
-        );
+    final response =
+        await _client.get(Uri.parse(url), headers: _pageHeaders).timeout(
+              const Duration(seconds: 25),
+            );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('MangaDar: فشل طلب المصدر (${response.statusCode}).');
     }
@@ -434,6 +443,7 @@ class MangaDarSource extends ContentSource {
     final match = RegExp(
       r'\b(19|20)\d{2}[-/]\d{1,2}[-/]\d{1,2}\b',
     ).firstMatch(value);
-    return match?.group(0) ?? '';
+    final raw = match?.group(0) ?? '';
+    return raw.isEmpty ? '' : mangaDateFromUnixSeconds(raw);
   }
 }

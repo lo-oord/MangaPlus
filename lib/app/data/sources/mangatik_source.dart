@@ -15,7 +15,8 @@ class MangaTikSource extends ContentSource {
   static const Map<String, String> _headers = {
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Accept-Language': 'ar,en;q=0.8',
-    'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+    'User-Agent':
+        'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
     'Referer': 'https://mangatik.com/',
   };
   final http.Client _client;
@@ -46,32 +47,53 @@ class MangaTikSource extends ContentSource {
       _list(path: '/manga', page: page);
 
   @override
-  Future<List<Map<String, dynamic>>> nextPage({String query = '', int page = 2}) =>
-      _list(path: query.trim().isEmpty ? '/manga' : '/manga', page: page, query: query);
+  Future<List<Map<String, dynamic>>> nextPage(
+          {String query = '', int page = 2}) =>
+      _list(
+          path: query.trim().isEmpty ? '/manga' : '/manga',
+          page: page,
+          query: query);
 
-  Future<List<Map<String, dynamic>>> _list({required String path, required int page, String query = ''}) async {
+  Future<List<Map<String, dynamic>>> _list(
+      {required String path, required int page, String query = ''}) async {
     final safePage = page < 1 ? 1 : page;
     final uri = Uri.parse(_site).replace(path: path, queryParameters: {
       if (query.trim().isNotEmpty) 'q': query.trim(),
       'page': '$safePage',
     });
     final document = await _document(uri.toString());
-    return document.querySelectorAll('article.manga-card').map((card) {
-      final titleAnchor = card.querySelector('.manga-title > a[href]');
-      final anchor = titleAnchor ?? card.querySelector('a[href*="/manga/"]');
-      if (anchor == null) return <String, dynamic>{};
-      final url = mangaAbsoluteUrl(_site, anchor.attributes['href']);
-      final image = mangaImageUrl(card.querySelector('img.manga-poster'), _site);
-      final title = _first([
-        mangaHtmlText(titleAnchor),
-        mangaHtmlText(card.querySelector('.manga-title')),
-        titleAnchor?.attributes['title'] ?? '',
-        card.querySelector('img.manga-poster')?.attributes['alt'] ?? '',
-        Uri.tryParse(url)?.pathSegments.where((part) => part.isNotEmpty).lastOrNull ?? '',
-      ]);
-      final ratingText = mangaHtmlText(card.querySelector('.manga-rating-badge'));
-      return item(title: title, url: url, image: image, rating: SourceValues.rating(ratingText));
-    }).where((entry) => '${entry['title']}'.isNotEmpty && '${entry['url']}'.isNotEmpty).toList(growable: false);
+    return document
+        .querySelectorAll('article.manga-card')
+        .map((card) {
+          final titleAnchor = card.querySelector('.manga-title > a[href]');
+          final anchor =
+              titleAnchor ?? card.querySelector('a[href*="/manga/"]');
+          if (anchor == null) return <String, dynamic>{};
+          final url = mangaAbsoluteUrl(_site, anchor.attributes['href']);
+          final image =
+              mangaImageUrl(card.querySelector('img.manga-poster'), _site);
+          final title = _first([
+            mangaHtmlText(titleAnchor),
+            mangaHtmlText(card.querySelector('.manga-title')),
+            titleAnchor?.attributes['title'] ?? '',
+            card.querySelector('img.manga-poster')?.attributes['alt'] ?? '',
+            Uri.tryParse(url)
+                    ?.pathSegments
+                    .where((part) => part.isNotEmpty)
+                    .lastOrNull ??
+                '',
+          ]);
+          final ratingText =
+              mangaHtmlText(card.querySelector('.manga-rating-badge'));
+          return item(
+              title: title,
+              url: url,
+              image: image,
+              rating: SourceValues.rating(ratingText));
+        })
+        .where((entry) =>
+            '${entry['title']}'.isNotEmpty && '${entry['url']}'.isNotEmpty)
+        .toList(growable: false);
   }
 
   @override
@@ -84,22 +106,45 @@ class MangaTikSource extends ContentSource {
       '${jsonLd['name'] ?? ''}',
       mangaHtmlText(document.querySelector('h1')),
     ]);
-    if (title.isEmpty) throw Exception('MangaTik: لم يتم العثور على تفاصيل العمل.');
+    if (title.isEmpty)
+      throw Exception('MangaTik: لم يتم العثور على تفاصيل العمل.');
     final imageData = jsonLd['image'];
     final image = imageData is Map ? imageData['url'] : imageData;
-    final cover = SourceValues.imageUrl(image ?? mangaImageUrl(document.querySelector('img.manga-poster'), _site), baseUrl: _site);
-    final synopsis = _first(['${jsonLd['description'] ?? ''}', mangaHtmlText(document.querySelector('.description, .synopsis, .manga-description'))]);
+    final cover = SourceValues.imageUrl(
+        image ??
+            mangaImageUrl(document.querySelector('img.manga-poster'), _site),
+        baseUrl: _site);
+    final synopsis = _first([
+      '${jsonLd['description'] ?? ''}',
+      mangaHtmlText(
+          document.querySelector('.description, .synopsis, .manga-description'))
+    ]);
     final genreData = jsonLd['genre'];
     final genres = genreData is List
-        ? genreData.map((entry) => '$entry'.trim()).where((entry) => entry.isNotEmpty).toList(growable: false)
-        : genreData == null ? <String>[] : ['$genreData'];
+        ? genreData
+            .map((entry) => '$entry'.trim())
+            .where((entry) => entry.isNotEmpty)
+            .toList(growable: false)
+        : genreData == null
+            ? <String>[]
+            : ['$genreData'];
     final chapters = _chapters(document);
     final ratingData = jsonLd['aggregateRating'];
-    final rating = SourceValues.rating(ratingData is Map ? ratingData['ratingValue'] : ratingData);
+    final jsonRating = SourceValues.rating(
+      ratingData is Map ? ratingData['ratingValue'] : ratingData,
+    );
+    final rating = jsonRating.isNotEmpty
+        ? jsonRating
+        : SourceValues.rating(
+            mangaHtmlText(document.querySelector('.manga-rating-badge')),
+          );
     final authorData = jsonLd['author'];
-    final rawAuthor = authorData is Map ? '${authorData['name'] ?? ''}' : '$authorData';
-    final author = rawAuthor.trim().toLowerCase() == 'updating' ? '' : rawAuthor;
-    final status = mangaHtmlText(document.querySelector('.badge-status, .manga-status, [data-status]'));
+    final rawAuthor =
+        authorData is Map ? '${authorData['name'] ?? ''}' : '$authorData';
+    final author =
+        rawAuthor.trim().toLowerCase() == 'updating' ? '' : rawAuthor;
+    final status = mangaHtmlText(
+        document.querySelector('.badge-status, .manga-status, [data-status]'));
     _rememberChapters(chapters);
     final result = item(
       title: title,
@@ -117,7 +162,10 @@ class MangaTikSource extends ContentSource {
       'status': status,
       'release_year': '${jsonLd['datePublished'] ?? ''}',
       'total_chapters': chapters.length,
-      'latest_chapter_number': chapters.isEmpty ? '' : chapters.first['number'],
+      'latest_chapter_number':
+          chapters.isEmpty ? '' : chapters.first['number'] ?? '',
+      'latest_chapter_date':
+          chapters.isEmpty ? '' : chapters.first['release_date'] ?? '',
       'chapters': chapters,
     });
     return result;
@@ -132,13 +180,21 @@ class MangaTikSource extends ContentSource {
     if (chapterUrl.isEmpty) return null;
     final document = await _document(chapterUrl);
     final seen = <String>{};
-    final pages = document.querySelectorAll('img.webtoon-image').map((image) {
-      final value = mangaImageUrl(image, _site);
-      return value;
-    }).where((value) => value.isNotEmpty && seen.add(value)).toList(growable: false);
-    if (pages.isEmpty) throw Exception('MangaTik: لا توجد صور متاحة لهذا الفصل.');
+    final pages = document
+        .querySelectorAll('img.webtoon-image')
+        .map((image) {
+          final value = mangaImageUrl(image, _site);
+          return value;
+        })
+        .where((value) => value.isNotEmpty && seen.add(value))
+        .toList(growable: false);
+    if (pages.isEmpty)
+      throw Exception('MangaTik: لا توجد صور متاحة لهذا الفصل.');
     final context = _chapterContexts[chapterUrl];
-    final segments = Uri.parse(chapterUrl).pathSegments.where((entry) => entry.isNotEmpty).toList();
+    final segments = Uri.parse(chapterUrl)
+        .pathSegments
+        .where((entry) => entry.isNotEmpty)
+        .toList();
     final number = segments.isEmpty ? '' : segments.last;
     final heading = mangaHtmlText(document.querySelector('h1'));
     return {
@@ -147,39 +203,79 @@ class MangaTikSource extends ContentSource {
       'url': chapterUrl,
       'pages': pages,
       'images': pages.map((page) => {'url': page}).toList(growable: false),
-      if (context?['previous_chapter'] case final String previous when previous.isNotEmpty) 'previous_chapter': previous,
-      if (context?['next_chapter'] case final String next when next.isNotEmpty) 'next_chapter': next,
-      if (context?['chapters'] case final List<Map<String, dynamic>> chapters) 'chapters': chapters,
+      if (context?['previous_chapter'] case final String previous
+          when previous.isNotEmpty)
+        'previous_chapter': previous,
+      if (context?['next_chapter'] case final String next when next.isNotEmpty)
+        'next_chapter': next,
+      if (context?['chapters'] case final List<Map<String, dynamic>> chapters)
+        'chapters': chapters,
     };
   }
 
   Future<Document> _document(String url) async {
-    final response = await _client.get(Uri.parse(url), headers: _headers).timeout(const Duration(seconds: 30));
+    final response = await _client
+        .get(Uri.parse(url), headers: _headers)
+        .timeout(const Duration(seconds: 30));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('MangaTik: فشل تحميل الصفحة (${response.statusCode}).');
     }
-    return html_parser.parse(utf8.decode(response.bodyBytes, allowMalformed: true));
+    return html_parser
+        .parse(utf8.decode(response.bodyBytes, allowMalformed: true));
   }
 
   List<Map<String, dynamic>> _chapters(Document document) {
-    final chapters = <Map<String, dynamic>>[];
+    final chapters = <({int index, Map<String, dynamic> chapter})>[];
     final seen = <String>{};
-    for (final anchor in document.querySelectorAll('a.chapter-item-card[href]')) {
-      final url = _canonical(mangaAbsoluteUrl(_site, anchor.attributes['href']));
+    for (final anchor
+        in document.querySelectorAll('a.chapter-item-card[href]')) {
+      final url =
+          _canonical(mangaAbsoluteUrl(_site, anchor.attributes['href']));
       if (url.isEmpty || !seen.add(url)) continue;
       final number = _number(anchor.attributes['data-chapter'] ?? '');
       final title = mangaHtmlText(anchor);
-      final date = mangaHtmlText(anchor.querySelector('time, .chapter-date, .date'));
-      chapters.add({
+      final dateNode = anchor
+              .querySelector('time[datetime], .chapter-date, .date') ??
+          anchor.parent?.querySelector('time[datetime], .chapter-date, .date');
+      final releaseDate = mangaDateFromUnixSeconds(
+        dateNode?.attributes['datetime'] ?? mangaHtmlText(dateNode),
+      );
+      final chapter = <String, dynamic>{
         'id': url,
-        'number': number ?? _number(title) ?? 0,
-        'title': title.isEmpty ? 'الفصل ${number ?? ''}' : title,
+        'number': number ?? _number(title),
+        'title': title.isEmpty
+            ? ((number ?? _number(title)) == null
+                ? 'فصل'
+                : 'الفصل ${number ?? _number(title)}')
+            : title,
         'url': url,
-        'release_date': date,
-        'date': date,
-      });
+        'release_date': releaseDate,
+        'date': releaseDate,
+      };
+      chapters.add((index: chapters.length, chapter: chapter));
     }
-    return chapters;
+    chapters.sort((leftEntry, rightEntry) {
+      final left = leftEntry.chapter;
+      final right = rightEntry.chapter;
+      final leftDate = DateTime.tryParse('${left['release_date'] ?? ''}');
+      final rightDate = DateTime.tryParse('${right['release_date'] ?? ''}');
+      if (leftDate != null && rightDate != null) {
+        final byDate = rightDate.compareTo(leftDate);
+        if (byDate != 0) return byDate;
+      }
+      final leftNumber = _number('${left['number'] ?? ''}');
+      final rightNumber = _number('${right['number'] ?? ''}');
+      if (leftNumber == null)
+        return rightNumber == null
+            ? leftEntry.index.compareTo(rightEntry.index)
+            : 1;
+      if (rightNumber == null) return -1;
+      final byNumber = rightNumber.compareTo(leftNumber);
+      return byNumber == 0
+          ? leftEntry.index.compareTo(rightEntry.index)
+          : byNumber;
+    });
+    return chapters.map((entry) => entry.chapter).toList(growable: false);
   }
 
   void _rememberChapters(List<Map<String, dynamic>> chapters) {
@@ -194,12 +290,14 @@ class MangaTikSource extends ContentSource {
   }
 
   Map<String, dynamic> _jsonLd(Document document) {
-    for (final element in document.querySelectorAll('script[type="application/ld+json"]')) {
+    for (final element
+        in document.querySelectorAll('script[type="application/ld+json"]')) {
       try {
         final decoded = jsonDecode(element.text.trim());
         if (decoded is Map<String, dynamic>) return decoded;
         if (decoded is List) {
-          final found = decoded.whereType<Map>().cast<Map<String, dynamic>>().firstOrNull;
+          final found =
+              decoded.whereType<Map>().cast<Map<String, dynamic>>().firstOrNull;
           if (found != null) return found;
         }
       } catch (_) {
@@ -214,7 +312,10 @@ class MangaTikSource extends ContentSource {
     if (uri == null || !handles(url)) return '';
     return Uri.parse(_site).replace(path: uri.path).toString();
   }
-  String _first(List<String> values) => values.map((value) => value.trim()).firstWhere((value) => value.isNotEmpty, orElse: () => '');
+
+  String _first(List<String> values) => values
+      .map((value) => value.trim())
+      .firstWhere((value) => value.isNotEmpty, orElse: () => '');
   num? _number(String text) {
     final match = RegExp(r'\d+(?:\.\d+)?').firstMatch(text);
     return match == null ? null : num.tryParse(match.group(0)!);

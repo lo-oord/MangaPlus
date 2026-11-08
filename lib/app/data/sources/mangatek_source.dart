@@ -26,7 +26,8 @@ class MangaTekSource extends ContentSource {
   @override
   List<String> get hosts => const ['mangatek.com'];
   @override
-  bool handles(String url) => url.startsWith('mangatek://') || super.handles(url);
+  bool handles(String url) =>
+      url.startsWith('mangatek://') || super.handles(url);
 
   @override
   Future<List<Map<String, dynamic>>> search(String query) =>
@@ -37,10 +38,12 @@ class MangaTekSource extends ContentSource {
       _list(page: page);
 
   @override
-  Future<List<Map<String, dynamic>>> nextPage({String query = '', int page = 2}) =>
+  Future<List<Map<String, dynamic>>> nextPage(
+          {String query = '', int page = 2}) =>
       _list(page: page, query: query);
 
-  Future<List<Map<String, dynamic>>> _list({required int page, String query = ''}) async {
+  Future<List<Map<String, dynamic>>> _list(
+      {required int page, String query = ''}) async {
     try {
       final response = await _apiGet('/api/manga', query: {
         if (query.trim().isNotEmpty) 'search': query.trim(),
@@ -65,14 +68,20 @@ class MangaTekSource extends ContentSource {
       'page': '${page < 1 ? 1 : page}',
     });
     final document = await _document(uri.toString());
-    return document.querySelectorAll('.flex-grow .grid a').map((anchor) {
-      final title = (anchor.querySelector('h3')?.attributes['title'] ??
-              mangaHtmlText(anchor.querySelector('h3')))
-          .trim();
-      final url = mangaAbsoluteUrl(_site, anchor.attributes['href']);
-      final image = mangaImageUrl(anchor.querySelector('img'), _site);
-      return _item(title, url, image);
-    }).where((item) => item['title'].toString().isNotEmpty && item['url'].toString().isNotEmpty).toList(growable: false);
+    return document
+        .querySelectorAll('.flex-grow .grid a')
+        .map((anchor) {
+          final title = (anchor.querySelector('h3')?.attributes['title'] ??
+                  mangaHtmlText(anchor.querySelector('h3')))
+              .trim();
+          final url = mangaAbsoluteUrl(_site, anchor.attributes['href']);
+          final image = mangaImageUrl(anchor.querySelector('img'), _site);
+          return _item(title, url, image);
+        })
+        .where((item) =>
+            item['title'].toString().isNotEmpty &&
+            item['url'].toString().isNotEmpty)
+        .toList(growable: false);
   }
 
   Map<String, dynamic> _apiItem(Map<String, dynamic> manga) {
@@ -82,8 +91,13 @@ class MangaTekSource extends ContentSource {
       title,
       'mangatek://series?slug=${Uri.encodeQueryComponent(slug)}',
       _coverUrl(_firstImageValue(manga, const [
-        'cover_image', 'cover', 'cover_url', 'coverUrl',
-        'image', 'image_url', 'poster',
+        'cover_image',
+        'cover',
+        'cover_url',
+        'coverUrl',
+        'image',
+        'image_url',
+        'poster',
       ])),
       type: _typeFromData(manga),
     );
@@ -93,7 +107,9 @@ class MangaTekSource extends ContentSource {
       'author': '${manga['author'] ?? ''}',
       'status': _status('${manga['status'] ?? ''}'),
       'total_chapters': manga['chapters_count'] ?? manga['chapter_count'] ?? 0,
-      'latest_chapter_number': manga['latest_chapter_number'] ?? 0,
+      if (manga['latest_chapter_number'] != null &&
+          '${manga['latest_chapter_number']}' != '0')
+        'latest_chapter_number': manga['latest_chapter_number'],
     });
     return result;
   }
@@ -113,7 +129,8 @@ class MangaTekSource extends ContentSource {
     final slug = _slug(seriesUrl);
     if (manga.isEmpty) {
       final title = mangaHtmlText(document.querySelector('h1'));
-      final description = mangaHtmlText(document.querySelector('div.grid p, p.text-gray-300, div.description, div.synopsis'));
+      final description = mangaHtmlText(document.querySelector(
+          'div.grid p, p.text-gray-300, div.description, div.synopsis'));
       final chapters = _chaptersFromHtml(document, slug);
       if (title.isEmpty && chapters.isEmpty) {
         throw Exception('MangaTek: لم يتم العثور على تفاصيل المانجا.');
@@ -124,18 +141,25 @@ class MangaTekSource extends ContentSource {
         'mangatek://series?slug=${Uri.encodeQueryComponent(slug)}',
         cover,
         type: _typeFromHtml(document),
-      )
-        ..addAll({
+      )..addAll({
           'description': description,
           'synopsis': description,
-          'genres': document.querySelectorAll('div.flex.gap-2 span.text-gray-300').map(mangaHtmlText).where((tag) => tag.isNotEmpty).toList(),
+          'genres': document
+              .querySelectorAll('div.flex.gap-2 span.text-gray-300')
+              .map(mangaHtmlText)
+              .where((tag) => tag.isNotEmpty)
+              .toList(),
           'status': mangaHtmlText(document.querySelector('span.border')),
           'total_chapters': chapters.length,
-          'latest_chapter_number': chapters.isEmpty ? 0 : chapters.first['number'],
+          'latest_chapter_number':
+              chapters.isEmpty ? '' : chapters.first['number'] ?? '',
+          'latest_chapter_date':
+              chapters.isEmpty ? '' : chapters.first['release_date'] ?? '',
           'chapters': chapters,
         });
     }
-    final chapters = _chapters(manga['MangaChapters'] ?? manga['chapters'], slug);
+    final chapters =
+        _chapters(manga['MangaChapters'] ?? manga['chapters'], slug);
     final rawTags = manga['Tags'] ?? manga['tags'];
     final genres = rawTags is List
         ? rawTags
@@ -148,8 +172,13 @@ class MangaTekSource extends ContentSource {
       '${manga['title'] ?? ''}',
       'mangatek://series?slug=${Uri.encodeQueryComponent(slug)}',
       _coverUrl(_firstImageValue(manga, const [
-        'cover_image', 'cover', 'cover_url', 'coverUrl',
-        'image', 'image_url', 'poster',
+        'cover_image',
+        'cover',
+        'cover_url',
+        'coverUrl',
+        'image',
+        'image_url',
+        'poster',
       ])),
       type: _typeFromData(manga),
     )..addAll({
@@ -160,7 +189,10 @@ class MangaTekSource extends ContentSource {
         'status': _status('${manga['status'] ?? ''}'),
         'rating': SourceValues.rating(manga['rating']),
         'total_chapters': chapters.length,
-        'latest_chapter_number': chapters.isEmpty ? 0 : chapters.first['number'],
+        'latest_chapter_number':
+            chapters.isEmpty ? '' : chapters.first['number'] ?? '',
+        'latest_chapter_date':
+            chapters.isEmpty ? '' : chapters.first['release_date'] ?? '',
         'chapters': chapters,
       });
   }
@@ -172,7 +204,8 @@ class MangaTekSource extends ContentSource {
   Future<Map<String, dynamic>?> chapterImages(String url) async {
     final parts = _chapterParts(url);
     if (parts == null) return null;
-    final readerUrl = '$_site/reader/${Uri.encodeComponent(parts.$1)}/${Uri.encodeComponent(parts.$2)}';
+    final readerUrl =
+        '$_site/reader/${Uri.encodeComponent(parts.$1)}/${Uri.encodeComponent(parts.$2)}';
     final document = await _document(readerUrl);
     final props = _astroValue(document, 'imageUrls');
     if (props is Map) {
@@ -196,9 +229,11 @@ class MangaTekSource extends ContentSource {
         final pagesWithOverlays = pages.asMap().entries.map((entry) {
           final bubbleList = overlays[entry.key];
           if (bubbleList == null || bubbleList.isEmpty) return entry.value;
-          return Uri.parse(entry.value).replace(
-            fragment: jsonEncode(bubbleList),
-          ).toString();
+          return Uri.parse(entry.value)
+              .replace(
+                fragment: jsonEncode(bubbleList),
+              )
+              .toString();
         }).toList(growable: false);
         return {
           'title': 'الفصل ${parts.$2}',
@@ -241,18 +276,23 @@ class MangaTekSource extends ContentSource {
 
   List<Map<String, dynamic>> _readerImages(dynamic value) {
     if (value is! List) return const [];
-    return value.map((entry) {
-      if (entry is String) return {'url': entry, 'pending': false, 'isTrap': false};
-      if (entry is Map) {
-        final raw = Map<String, dynamic>.from(entry);
-        return {
-          'url': '${raw['url'] ?? ''}',
-          'pending': raw['pending'] == true,
-          'isTrap': raw['isTrap'] == true,
-        };
-      }
-      return <String, dynamic>{};
-    }).where((entry) => '${entry['url'] ?? ''}'.isNotEmpty || entry['pending'] == true).toList();
+    return value
+        .map((entry) {
+          if (entry is String)
+            return {'url': entry, 'pending': false, 'isTrap': false};
+          if (entry is Map) {
+            final raw = Map<String, dynamic>.from(entry);
+            return {
+              'url': '${raw['url'] ?? ''}',
+              'pending': raw['pending'] == true,
+              'isTrap': raw['isTrap'] == true,
+            };
+          }
+          return <String, dynamic>{};
+        })
+        .where((entry) =>
+            '${entry['url'] ?? ''}'.isNotEmpty || entry['pending'] == true)
+        .toList();
   }
 
   Future<List<Map<String, dynamic>>> _fetchReaderImages(
@@ -266,24 +306,29 @@ class MangaTekSource extends ContentSource {
     final chapterRef = '${props['chapterRef'] ?? parts.$2}';
     final salt = await _readerProofSalt(document);
     if (chapterId == null || token.isEmpty || salt.isEmpty) return const [];
-    final proof = sha256.convert(utf8.encode('$salt|$token|$chapterId')).toString();
-    final response = await _client.post(
-      Uri.parse('https://api.mangatek.com/api/reader/pages'),
-      headers: const {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'User-Agent': 'MangaPlus/1.1',
-      },
-      body: jsonEncode({
-        'chapterId': chapterId,
-        'mangaSlug': mangaSlug,
-        'chapterNumber': chapterRef,
-        'token': token,
-        'proof': proof,
-      }),
-    ).timeout(const Duration(seconds: 25));
-    if (response.statusCode < 200 || response.statusCode >= 300) return const [];
-    final decoded = jsonDecode(utf8.decode(response.bodyBytes, allowMalformed: true));
+    final proof =
+        sha256.convert(utf8.encode('$salt|$token|$chapterId')).toString();
+    final response = await _client
+        .post(
+          Uri.parse('https://api.mangatek.com/api/reader/pages'),
+          headers: const {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'User-Agent': 'MangaPlus/1.1',
+          },
+          body: jsonEncode({
+            'chapterId': chapterId,
+            'mangaSlug': mangaSlug,
+            'chapterNumber': chapterRef,
+            'token': token,
+            'proof': proof,
+          }),
+        )
+        .timeout(const Duration(seconds: 25));
+    if (response.statusCode < 200 || response.statusCode >= 300)
+      return const [];
+    final decoded =
+        jsonDecode(utf8.decode(response.bodyBytes, allowMalformed: true));
     final data = decoded is Map ? decoded['data'] : null;
     return _readerImages(data);
   }
@@ -331,7 +376,8 @@ class MangaTekSource extends ContentSource {
   }
 
   Future<String> _readerProofSalt(Document document) async {
-    final component = document.querySelector('astro-island[component-url*="ChapterImageViewer"]')
+    final component = document
+        .querySelector('astro-island[component-url*="ChapterImageViewer"]')
         ?.attributes['component-url'];
     if (component == null || component.isEmpty) return '';
     final bundleUrl = mangaAbsoluteUrl(_site, component);
@@ -352,7 +398,8 @@ class MangaTekSource extends ContentSource {
     String url,
     String image, {
     String type = 'manga',
-  }) => item(
+  }) =>
+      item(
         title: title.trim(),
         url: url,
         image: image.trim(),
@@ -381,7 +428,8 @@ class MangaTekSource extends ContentSource {
       r'^(?:نوع العمل|النوع|type|format)\s*[:：-]\s*(.+)$',
       caseSensitive: false,
     );
-    for (final element in document.querySelectorAll('p, li, dt, dd, span, div')) {
+    for (final element
+        in document.querySelectorAll('p, li, dt, dd, span, div')) {
       final match = label.firstMatch(mangaHtmlText(element));
       if (match != null) return match.group(1)!.trim();
     }
@@ -390,45 +438,100 @@ class MangaTekSource extends ContentSource {
 
   List<Map<String, dynamic>> _chapters(dynamic value, String slug) {
     if (value is! List) return const [];
-    return value.map((entry) {
-      final raw = entry is Map ? Map<String, dynamic>.from(entry) : <String, dynamic>{};
-      final number = '${raw['chapter_number'] ?? raw['number'] ?? mangaChapterNumber('${raw['title'] ?? ''}') ?? ''}';
-      final title = '${raw['title'] ?? 'الفصل $number'}'.trim();
-      return <String, dynamic>{
-        'title': title.isEmpty ? 'الفصل $number' : title,
-        'number': num.tryParse(number) ?? number,
-        'chapter_number': num.tryParse(number) ?? number,
-        'release_date': '${raw['created_at'] ?? raw['createdAt'] ?? ''}',
-        'date': '${raw['created_at'] ?? raw['createdAt'] ?? ''}',
-        'url': 'mangatek://chapter?slug=${Uri.encodeQueryComponent(slug)}&number=${Uri.encodeQueryComponent(number)}',
-      };
-      }).where((entry) => entry['number'].toString().isNotEmpty).toList(growable: false);
+    final chapters = value
+        .map((entry) {
+          final raw = entry is Map
+              ? Map<String, dynamic>.from(entry)
+              : <String, dynamic>{};
+          final number =
+              '${raw['chapter_number'] ?? raw['number'] ?? mangaChapterNumber('${raw['title'] ?? ''}') ?? ''}';
+          final title = '${raw['title'] ?? 'الفصل $number'}'.trim();
+          final releaseDate = mangaDateFromUnixSeconds(
+            '${raw['created_at'] ?? raw['createdAt'] ?? ''}',
+          );
+          return <String, dynamic>{
+            'title': title.isEmpty ? 'الفصل $number' : title,
+            'number': num.tryParse(number) ?? number,
+            'chapter_number': num.tryParse(number) ?? number,
+            'release_date': releaseDate,
+            'date': releaseDate,
+            'url':
+                'mangatek://chapter?slug=${Uri.encodeQueryComponent(slug)}&number=${Uri.encodeQueryComponent(number)}',
+          };
+        })
+        .where((entry) => entry['number'].toString().isNotEmpty)
+        .toList();
+    chapters.sort((left, right) {
+      final leftDate = DateTime.tryParse('${left['release_date'] ?? ''}');
+      final rightDate = DateTime.tryParse('${right['release_date'] ?? ''}');
+      if (leftDate != null && rightDate != null) {
+        final byDate = rightDate.compareTo(leftDate);
+        if (byDate != 0) return byDate;
+      }
+      final leftNumber = mangaChapterNumber('${left['number']}');
+      final rightNumber = mangaChapterNumber('${right['number']}');
+      if (leftNumber == null) return rightNumber == null ? 0 : 1;
+      if (rightNumber == null) return -1;
+      return rightNumber.compareTo(leftNumber);
+    });
+    return chapters;
   }
 
-  List<Map<String, dynamic>> _chaptersFromHtml(Document document, String slug) =>
-      document.querySelectorAll('div.manga-chapter a, div.grid a[href^="/reader/"]').map((element) {
-        final href = element.attributes['href'] ?? '';
-        final title = mangaHtmlText(element.querySelector('h3'));
-        final number = mangaChapterNumber(title.isEmpty ? href : title);
-        if (href.isEmpty || number == null) return <String, dynamic>{};
-        return <String, dynamic>{
-          'title': title.isEmpty ? 'الفصل $number' : title,
-          'number': number,
-          'chapter_number': number,
-          'url': 'mangatek://chapter?slug=${Uri.encodeQueryComponent(slug)}&number=${Uri.encodeQueryComponent('$number')}',
-        };
-      }).where((entry) => entry.isNotEmpty).toList(growable: false);
+  List<Map<String, dynamic>> _chaptersFromHtml(Document document, String slug) {
+    final chapters = document
+        .querySelectorAll('div.manga-chapter a, div.grid a[href^="/reader/"]')
+        .map((element) {
+          final href = element.attributes['href'] ?? '';
+          final title = mangaHtmlText(element.querySelector('h3'));
+          final number = mangaChapterNumber(title.isEmpty ? href : title);
+          if (href.isEmpty || number == null) return <String, dynamic>{};
+          final dateNode =
+              element.querySelector('time[datetime], .chapter-date, .date') ??
+                  element.parent
+                      ?.querySelector('time[datetime], .chapter-date, .date');
+          final releaseDate = mangaDateFromUnixSeconds(
+            dateNode?.attributes['datetime'] ?? mangaHtmlText(dateNode),
+          );
+          return <String, dynamic>{
+            'title': title.isEmpty ? 'الفصل $number' : title,
+            'number': number,
+            'chapter_number': number,
+            'release_date': releaseDate,
+            'date': releaseDate,
+            'url':
+                'mangatek://chapter?slug=${Uri.encodeQueryComponent(slug)}&number=${Uri.encodeQueryComponent('$number')}',
+          };
+        })
+        .where((entry) => entry.isNotEmpty)
+        .toList();
+    chapters.sort((left, right) {
+      final leftDate = DateTime.tryParse('${left['release_date'] ?? ''}');
+      final rightDate = DateTime.tryParse('${right['release_date'] ?? ''}');
+      if (leftDate != null && rightDate != null) {
+        final byDate = rightDate.compareTo(leftDate);
+        if (byDate != 0) return byDate;
+      }
+      final leftNumber = mangaChapterNumber('${left['number'] ?? ''}');
+      final rightNumber = mangaChapterNumber('${right['number'] ?? ''}');
+      if (leftNumber == null) return rightNumber == null ? 0 : 1;
+      if (rightNumber == null) return -1;
+      return rightNumber.compareTo(leftNumber);
+    });
+    return chapters;
+  }
 
   Future<Document> _document(String url) async {
     final response = await _client.get(Uri.parse(url), headers: const {
       'Accept': 'text/html,application/xhtml+xml',
       'Accept-Language': 'ar,en;q=0.8',
-      'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+      'User-Agent':
+          'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
     }).timeout(const Duration(seconds: 25));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('MangaTek: فشل طلب المصدر (${response.statusCode}).');
     }
-    return html_parser.parse(utf8.decode(response.bodyBytes, allowMalformed: true));
+    return html_parser
+        .parse(utf8.decode(response.bodyBytes, allowMalformed: true));
   }
 
   Future<Map<String, dynamic>> _apiDetails(String value) async {
@@ -439,7 +542,8 @@ class MangaTekSource extends ContentSource {
     if (id != null && id.isNotEmpty) {
       data = _asMap((await _apiGet('/api/manga/$id'))['data']);
     } else {
-      final response = await _apiGet('/api/manga', query: {'search': slug, 'page': '1', 'limit': '20'});
+      final response = await _apiGet('/api/manga',
+          query: {'search': slug, 'page': '1', 'limit': '20'});
       final items = _asMap(response['data'])['mangas'];
       if (items is List) {
         for (final item in items.whereType<Map>()) {
@@ -456,21 +560,28 @@ class MangaTekSource extends ContentSource {
         data = _asMap((await _apiGet('/api/manga/${data['id']}'))['data']);
       }
     }
-    if (data.isEmpty) throw Exception('MangaTek: لم يتم العثور على تفاصيل المانجا.');
+    if (data.isEmpty)
+      throw Exception('MangaTek: لم يتم العثور على تفاصيل المانجا.');
     final actualSlug = '${data['slug'] ?? slug}';
-    final chapters = _chapters(data['MangaChapters'] ?? data['chapters'], actualSlug);
-    final description = '${data['description'] ?? data['description_cool'] ?? data['description_sid'] ?? ''}';
+    final chapters =
+        _chapters(data['MangaChapters'] ?? data['chapters'], actualSlug);
+    final description =
+        '${data['description'] ?? data['description_cool'] ?? data['description_sid'] ?? ''}';
     final cover = _coverUrl(_firstImageValue(data, const [
-      'cover_image', 'cover', 'cover_url', 'coverUrl',
-      'image', 'image_url', 'poster',
+      'cover_image',
+      'cover',
+      'cover_url',
+      'coverUrl',
+      'image',
+      'image_url',
+      'poster',
     ]));
     return _item(
       '${data['title_ar'] ?? data['title'] ?? ''}',
       'mangatek://series?slug=${Uri.encodeQueryComponent(actualSlug)}',
       cover,
       type: _typeFromData(data),
-    )
-      ..addAll({
+    )..addAll({
         'description': description,
         'synopsis': description,
         'genres': _tagNames(data['Tags']),
@@ -478,7 +589,10 @@ class MangaTekSource extends ContentSource {
         'status': _status('${data['status'] ?? ''}'),
         'rating': SourceValues.rating(data['rating']),
         'total_chapters': chapters.length,
-        'latest_chapter_number': chapters.isEmpty ? 0 : chapters.first['number'],
+        'latest_chapter_number':
+            chapters.isEmpty ? '' : chapters.first['number'] ?? '',
+        'latest_chapter_date':
+            chapters.isEmpty ? '' : chapters.first['release_date'] ?? '',
         'chapters': chapters,
       });
   }
@@ -492,14 +606,22 @@ class MangaTekSource extends ContentSource {
         .toList(growable: false);
   }
 
-  Future<Map<String, dynamic>> _apiGet(String path, {Map<String, String>? query}) async {
-    final uri = Uri.parse('https://api.mangatek.com$path').replace(queryParameters: query);
-    final response = await _client.get(uri, headers: const {'Accept': 'application/json', 'User-Agent': 'MangaPlus/1.1'}).timeout(const Duration(seconds: 25));
+  Future<Map<String, dynamic>> _apiGet(String path,
+      {Map<String, String>? query}) async {
+    final uri = Uri.parse('https://api.mangatek.com$path')
+        .replace(queryParameters: query);
+    final response = await _client.get(uri, headers: const {
+      'Accept': 'application/json',
+      'User-Agent': 'MangaPlus/1.1'
+    }).timeout(const Duration(seconds: 25));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('MangaTek API: فشل الطلب (${response.statusCode}).');
     }
-    final decoded = jsonDecode(utf8.decode(response.bodyBytes, allowMalformed: true));
-    return decoded is Map ? Map<String, dynamic>.from(decoded) : <String, dynamic>{};
+    final decoded =
+        jsonDecode(utf8.decode(response.bodyBytes, allowMalformed: true));
+    return decoded is Map
+        ? Map<String, dynamic>.from(decoded)
+        : <String, dynamic>{};
   }
 
   Map<String, dynamic> _astro(Document document, String key) {
@@ -520,13 +642,16 @@ class MangaTekSource extends ContentSource {
   }
 
   dynamic _unwrap(dynamic value) {
-    if (value is List && value.length == 2 && value.first is String) return _unwrap(value[1]);
+    if (value is List && value.length == 2 && value.first is String)
+      return _unwrap(value[1]);
     if (value is List) return value.map(_unwrap).toList();
-    if (value is Map) return value.map((key, item) => MapEntry(key, _unwrap(item)));
+    if (value is Map)
+      return value.map((key, item) => MapEntry(key, _unwrap(item)));
     return value;
   }
 
-  Map<String, dynamic> _asMap(dynamic value) => value is Map ? Map<String, dynamic>.from(value) : <String, dynamic>{};
+  Map<String, dynamic> _asMap(dynamic value) =>
+      value is Map ? Map<String, dynamic>.from(value) : <String, dynamic>{};
 
   String _seriesUrl(String value) {
     final uri = Uri.tryParse(value);
@@ -537,7 +662,8 @@ class MangaTekSource extends ContentSource {
     return '';
   }
 
-  String _slug(String value) => Uri.parse(value).pathSegments.where((part) => part.isNotEmpty).last;
+  String _slug(String value) =>
+      Uri.parse(value).pathSegments.where((part) => part.isNotEmpty).last;
 
   (String, String)? _chapterParts(String value) {
     final uri = Uri.tryParse(value);
@@ -561,15 +687,23 @@ class MangaTekSource extends ContentSource {
     for (final key in keys) {
       final value = data[key];
       if (value is Map) {
-        final nested = _firstImageValue(Map<String, dynamic>.from(value), const [
-          'url', 'src', 'original', 'large', 'desktop', 'mobile',
+        final nested =
+            _firstImageValue(Map<String, dynamic>.from(value), const [
+          'url',
+          'src',
+          'original',
+          'large',
+          'desktop',
+          'mobile',
         ]);
         if (nested != null && '$nested'.trim().isNotEmpty) return nested;
       } else if (value is List) {
         for (final entry in value) {
           if ('$entry'.trim().isNotEmpty) return entry;
         }
-      } else if (value != null && '$value'.trim().isNotEmpty && value != 'null') {
+      } else if (value != null &&
+          '$value'.trim().isNotEmpty &&
+          value != 'null') {
         return value;
       }
     }

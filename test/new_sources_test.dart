@@ -23,11 +23,13 @@ void main() {
       final results = await MangaTikSource(client: client).latest();
       expect(results.single['title'], 'Series One');
       expect(results.single['url'], 'https://mangatik.com/manga/series-one');
-      expect(results.single['image_url'], 'https://mangatik.com/storage/covers/one.webp');
+      expect(results.single['image_url'],
+          'https://mangatik.com/storage/covers/one.webp');
       expect(results.single['source_id'], 'mangatik');
     });
 
-    test('uses JSON-LD metadata and official chapter card/image selectors', () async {
+    test('uses JSON-LD metadata and official chapter card/image selectors',
+        () async {
       final client = _FixtureClient({
         '/manga/series-one': '''
           <h1>Series One</h1>
@@ -35,25 +37,58 @@ void main() {
           <a class="chapter-item-card" data-chapter="2.0" href="/manga/series-one/2"><span>الفصل 2</span></a>
           <a class="chapter-item-card" data-chapter="1.0" href="/manga/series-one/1"><span>الفصل 1</span></a>
         ''',
-        '/manga/series-one/2': '''<h1>Series One</h1><img class="webtoon-image" src="https://images.example/page-1.webp"><img class="webtoon-image" src="https://images.example/page-2.webp">''',
+        '/manga/series-one/2':
+            '''<h1>Series One</h1><img class="webtoon-image" src="https://images.example/page-1.webp"><img class="webtoon-image" src="https://images.example/page-2.webp">''',
       });
       final source = MangaTikSource(client: client);
-      final detail = await source.details('https://mangatik.com/manga/series-one');
+      final detail =
+          await source.details('https://mangatik.com/manga/series-one');
       expect(detail['description'], 'Synopsis');
       expect(detail['genres'], ['أكشن']);
       expect(detail['author'], '');
       expect((detail['chapters'] as List).length, 2);
-      final chapter = await source.chapterImages('https://mangatik.com/manga/series-one/2');
+      final chapter =
+          await source.chapterImages('https://mangatik.com/manga/series-one/2');
       expect(chapter?['pages'], [
         'https://images.example/page-1.webp',
         'https://images.example/page-2.webp',
       ]);
     });
+
+    test(
+        'uses the visible rating badge and structured chapter dates as fallbacks',
+        () async {
+      final source = MangaTikSource(
+          client: _FixtureClient({
+        '/manga/series-two': '''
+          <html><body>
+            <h1>Series Two</h1>
+            <span class="manga-rating-badge">★ 9.1</span>
+            <a class="chapter-item-card" data-chapter="2" href="/manga/series-two/2">
+              <span>الفصل 2</span><time datetime="2026-11-06T10:00:00Z"></time>
+            </a>
+            <a class="chapter-item-card" data-chapter="1" href="/manga/series-two/1">
+              <span>الفصل 1</span><time datetime="2026-11-07T10:00:00Z"></time>
+            </a>
+          </body></html>
+        ''',
+      }));
+
+      final detail =
+          await source.details('https://mangatik.com/manga/series-two');
+      final chapters = detail['chapters'] as List<Map<String, dynamic>>;
+
+      expect(detail['rating'], '9.1');
+      expect(detail['latest_chapter_number'], 1);
+      expect(detail['latest_chapter_date'], '2026-11-07T10:00:00.000Z');
+      expect(chapters.first['release_date'], '2026-11-07T10:00:00.000Z');
+    });
   });
 
   group('HizoMangaSource', () {
     test('extracts current WordPress catalogue cards', () async {
-      final source = HizoMangaSource(client: _FixtureClient({
+      final source = HizoMangaSource(
+          client: _FixtureClient({
         '/series/': '''
           <div class="page-listing-item">
             <div class="item-thumb"><a href="/content/123/" title="عنوان العمل"><img src="/cover.webp"></a></div>
@@ -67,8 +102,11 @@ void main() {
       expect(results.single['image_url'], 'https://hizomanga.net/cover.webp');
     });
 
-    test('searches the actual WordPress search route and reads its Madara cards', () async {
-      final source = HizoMangaSource(client: _FixtureClient({
+    test(
+        'searches the actual WordPress search route and reads its Madara cards',
+        () async {
+      final source = HizoMangaSource(
+          client: _FixtureClient({
         '/': '''
           <div class="c-tabs-item__content">
             <div class="tab-thumb"><a href="https://hizomanga.net/content/164882/" title="At the End of Betrayal"><img src="/cover-search.webp"></a></div>
@@ -80,11 +118,13 @@ void main() {
       final results = await source.search('aya');
       expect(results.single['title'], 'At the End of Betrayal');
       expect(results.single['type'], 'novel');
-      expect(results.single['image_url'], 'https://hizomanga.net/cover-search.webp');
+      expect(results.single['image_url'],
+          'https://hizomanga.net/cover-search.webp');
     });
 
     test('parses current Hizo details and reader pages', () async {
-      final source = HizoMangaSource(client: _FixtureClient({
+      final source = HizoMangaSource(
+          client: _FixtureClient({
         '/content/123/': '''
           <div class="manga-title"><h2>عنوان العمل</h2></div>
           <div class="summary_image"><img src="http://hizomanga.net/cover.webp"></div>
@@ -103,8 +143,10 @@ void main() {
       expect(detail['description'], 'ملخص');
       expect(detail['status'], 'مستمرة');
       expect(detail['type'], 'novel');
-      expect((detail['chapters'] as List).single['url'], 'https://hizomanga.net/content/123/4/');
-      final chapter = await source.chapterContent('https://hizomanga.net/content/123/4/');
+      expect((detail['chapters'] as List).single['url'],
+          'https://hizomanga.net/content/123/4/');
+      final chapter =
+          await source.chapterContent('https://hizomanga.net/content/123/4/');
       expect(chapter?['content'], 'الفقرة الأولى.\n\nالفقرة الثانية.');
       expect(chapter?['content'], isNot(contains('unrelated')));
     });
@@ -115,12 +157,28 @@ void main() {
       final client = _JsonFixtureClient((uri) {
         if (uri.path.endsWith('/manga_works')) {
           return [
-            {'id': 'm1', 'slug': 'manga-one', 'title_ar': 'مانجا', 'cover_url': 'https://img.example/manga.jpg', 'genres': ['أكشن'], 'chapters_count': 1, 'rating_avg': 8.7, 'rating_count': 12},
+            {
+              'id': 'm1',
+              'slug': 'manga-one',
+              'title_ar': 'مانجا',
+              'cover_url': 'https://img.example/manga.jpg',
+              'genres': ['أكشن'],
+              'chapters_count': 1,
+              'rating_avg': 8.7,
+              'rating_count': 12
+            },
           ];
         }
         if (uri.path.endsWith('/novel_works')) {
           return [
-            {'id': 'n1', 'slug': 'novel-one', 'title_ar': 'رواية', 'cover_url': 'https://img.example/novel.jpg', 'genres': ['خيال'], 'chapters_count': 0},
+            {
+              'id': 'n1',
+              'slug': 'novel-one',
+              'title_ar': 'رواية',
+              'cover_url': 'https://img.example/novel.jpg',
+              'genres': ['خيال'],
+              'chapters_count': 0
+            },
           ];
         }
         if (uri.path.endsWith('/work_ratings')) {
@@ -131,28 +189,58 @@ void main() {
         }
         if (uri.path.endsWith('/chapters')) {
           return [
-            {'id': 'mc1', 'work_id': 'm1', 'chapter_number': 3, 'title': 'الفصل 3', 'pages': ['https://img.example/1.webp']},
+            {
+              'id': 'mc1',
+              'work_id': 'm1',
+              'chapter_number': 3,
+              'title': 'الفصل 3',
+              'pages': ['https://img.example/1.webp']
+            },
           ];
         }
         if (uri.path.endsWith('/novel_chapters')) {
           if (uri.queryParameters.containsKey('chapter_number')) {
             return [
-              {'id': 'nc1', 'work_id': 'n1', 'chapter_number': 2, 'title': 'بداية', 'content': 'نص الفصل'},
+              {
+                'id': 'nc1',
+                'work_id': 'n1',
+                'chapter_number': 2,
+                'title': 'بداية',
+                'content': 'نص الفصل'
+              },
             ];
           }
           return [
-            {'id': 'nc0', 'work_id': 'n1', 'chapter_number': 1, 'title': 'فارغ', 'content': ''},
-            {'id': 'nc1', 'work_id': 'n1', 'chapter_number': 2, 'title': 'بداية', 'content': 'نص الفصل'},
+            {
+              'id': 'nc0',
+              'work_id': 'n1',
+              'chapter_number': 1,
+              'title': 'فارغ',
+              'content': ''
+            },
+            {
+              'id': 'nc1',
+              'work_id': 'n1',
+              'chapter_number': 2,
+              'title': 'بداية',
+              'content': 'نص الفصل'
+            },
           ];
         }
         return [];
       });
       final manga = DespairMangaSource(client: client);
       final novels = DespairNovelsSource(client: client);
-      expect(manga.handles('https://despair-world.com/series/manga-one'), isTrue);
-      expect(novels.handles('https://despair-world.com/series/novel-one'), isFalse);
-      expect(novels.handles('https://despair-world.com/series/novel-one?mangaplus_source=despair_novels'), isTrue);
-      expect(novels.handles('https://despair-world.com/series/manga-one'), isFalse);
+      expect(
+          manga.handles('https://despair-world.com/series/manga-one'), isTrue);
+      expect(novels.handles('https://despair-world.com/series/novel-one'),
+          isFalse);
+      expect(
+          novels.handles(
+              'https://despair-world.com/series/novel-one?mangaplus_source=despair_novels'),
+          isTrue);
+      expect(novels.handles('https://despair-world.com/series/manga-one'),
+          isFalse);
 
       final mangaWork = (await manga.latest()).single;
       final novelWork = (await novels.latest()).single;
@@ -160,7 +248,8 @@ void main() {
       expect(mangaWork['rating'], '8.7');
       expect(novelWork['type'], 'novel');
       expect(novelWork['rating'], '9.5');
-      expect(novelWork['url'], 'https://despair-world.com/series/novel-one?mangaplus_source=despair_novels');
+      expect(novelWork['url'],
+          'https://despair-world.com/series/novel-one?mangaplus_source=despair_novels');
       expect(novelWork['total_chapters'], isNull);
       final detail = await novels.details(novelWork['url'] as String);
       expect((detail['chapters'] as List).length, 1);
@@ -170,16 +259,25 @@ void main() {
       expect(detail['rating'], '9.5');
 
       final mangaDetail = await manga.details(mangaWork['url'] as String);
-      final mangaChapterUrl = (mangaDetail['chapters'] as List).single['url'] as String;
-      expect((await manga.chapterImages(mangaChapterUrl))?['pages'], ['https://img.example/1.webp']);
+      final mangaChapterUrl =
+          (mangaDetail['chapters'] as List).single['url'] as String;
+      expect((await manga.chapterImages(mangaChapterUrl))?['pages'],
+          ['https://img.example/1.webp']);
     });
 
-    test('loads novel pages until PostgREST end, uses id when slug is absent, and shows ratings', () async {
+    test(
+        'loads novel pages until PostgREST end, uses id when slug is absent, and shows ratings',
+        () async {
       final client = _JsonFixtureClient(
         (uri) {
           if (uri.path.endsWith('/novel_works')) {
             return [
-              {'id': 'id-only-novel', 'slug': null, 'title_ar': 'رواية بلا slug', 'cover_url': 'https://img.example/novel.webp'},
+              {
+                'id': 'id-only-novel',
+                'slug': null,
+                'title_ar': 'رواية بلا slug',
+                'cover_url': 'https://img.example/novel.webp'
+              },
             ];
           }
           if (uri.path.endsWith('/work_ratings')) {
@@ -190,12 +288,16 @@ void main() {
           }
           return [];
         },
-        statusCodeForUri: (uri) => uri.path.endsWith('/novel_works') && uri.queryParameters['offset'] == '24' ? 416 : 200,
+        statusCodeForUri: (uri) => uri.path.endsWith('/novel_works') &&
+                uri.queryParameters['offset'] == '24'
+            ? 416
+            : 200,
       );
       final source = DespairNovelsSource(client: client);
       final firstPage = await source.latest();
       expect(firstPage.single['title'], 'رواية بلا slug');
-      expect(firstPage.single['url'], 'https://despair-world.com/series/id-only-novel?mangaplus_source=despair_novels');
+      expect(firstPage.single['url'],
+          'https://despair-world.com/series/id-only-novel?mangaplus_source=despair_novels');
       expect(firstPage.single['rating'], '9.0');
       expect(await source.latest(page: 2), isEmpty);
       final detail = await source.details(firstPage.single['url'] as String);
@@ -205,17 +307,27 @@ void main() {
   });
 
   test('all new sources are registered for app-wide source resolution', () {
-    expect(MangaSourceRegistry.byId('despair_manga'), same(MangaSourceRegistry.despairManga));
-    expect(MangaSourceRegistry.byId('despair_novels'), same(MangaSourceRegistry.despairNovels));
-    expect(MangaSourceRegistry.byId('hizomanga'), same(MangaSourceRegistry.hizoManga));
-    expect(MangaSourceRegistry.byId('mangatik'), same(MangaSourceRegistry.mangaTik));
-    expect(MangaSourceRegistry.forUrl('https://despair-world.com/series/novel?mangaplus_source=despair_novels'), same(MangaSourceRegistry.despairNovels));
-    expect(MangaSourceRegistry.forUrl('https://despair-world.com/series/series/'), same(MangaSourceRegistry.despairManga));
+    expect(MangaSourceRegistry.byId('despair_manga'),
+        same(MangaSourceRegistry.despairManga));
+    expect(MangaSourceRegistry.byId('despair_novels'),
+        same(MangaSourceRegistry.despairNovels));
+    expect(MangaSourceRegistry.byId('hizomanga'),
+        same(MangaSourceRegistry.hizoManga));
+    expect(MangaSourceRegistry.byId('mangatik'),
+        same(MangaSourceRegistry.mangaTik));
+    expect(
+        MangaSourceRegistry.forUrl(
+            'https://despair-world.com/series/novel?mangaplus_source=despair_novels'),
+        same(MangaSourceRegistry.despairNovels));
+    expect(
+        MangaSourceRegistry.forUrl('https://despair-world.com/series/series/'),
+        same(MangaSourceRegistry.despairManga));
   });
 
   test('new sources resolve their own website icons for branding', () {
     expect(SourceBrand.siteFor('Despair Manga', '')?.host, 'despair-world.com');
-    expect(SourceBrand.siteFor('Despair Novels', '')?.host, 'despair-world.com');
+    expect(
+        SourceBrand.siteFor('Despair Novels', '')?.host, 'despair-world.com');
     expect(SourceBrand.siteFor('Hizo Manga', '')?.host, 'hizomanga.net');
     expect(SourceBrand.siteFor('MangaTik', '')?.host, 'mangatik.com');
   });
@@ -227,8 +339,10 @@ class _FixtureClient extends http.BaseClient {
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     final body = pages[request.url.path];
-    if (body == null) return http.StreamedResponse(Stream.value(utf8.encode('Not found')), 404);
-    return http.StreamedResponse(Stream.value(utf8.encode(body)), 200, headers: const {'content-type': 'text/html; charset=utf-8'});
+    if (body == null)
+      return http.StreamedResponse(Stream.value(utf8.encode('Not found')), 404);
+    return http.StreamedResponse(Stream.value(utf8.encode(body)), 200,
+        headers: const {'content-type': 'text/html; charset=utf-8'});
   }
 }
 

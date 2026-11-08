@@ -10,8 +10,10 @@ import 'source_values.dart';
 
 /// Read-only adapter for the Arabic Lava Scans manga source.
 class LavaScansSource extends ContentSource {
+  LavaScansSource({http.Client? client}) : _client = client ?? http.Client();
+
   static const String _site = 'https://lavascans.com';
-  static final http.Client _client = http.Client();
+  final http.Client _client;
 
   @override
   String get id => 'lava_scans';
@@ -28,7 +30,8 @@ class LavaScansSource extends ContentSource {
   Future<List<Map<String, dynamic>>> search(String query) async {
     final normalized = query.trim();
     if (normalized.isEmpty) return const [];
-    return _parseSeriesList(await _document(_searchUri(normalized, 1).toString()));
+    return _parseSeriesList(
+        await _document(_searchUri(normalized, 1).toString()));
   }
 
   @override
@@ -45,23 +48,34 @@ class LavaScansSource extends ContentSource {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> nextPage({String query = '', int page = 2}) =>
+  Future<List<Map<String, dynamic>>> nextPage(
+          {String query = '', int page = 2}) =>
       query.trim().isEmpty ? catalog(page: page) : search(query);
 
   @override
   Future<Map<String, dynamic>> details(String url) async {
     final seriesUrl = _seriesUrl(url);
-    if (seriesUrl.isEmpty) throw Exception('Lava Scans: رابط المانجا غير صالح.');
+    if (seriesUrl.isEmpty)
+      throw Exception('Lava Scans: رابط المانجا غير صالح.');
     final document = await _document(seriesUrl);
-    final title = mangaHtmlText(document.querySelector('.lh-title, .single-manga h1, h1.entry-title'));
-    if (title.isEmpty) throw Exception('Lava Scans: لم يتم العثور على تفاصيل المانجا.');
+    final title = mangaHtmlText(
+        document.querySelector('.lh-title, .single-manga h1, h1.entry-title'));
+    if (title.isEmpty)
+      throw Exception('Lava Scans: لم يتم العثور على تفاصيل المانجا.');
     final description = mangaHtmlText(document.querySelector(
-          '.lh-description, .lh-summary, .summary__content, .description-summary, .entry-content',
-        ));
-    final genres = document.querySelectorAll('.lh-genres a, .genres-content a')
-        .map(mangaHtmlText).where((value) => value.isNotEmpty).toList();
-    final image = mangaImageUrl(document.querySelector('.lh-cover img, .summary_image img, .poster img'), _site);
-    final status = mangaHtmlText(document.querySelector('.lh-meta-item.status-badge-lux, .post-status'));
+      '.lh-description, .lh-summary, .summary__content, .description-summary, .entry-content',
+    ));
+    final genres = document
+        .querySelectorAll('.lh-genres a, .genres-content a')
+        .map(mangaHtmlText)
+        .where((value) => value.isNotEmpty)
+        .toList();
+    final image = mangaImageUrl(
+        document
+            .querySelector('.lh-cover img, .summary_image img, .poster img'),
+        _site);
+    final status = mangaHtmlText(
+        document.querySelector('.lh-meta-item.status-badge-lux, .post-status'));
     final type = _seriesType(document);
     final chapters = _chapters(document, seriesUrl);
     final result = item(
@@ -76,6 +90,10 @@ class LavaScansSource extends ContentSource {
         'synopsis': description,
         'status': status,
         'total_chapters': chapters.length,
+        'latest_chapter_number':
+            chapters.isEmpty ? '' : chapters.first['number'] ?? '',
+        'latest_chapter_date':
+            chapters.isEmpty ? '' : chapters.first['release_date'] ?? '',
         'chapters': chapters,
       });
     return result;
@@ -96,7 +114,8 @@ class LavaScansSource extends ContentSource {
       const prefix = 'data:text/javascript;base64,';
       if (src.startsWith(prefix)) {
         try {
-          source = utf8.decode(base64.decode(src.substring(prefix.length)), allowMalformed: true);
+          source = utf8.decode(base64.decode(src.substring(prefix.length)),
+              allowMalformed: true);
         } catch (_) {
           continue;
         }
@@ -106,7 +125,8 @@ class LavaScansSource extends ContentSource {
       try {
         final decoded = jsonDecode(payload);
         if (decoded is! Map || decoded['sources'] is! List) continue;
-        for (final sourceEntry in (decoded['sources'] as List).whereType<Map>()) {
+        for (final sourceEntry
+            in (decoded['sources'] as List).whereType<Map>()) {
           final rawImages = sourceEntry['images'];
           if (rawImages is! List) continue;
           pages = rawImages
@@ -125,14 +145,18 @@ class LavaScansSource extends ContentSource {
     }
 
     if (pages.isEmpty) {
-      pages = document.querySelectorAll('div#readerarea img').map((image) => mangaImageUrl(image, _site))
-          .where((image) => image.isNotEmpty).toList(growable: false);
+      pages = document
+          .querySelectorAll('div#readerarea img')
+          .map((image) => mangaImageUrl(image, _site))
+          .where((image) => image.isNotEmpty)
+          .toList(growable: false);
     }
     if (pages.isEmpty) {
       throw Exception('Lava Scans: لم تُوجد قائمة صور صالحة في قارئ الفصل.');
     }
     return {
-      'title': mangaHtmlText(document.querySelector('.reader-chapter-badge, h1')),
+      'title':
+          mangaHtmlText(document.querySelector('.reader-chapter-badge, h1')),
       'pages': pages,
       'images': pages.map((image) => {'url': image}).toList(),
       'url': chapterUrl,
@@ -142,27 +166,35 @@ class LavaScansSource extends ContentSource {
   List<Map<String, dynamic>> _parseSeriesList(Document document) {
     final results = <Map<String, dynamic>>[];
     final seen = <String>{};
-    for (final card in document.querySelectorAll('.manga-card-v, .legend-inner')) {
+    for (final card
+        in document.querySelectorAll('.manga-card-v, .legend-inner')) {
       Element? anchor;
       if (card.classes.contains('manga-card-v')) {
         anchor = card.querySelector('.card-v-body h3 a, .card-v-cover a');
       } else {
         anchor = card.querySelector('.legend-title a, a.legend-poster');
       }
-      final seriesUrl = _validatedUrl(anchor?.attributes['href'] ?? '', isSeries: true);
+      final seriesUrl =
+          _validatedUrl(anchor?.attributes['href'] ?? '', isSeries: true);
       if (seriesUrl.isEmpty || !seen.add(seriesUrl)) continue;
-      final title = mangaHtmlText(card.querySelector('.card-v-title a, .legend-title a'))
-          .isNotEmpty
-          ? mangaHtmlText(card.querySelector('.card-v-title a, .legend-title a'))
-          : (anchor?.querySelector('img')?.attributes['alt'] ?? '').trim();
-      final image = mangaImageUrl(card.querySelector('.card-v-cover img, .legend-img'), _site);
+      final title =
+          mangaHtmlText(card.querySelector('.card-v-title a, .legend-title a'))
+                  .isNotEmpty
+              ? mangaHtmlText(
+                  card.querySelector('.card-v-title a, .legend-title a'))
+              : (anchor?.querySelector('img')?.attributes['alt'] ?? '').trim();
+      final image = mangaImageUrl(
+          card.querySelector('.card-v-cover img, .legend-img'), _site);
       if (title.isEmpty) continue;
       final entry = _seriesItem(title, seriesUrl, image);
-      final chapterAnchor = card.querySelector('.latest-chapter a, .chapter-title a, .last-chapter a, .chapter a');
+      final chapterAnchor = card.querySelector(
+          '.latest-chapter a, .chapter-title a, .last-chapter a, .chapter a');
       final chapterNumber = mangaChapterNumber(mangaHtmlText(chapterAnchor));
       if (chapterNumber != null) entry['latest_chapter_number'] = chapterNumber;
-      final chapterHref = _validatedUrl(chapterAnchor?.attributes['href'] ?? '', isSeries: false);
-      if (chapterHref.isNotEmpty) entry['latest_chapter_url'] = _internalChapter(chapterHref);
+      final chapterHref = _validatedUrl(chapterAnchor?.attributes['href'] ?? '',
+          isSeries: false);
+      if (chapterHref.isNotEmpty)
+        entry['latest_chapter_url'] = _internalChapter(chapterHref);
       final time = card.querySelector('time[datetime]');
       final rawDate = time?.attributes['datetime'] ??
           card.attributes['data-date'] ??
@@ -176,10 +208,14 @@ class LavaScansSource extends ContentSource {
     if (results.isEmpty) {
       for (final card in document.querySelectorAll('.bsx')) {
         final anchor = card.querySelector('a');
-        final seriesUrl = _validatedUrl(anchor?.attributes['href'] ?? '', isSeries: true);
-        final title = (anchor?.attributes['title'] ?? mangaHtmlText(anchor)).trim();
-        if (seriesUrl.isEmpty || title.isEmpty || !seen.add(seriesUrl)) continue;
-        results.add(_seriesItem(title, seriesUrl, mangaImageUrl(card.querySelector('img'), _site)));
+        final seriesUrl =
+            _validatedUrl(anchor?.attributes['href'] ?? '', isSeries: true);
+        final title =
+            (anchor?.attributes['title'] ?? mangaHtmlText(anchor)).trim();
+        if (seriesUrl.isEmpty || title.isEmpty || !seen.add(seriesUrl))
+          continue;
+        results.add(_seriesItem(
+            title, seriesUrl, mangaImageUrl(card.querySelector('img'), _site)));
       }
     }
     return results;
@@ -191,22 +227,52 @@ class LavaScansSource extends ContentSource {
     final rows = <Map<String, dynamic>>[];
     final seen = <String>{};
     for (final anchor in document.querySelectorAll('a[href*="-chapter-"]')) {
-      final target = _validatedUrl(anchor.attributes['href'] ?? '', isSeries: false);
+      final target =
+          _validatedUrl(anchor.attributes['href'] ?? '', isSeries: false);
       if (target.isEmpty || !seen.add(target)) continue;
       final uri = Uri.parse(target);
-      final path = uri.pathSegments.where((part) => part.isNotEmpty).join('/');
+      final path =
+          uri.pathSegments.where((part) => part.isNotEmpty).lastOrNull ?? '';
       if (!path.startsWith('$slug-chapter-')) continue;
       final label = mangaHtmlText(anchor);
-      final number = mangaChapterNumber(path) ?? mangaChapterNumber(label) ?? (rows.length + 1);
-      final locked = (anchor.attributes['data-coin'] ?? '').toLowerCase() == 'yes';
+      final pathNumber = path.split('-chapter-').last;
+      final number =
+          mangaChapterNumber(pathNumber) ?? mangaChapterNumber(label);
+      final locked =
+          (anchor.attributes['data-coin'] ?? '').toLowerCase() == 'yes';
       if (locked) continue;
+      final row = anchor.parent;
+      final dateNode = anchor.querySelector('.chapter-date, .date, time') ??
+          row?.querySelector('.chapter-date, .date, time');
+      final rawDate = anchor.attributes['data-date'] ??
+          dateNode?.attributes['datetime'] ??
+          mangaHtmlText(dateNode);
+      final releaseDate = mangaDateFromUnixSeconds(rawDate);
       rows.add({
-        'title': label.isEmpty ? 'الفصل $number' : label,
+        'title':
+            label.isEmpty ? (number == null ? 'فصل' : 'الفصل $number') : label,
         'number': number,
         'chapter_number': number,
+        'release_date': releaseDate,
+        'date': releaseDate,
         'url': _internalChapter(target),
       });
     }
+    rows.sort((left, right) {
+      final leftDate = DateTime.tryParse('${left['release_date'] ?? ''}');
+      final rightDate = DateTime.tryParse('${right['release_date'] ?? ''}');
+      if (leftDate != null || rightDate != null) {
+        if (leftDate == null) return 1;
+        if (rightDate == null) return -1;
+        final byDate = rightDate.compareTo(leftDate);
+        if (byDate != 0) return byDate;
+      }
+      final leftNumber = mangaChapterNumber('${left['number'] ?? ''}');
+      final rightNumber = mangaChapterNumber('${right['number'] ?? ''}');
+      if (leftNumber == null) return rightNumber == null ? 0 : 1;
+      if (rightNumber == null) return -1;
+      return rightNumber.compareTo(leftNumber);
+    });
     return rows;
   }
 
@@ -253,15 +319,18 @@ class LavaScansSource extends ContentSource {
     final response = await _client.get(Uri.parse(url), headers: const {
       'Accept': 'text/html,application/xhtml+xml',
       'Accept-Language': 'ar,en;q=0.8',
-      'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+      'User-Agent':
+          'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
     }).timeout(const Duration(seconds: 25));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('Lava Scans: فشل طلب المصدر (${response.statusCode}).');
     }
-    return html_parser.parse(utf8.decode(response.bodyBytes, allowMalformed: true));
+    return html_parser
+        .parse(utf8.decode(response.bodyBytes, allowMalformed: true));
   }
 
-  Uri _searchUri(String query, int page) => Uri.parse('$_site/page/$page/').replace(
+  Uri _searchUri(String query, int page) =>
+      Uri.parse('$_site/page/$page/').replace(
         queryParameters: {'s': query},
       );
 
@@ -285,8 +354,10 @@ class LavaScansSource extends ContentSource {
 
   String _validatedUrl(String raw, {required bool isSeries}) {
     final uri = Uri.tryParse(raw.trim());
-    if (uri == null || uri.scheme != 'https' ||
-        !const {'lavascans.com', 'www.lavascans.com'}.contains(uri.host.toLowerCase())) {
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        !const {'lavascans.com', 'www.lavascans.com'}
+            .contains(uri.host.toLowerCase())) {
       return '';
     }
     final path = uri.path.toLowerCase();
@@ -300,7 +371,8 @@ class LavaScansSource extends ContentSource {
   String _internalChapter(String url) =>
       'lava://chapter?url=${Uri.encodeQueryComponent(url)}';
 
-  Map<String, dynamic> _seriesItem(String title, String url, String image) => item(
+  Map<String, dynamic> _seriesItem(String title, String url, String image) =>
+      item(
         title: title,
         url: _internalSeries(url),
         image: image,
@@ -320,7 +392,8 @@ class LavaScansSource extends ContentSource {
       final value = mangaHtmlText(element);
       if (value.isNotEmpty) return value;
     }
-    final label = RegExp(r'^(?:النوع|type)\s*[:：-]\s*(.+)$', caseSensitive: false);
+    final label =
+        RegExp(r'^(?:النوع|type)\s*[:：-]\s*(.+)$', caseSensitive: false);
     for (final element in document.querySelectorAll(
       '.lh-meta-item, .post-content_item, .summary-content li, .summary-content div',
     )) {

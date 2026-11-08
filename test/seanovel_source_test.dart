@@ -8,9 +8,11 @@ import 'package:mangaplus/app/data/sources/seanovel_source.dart';
 
 void main() {
   test('registry includes SeaNovel as a novel source', () {
-    expect(MangaSourceRegistry.searchableSources, contains(MangaSourceRegistry.seaNovel));
+    expect(MangaSourceRegistry.searchableSources,
+        contains(MangaSourceRegistry.seaNovel));
     expect(
-      MangaSourceRegistry.forUrl('https://seanovel.org/novels/the-greatest-sinner'),
+      MangaSourceRegistry.forUrl(
+          'https://seanovel.org/novels/the-greatest-sinner'),
       same(MangaSourceRegistry.seaNovel),
     );
   });
@@ -31,19 +33,26 @@ void main() {
 
     final results = await source.search('greatest sinner');
     expect(results, hasLength(1));
-    expect(results.single['image_url'], contains('/api/novel/the-greatest-sinner/cover'));
+    expect(results.single['image_url'],
+        contains('/api/novel/the-greatest-sinner/cover'));
 
     final details = await source.details(
       'https://seanovel.org/novels/the-greatest-sinner',
     );
     expect(details['chapters'], hasLength(2));
     expect(details['total_chapters'], 2);
+    expect(details['latest_chapter_number'], 326);
+    expect(details['latest_chapter_date'], '2026-11-07T10:00:00.000Z');
+    expect(
+      (details['chapters'] as List<Map<String, dynamic>>).last['release_date'],
+      '2026-11-07T10:00:00.000Z',
+    );
 
     final chapter = await source.chapterContent(
       'https://seanovel.org/novels/the-greatest-sinner/chapters/326',
     );
     expect(chapter?['chapter_number'], 326);
-    expect(chapter?['content'], contains('نص الفصل')); 
+    expect(chapter?['content'], contains('نص الفصل'));
   });
 }
 
@@ -52,7 +61,7 @@ const _index = '''
 ''';
 
 const _chapters = '''
-{"chapters":[{"id":1,"title":"البداية"},{"id":326,"title":"بلورات مانا"}],"total":326,"offset":0,"hasMore":false}
+{"chapters":[{"id":1,"chapter_number":1,"title":"البداية","date":"2026-11-06T10:00:00Z"},{"id":326,"chapter_number":326,"title":"بلورات مانا","date":"2026-11-07T10:00:00Z"}],"total":326,"offset":0,"hasMore":false}
 ''';
 
 const _novel = '''

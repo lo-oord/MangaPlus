@@ -14,19 +14,23 @@ import 'source_values.dart';
 /// chapter body uses a per-page protected WOFF2 font, which is decoded by the
 /// Android platform implementation through [_fontDecoder].
 class MknovSource extends ContentSource {
+  MknovSource({http.Client? client}) : _client = client ?? http.Client();
+
   static const String _site = 'https://mknov.com';
   static const Duration _catalogTtl = Duration(minutes: 10);
   static const Duration _chapterTtl = Duration(minutes: 10);
   static const int _pageSize = 24;
   static const MethodChannel _fontDecoder =
       MethodChannel('com.mangaplus.app/mknov_font_decoder');
-  static final http.Client _client = http.Client();
+  final http.Client _client;
 
   static List<Map<String, dynamic>>? _catalogCache;
   static DateTime? _catalogCachedAt;
   static Future<List<Map<String, dynamic>>>? _catalogRequest;
-  static final Map<String, (DateTime, List<Map<String, dynamic>>)> _chapterCache = {};
-  static final Map<String, Future<List<Map<String, dynamic>>>> _chapterRequests = {};
+  static final Map<String, (DateTime, List<Map<String, dynamic>>)>
+      _chapterCache = {};
+  static final Map<String, Future<List<Map<String, dynamic>>>>
+      _chapterRequests = {};
 
   @override
   String get id => 'mknov';
@@ -53,7 +57,8 @@ class MknovSource extends ContentSource {
       _catalogPage(page);
 
   @override
-  Future<List<Map<String, dynamic>>> nextPage({String query = '', int page = 2}) =>
+  Future<List<Map<String, dynamic>>> nextPage(
+          {String query = '', int page = 2}) =>
       query.trim().isEmpty ? _catalogPage(page) : _searchPage(query, page);
 
   /// Used by the blank-search state, in the same way as Azora suggestions.
@@ -67,7 +72,11 @@ class MknovSource extends ContentSource {
     final works = await _loadCatalog();
     final start = ((page < 1 ? 1 : page) - 1) * _pageSize;
     if (start >= works.length) return const [];
-    return works.skip(start).take(_pageSize).map(_workItem).toList(growable: false);
+    return works
+        .skip(start)
+        .take(_pageSize)
+        .map(_workItem)
+        .toList(growable: false);
   }
 
   Future<List<Map<String, dynamic>>> _searchPage(String query, int page) async {
@@ -85,13 +94,18 @@ class MknovSource extends ContentSource {
       return fields.any((value) => value.contains(normalized));
     });
     final start = ((page < 1 ? 1 : page) - 1) * _pageSize;
-    return matching.skip(start).take(_pageSize).map(_workItem).toList(growable: false);
+    return matching
+        .skip(start)
+        .take(_pageSize)
+        .map(_workItem)
+        .toList(growable: false);
   }
 
   Future<List<Map<String, dynamic>>> _loadCatalog() async {
     final cachedAt = _catalogCachedAt;
     final cached = _catalogCache;
-    if (cached != null && cachedAt != null &&
+    if (cached != null &&
+        cachedAt != null &&
         DateTime.now().difference(cachedAt) < _catalogTtl) {
       return cached;
     }
@@ -116,7 +130,8 @@ class MknovSource extends ContentSource {
       Uri.parse('$_site/api/works?limit=$limit'),
       accept: 'application/json',
     );
-    final decoded = jsonDecode(utf8.decode(response.bodyBytes, allowMalformed: true));
+    final decoded =
+        jsonDecode(utf8.decode(response.bodyBytes, allowMalformed: true));
     final records = decoded is List
         ? decoded
         : decoded is Map && decoded['works'] is List
@@ -128,7 +143,8 @@ class MknovSource extends ContentSource {
     return records
         .whereType<Map>()
         .map((record) => Map<String, dynamic>.from(record))
-        .where((record) => '${record['id'] ?? ''}'.trim().isNotEmpty &&
+        .where((record) =>
+            '${record['id'] ?? ''}'.trim().isNotEmpty &&
             '${record['titleAr'] ?? record['title'] ?? ''}'.trim().isNotEmpty)
         .toList(growable: false);
   }
@@ -159,7 +175,6 @@ class MknovSource extends ContentSource {
       'year': work['year'] ?? '',
       'release_year': work['year'] ?? '',
       'total_chapters': chapters ?? 0,
-      'latest_chapter_number': chapters ?? 0,
       'view_count': work['totalViews'] ?? 0,
     });
     return item;
@@ -182,7 +197,8 @@ class MknovSource extends ContentSource {
     final chapters = await _loadChapters(id).catchError(
       (_) => <Map<String, dynamic>>[],
     );
-    final latestDate = chapters.isEmpty ? '' : '${chapters.first['release_date'] ?? ''}';
+    final latestDate =
+        chapters.isEmpty ? '' : '${chapters.first['release_date'] ?? ''}';
     return _workItem(work)
       ..addAll({
         'native_title': '${work['title'] ?? ''}',
@@ -236,7 +252,8 @@ class MknovSource extends ContentSource {
     if (content.trim().isEmpty) throw Exception('MKNOV: تعذر فك نص الفصل.');
 
     final chapters = await chaptersRequest;
-    final index = chapters.indexWhere((chapter) => '${chapter['id']}' == parts.$2);
+    final index =
+        chapters.indexWhere((chapter) => '${chapter['id']}' == parts.$2);
     final previous = index >= 0 && index + 1 < chapters.length
         ? chapters[index + 1]['url']
         : null;
@@ -277,7 +294,8 @@ class MknovSource extends ContentSource {
       }
       return _normalizeText(decoded);
     } on PlatformException catch (error) {
-      throw Exception('MKNOV: تعذر فك الخط المحمي (${error.message ?? error.code}).');
+      throw Exception(
+          'MKNOV: تعذر فك الخط المحمي (${error.message ?? error.code}).');
     } on MissingPluginException {
       throw Exception('MKNOV: فك الخط المحمي متاح في نسخة Android فقط.');
     }
@@ -300,7 +318,8 @@ class MknovSource extends ContentSource {
 
   String _cleanFallback(Document document) {
     document
-        .querySelectorAll('script, style, nav, header, footer, .ad, ins, iframe')
+        .querySelectorAll(
+            'script, style, nav, header, footer, .ad, ins, iframe')
         .forEach((element) => element.remove());
     return _normalizeText(document.body?.text ?? '');
   }
@@ -332,7 +351,8 @@ class MknovSource extends ContentSource {
       accept: 'application/json',
       referer: '$_site/novel/$workId',
     );
-    final decoded = jsonDecode(utf8.decode(response.bodyBytes, allowMalformed: true));
+    final decoded =
+        jsonDecode(utf8.decode(response.bodyBytes, allowMalformed: true));
     final volumes = decoded is Map && decoded['volumes'] is List
         ? decoded['volumes'] as List
         : const <dynamic>[];
@@ -349,7 +369,8 @@ class MknovSource extends ContentSource {
       }
     }
     records.sort((left, right) {
-      final byNumber = _chapterNumber(right.chapter).compareTo(_chapterNumber(left.chapter));
+      final byNumber =
+          _chapterNumber(right.chapter).compareTo(_chapterNumber(left.chapter));
       return byNumber == 0 ? left.index.compareTo(right.index) : byNumber;
     });
     return records.map((record) {
@@ -409,7 +430,11 @@ class MknovSource extends ContentSource {
   }
 
   List<String> _strings(dynamic raw) => raw is List
-      ? raw.map((value) => value.toString().trim()).where((value) => value.isNotEmpty).toSet().toList(growable: false)
+      ? raw
+          .map((value) => value.toString().trim())
+          .where((value) => value.isNotEmpty)
+          .toSet()
+          .toList(growable: false)
       : const [];
 
   String _normalizeStatus(dynamic raw) => SourceValues.status(raw);
