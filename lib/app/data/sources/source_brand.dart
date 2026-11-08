@@ -42,6 +42,8 @@ class SourceBrand {
     'cenele novels': 'https://cenele.com',
     'mangadar': 'https://mangadar.com',
     'kolnovel': 'https://kolnovel.com',
+    'galaxynovels': 'https://galaxynovels.com',
+    'galaxy novels': 'https://galaxynovels.com',
     'procomic': 'https://procomic.pro',
     'hijala': 'https://hijala.com',
     'despair manga': 'https://despair-world.com',
