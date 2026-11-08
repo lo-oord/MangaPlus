@@ -156,7 +156,6 @@ void _handleConnectivity(List<ConnectivityResult> results) {
   }
 }
 
-void main() async {
   /// Best-effort restore of the account card using the local profile cache.
   /// Keeps the UI from clearing the name/photo when the device is offline at
   /// startup and Firebase Auth already has a persisted user.
@@ -238,6 +237,8 @@ void main() async {
     return DateTime.tryParse('$value') ?? DateTime.now();
   }
 }
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   LicenseRegistry.addLicense(() async* {
     final licenseText = await rootBundle.loadString('assets/licenses/GPL-3.0.txt');
@@ -256,6 +257,8 @@ void main() async {
   } catch (error) {
     debugPrint('Unable to restore Firebase auth session: $error');
   }
+
+  FlutterError.onError = (errorDetails) {
     FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
   };
   // Pass all uncaught asynchronous errors that aren't handled by the Flutter framework to Crashlytics
