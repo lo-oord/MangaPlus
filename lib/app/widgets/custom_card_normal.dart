@@ -18,6 +18,7 @@ class CustomCardNormal extends StatelessWidget {
   final String status;
   final String? comicId;
   final double width;
+  final bool showUnavailableFallback;
 
   const CustomCardNormal({
     super.key,
@@ -30,6 +31,7 @@ class CustomCardNormal extends StatelessWidget {
     this.status = '',
     this.comicId,
     this.width = 120,
+    this.showUnavailableFallback = true,
   });
 
   static const double coverAspectRatio = 1.25;
@@ -206,41 +208,54 @@ class CustomCardNormal extends StatelessWidget {
             style: _titleStyle.copyWith(color: AppColors.textPrimary),
           ),
         ),
-        const SizedBox(height: 5),
-        SizedBox(
-          width: width,
-          child: Row(
-            children: [
-              const Icon(Icons.star_rounded, size: 13, color: Color(0xfff2b94b)),
-              const SizedBox(width: 2),
-              Text(
-                rating.trim().isEmpty ? 'غير متاح'.tr : rating.trim(),
-                style: _ratingStyle.copyWith(color: AppColors.textPrimary),
-              ),
-              if (status.trim().isNotEmpty) ...[
-                const SizedBox(width: 7),
-                Expanded(
-                  child: Text(
-                    localizeContentStatus(status),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: _statusStyle.copyWith(color: _statusColor(status)),
+        if (rating.trim().isNotEmpty ||
+            status.trim().isNotEmpty ||
+            showUnavailableFallback)
+          const SizedBox(height: 5),
+        if (rating.trim().isNotEmpty ||
+            status.trim().isNotEmpty ||
+            showUnavailableFallback)
+          SizedBox(
+            width: width,
+            child: Row(
+              children: [
+                if (rating.trim().isNotEmpty || showUnavailableFallback) ...[
+                  const Icon(Icons.star_rounded,
+                      size: 13, color: Color(0xfff2b94b)),
+                  const SizedBox(width: 2),
+                  Text(
+                    rating.trim().isEmpty ? 'غير متاح'.tr : rating.trim(),
+                    style: _ratingStyle.copyWith(color: AppColors.textPrimary),
                   ),
-                ),
+                ],
+                if (status.trim().isNotEmpty) ...[
+                  if (rating.trim().isNotEmpty || showUnavailableFallback)
+                    const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      localizeContentStatus(status),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _statusStyle.copyWith(color: _statusColor(status)),
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-        const SizedBox(height: 3),
-        SizedBox(
-          width: width,
-          child: Text(
-            relativeDate.isEmpty ? 'غير متاح'.tr : relativeDate,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: _dateStyle.copyWith(color: AppColors.textSecondary),
-          ),
-        ),
+        if (relativeDate.isNotEmpty || showUnavailableFallback)
+          ...[
+            const SizedBox(height: 3),
+            SizedBox(
+              width: width,
+              child: Text(
+                relativeDate.isEmpty ? 'غير متاح'.tr : relativeDate,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: _dateStyle.copyWith(color: AppColors.textSecondary),
+              ),
+            ),
+          ],
       ],
     );
   }

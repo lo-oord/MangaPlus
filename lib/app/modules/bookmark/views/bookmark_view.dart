@@ -243,6 +243,7 @@ class BookmarkView extends GetView<BookmarkController> {
                           type: bookmark.type,
                           rating: rating,
                           status: status,
+                          showUnavailableFallback: false,
                           width: cardWidth,
                         ),
                         if (selected)
