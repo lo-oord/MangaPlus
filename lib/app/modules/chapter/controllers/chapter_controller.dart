@@ -1314,12 +1314,16 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     final range = _readerChapterPageRanges.firstWhereOrNull(
       (item) => item.contains(safePage),
     );
-    readerProgress.value = ReaderProgress.page(
+    final nextProgress = ReaderProgress.page(
       pageIndex: safePage,
       pageCount: pageCount,
       range: range,
       fractionWithinPage: fractionWithinPage,
     );
+    if ((nextProgress - readerProgress.value).abs() >= 0.004 ||
+        safePage != currentPage.value) {
+      readerProgress.value = nextProgress;
+    }
   }
 
   void seekReaderProgress(double value) {
@@ -1381,11 +1385,13 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
 
   void updateNovelProgress(double offset, double maxExtent) {
     if (!isNovel) return;
-    novelProgress.value = ReaderProgress.scroll(
+    final nextProgress = ReaderProgress.scroll(
       offset: offset,
       maxExtent: maxExtent,
     );
-    readerProgress.value = novelProgress.value;
+    if ((nextProgress - novelProgress.value).abs() < 0.004) return;
+    novelProgress.value = nextProgress;
+    readerProgress.value = nextProgress;
   }
 
   void syncScrollController() {

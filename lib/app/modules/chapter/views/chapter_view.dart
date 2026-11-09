@@ -30,6 +30,7 @@ class _ChapterViewState extends State<ChapterView> {
   int _scrollAnchorPageIndex = 0;
   double _scrollAnchorTop = 0;
   double _scrollAnchorOffset = 0;
+  bool _pageUpdateQueued = false;
 
   @override
   Widget build(BuildContext context) {
@@ -108,6 +109,7 @@ class _ChapterViewState extends State<ChapterView> {
             child: PageView.builder(
               controller: controller.pageController,
               reverse: controller.readingDirection.value == 'rtl',
+              allowImplicitScrolling: true,
               itemCount: chapter.images.length,
               onPageChanged: (index) {
                 controller.onPageChanged(index);
@@ -158,7 +160,7 @@ class _ChapterViewState extends State<ChapterView> {
             if (notification is ScrollUpdateNotification ||
                 notification is ScrollEndNotification) {
               if (notification is ScrollUpdateNotification) {
-                _updateCurrentPage(context);
+                _queueCurrentPageUpdate(context);
               }
               controller.handleScroll(
                 notification.metrics,
@@ -189,7 +191,7 @@ class _ChapterViewState extends State<ChapterView> {
             if (notification is ScrollEndNotification) {
               final notificationContext = notification.context;
               if (notificationContext != null) {
-                _updateCurrentPage(notificationContext);
+                _queueCurrentPageUpdate(notificationContext);
                 if (!controller.isOffline.value) {
                   _preloadImages(
                     notificationContext,
@@ -354,6 +356,7 @@ class _ChapterViewState extends State<ChapterView> {
                   child: SelectionArea(
                     child: ListView.builder(
                       controller: controller.scrollController,
+                      cacheExtent: 900,
                       padding: EdgeInsets.fromLTRB(
                         24,
                         MediaQuery.paddingOf(context).top + 28,
@@ -500,6 +503,15 @@ class _ChapterViewState extends State<ChapterView> {
         joinContinuousStream: true,
       );
     }
+  }
+
+  void _queueCurrentPageUpdate(BuildContext context) {
+    if (_pageUpdateQueued) return;
+    _pageUpdateQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _pageUpdateQueued = false;
+      if (mounted) _updateCurrentPage(context);
+    });
   }
 
   void _updateCurrentPage(BuildContext context) {
@@ -1657,7 +1669,7 @@ class _ChapterViewState extends State<ChapterView> {
                     width: double.infinity,
                     height: double.infinity,
                     fit: fit,
-                    filterQuality: FilterQuality.medium,
+                    filterQuality: FilterQuality.low,
                     gaplessPlayback: true,
                   );
                 },
@@ -1705,10 +1717,12 @@ class _ChapterViewState extends State<ChapterView> {
                   );
                 },
             );
-      return ColoredBox(
-        color: Colors.black,
-        child: SizedBox.expand(
-          child: MangaTekOverlay(imageUrl: imageUrl, child: image),
+      return RepaintBoundary(
+        child: ColoredBox(
+          color: Colors.black,
+          child: SizedBox.expand(
+            child: MangaTekOverlay(imageUrl: imageUrl, child: image),
+          ),
         ),
       );
     });
@@ -1719,10 +1733,11 @@ class _ChapterViewState extends State<ChapterView> {
     String imageUrl,
     int pageIndex,
   ) {
-    return Container(
-      width: double.infinity,
-      color: Colors.black,
-      child: Obx(
+    return RepaintBoundary(
+      child: Container(
+        width: double.infinity,
+        color: Colors.black,
+        child: Obx(
         () {
           final isLocalPage = _isLocalReaderPage(imageUrl);
           if (isLocalPage) {
@@ -1740,7 +1755,7 @@ class _ChapterViewState extends State<ChapterView> {
                   width: double.infinity,
                   cacheWidth: decodeWidth,
                   fit: _imageFit(controller.readerFit.value),
-                  filterQuality: FilterQuality.medium,
+                  filterQuality: FilterQuality.low,
                   alignment: Alignment.topCenter,
                   gaplessPlayback: true,
                 errorBuilder: (context, error, stackTrace) {
@@ -1757,11 +1772,11 @@ class _ChapterViewState extends State<ChapterView> {
                 imageBuilder: (context, imageProvider) {
                   _markPageLoadedAndPreservePosition(pageIndex, imageUrl);
                   return Image(
-                    image: imageProvider,
-                    width: double.infinity,
-                    fit: _imageFit(controller.readerFit.value),
-                    filterQuality: FilterQuality.medium,
-                    gaplessPlayback: true,
+                  image: imageProvider,
+                  width: double.infinity,
+                  fit: _imageFit(controller.readerFit.value),
+                  filterQuality: FilterQuality.low,
+                  gaplessPlayback: true,
                   );
                 },
                 progressIndicatorBuilder: (context, url, downloadProgress) =>
@@ -1827,6 +1842,7 @@ class _ChapterViewState extends State<ChapterView> {
               );
           return MangaTekOverlay(imageUrl: imageUrl, child: pageImage);
         },
+        ),
       ),
     );
   }
