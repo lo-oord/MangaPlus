@@ -173,8 +173,9 @@ class DilarSource extends ContentSource {
   @override
   Future<Map<String, dynamic>> details(String url) async {
     final id = _seriesId(url);
-    if (id.isEmpty)
+    if (id.isEmpty) {
       throw ArgumentError.value(url, 'url', 'Dilar series URL is invalid');
+    }
     final series = await _get('/api/series/${Uri.encodeComponent(id)}');
     final chaptersResponse = await _get(
       '/api/series/${Uri.encodeComponent(id)}/chapters',
@@ -527,8 +528,9 @@ class DilarSource extends ContentSource {
     final decoded = jsonDecode(
       utf8.decode(response.bodyBytes, allowMalformed: true),
     );
-    if (decoded is! Map)
+    if (decoded is! Map) {
       throw const FormatException('Dilar: استجابة API غير صالحة.');
+    }
     return Map<String, dynamic>.from(decoded);
   }
 
@@ -632,10 +634,11 @@ class DilarSource extends ContentSource {
   static String _nativeTitle(Map<String, dynamic> series) {
     final synonyms = _map(series['synonyms']);
     final arabic = synonyms?['arabic'];
-    if (arabic is List)
+    if (arabic is List) {
       return arabic
           .map(_text)
           .firstWhere((value) => value.isNotEmpty, orElse: () => '');
+    }
     return '';
   }
 
