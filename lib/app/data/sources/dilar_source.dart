@@ -457,7 +457,7 @@ class DilarSource extends ContentSource {
     final slug = _slug(_text(series['title']));
     final path =
         '/reader/${Uri.encodeComponent(seriesId)}/'
-        '${Uri.encodeComponent(slug)}/${Uri.encodeComponent(number)}';
+        '${Uri.encodeComponent(slug)}/${Uri.encodeComponent(chapterNumber)}';
     final uri = Uri.parse(_site).replace(
       path: path,
       queryParameters: releaseId.isEmpty ? null : {'release': releaseId},

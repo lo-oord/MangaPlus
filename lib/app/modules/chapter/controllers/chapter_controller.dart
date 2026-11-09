@@ -903,6 +903,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
         (isNovel
             ? previousData.chapter.content.trim().isNotEmpty
             : previousData.chapter.images.isNotEmpty);
+    ChapterData? prefetchedAdjacent;
     final listedTitle = _chapterTitleFor(reference).trim();
     final nextTitle = listedTitle.isEmpty
         ? chapterDividerTitle(reference)
@@ -931,15 +932,28 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
           source: '',
         );
       }
-      final loaded = await fetchChapter(
-        reference,
-        keepCurrentContent: false,
-        startAtEnd: reverse && !keepContinuousStream,
-        restoreSavedPosition: !keepContinuousStream,
-        // A merged stream keeps the chapters already on screen, so their
-        // boundaries must survive while the new one is recorded below.
-        resetStreamAnchors: !keepContinuousStream,
-      );
+      // Do not let fetchChapter replace chapterData while an adjacent chapter
+      // is being joined. That transient replacement rebuilds the ListView with
+      // only the previous chapter and makes a backward gesture visibly jump.
+      // Fetch into the service cache first, then publish only the merged list
+      // below. This also makes backward navigation behave like forward
+      // navigation when the adjacent chapter was prefetched already.
+      final bool loaded;
+      if (keepContinuousStream && !isOffline.value) {
+        prefetchedAdjacent = await _comicService.prefetchChapter(
+          reference,
+          isNovel: isNovel,
+        );
+        loaded = true;
+      } else {
+        loaded = await fetchChapter(
+          reference,
+          keepCurrentContent: false,
+          startAtEnd: reverse,
+          restoreSavedPosition: true,
+          resetStreamAnchors: true,
+        );
+      }
       if (transition != _transitionGeneration) {
         // A newer transition owns the reader now: this one must neither merge
         // its stale data nor roll the newer state back.
@@ -964,7 +978,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
         return;
       }
       if (hasReadableContent && keepContinuousStream) {
-        final adjacent = chapterData.value;
+        final adjacent = prefetchedAdjacent ?? chapterData.value;
         final oldChapter = previousData.chapter;
         final newChapter = adjacent.chapter;
         if (isNovel) {

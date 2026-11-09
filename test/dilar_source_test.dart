@@ -196,7 +196,7 @@ void main() {
     expect(chapters.map((chapter) => chapter['number']), [11, 10]);
     expect(
       chapters.first['url'],
-      'https://dilar.tube/reader/123/example-manga/11.00?release=r11',
+      'https://dilar.tube/reader/123/example-manga/11?release=r11',
     );
     expect(chapters.first['release_date'], '2026-11-08T20:00:00.000Z');
     expect(
