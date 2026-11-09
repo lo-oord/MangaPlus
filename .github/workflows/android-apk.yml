@@ -48,6 +48,9 @@ jobs:
           lib/app/core/utils/reader_progress.dart
           lib/app/core/translations/ar_sa.dart
           lib/app/core/translations/en_us.dart
+          lib/app/data/sources/dilar_source.dart
+          lib/app/data/sources/manga_source_registry.dart
+          lib/app/data/sources/source_brand.dart
           test/home_source_selection_test.dart
           test/manga_swat_source_test.dart
           test/lava_scans_source_test.dart
@@ -55,6 +58,7 @@ jobs:
           test/mknov_source_test.dart
           test/cenele_source_test.dart
           test/mangadar_source_test.dart
+          test/dilar_source_test.dart
           test/seanovel_source_test.dart
           test/reader_progress_test.dart
       - name: Run tests

@@ -14,7 +14,7 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 version: 1.1.0+1
 
 environment:
-  sdk: '>=3.2.3 <4.0.0'
+  sdk: '>=3.5.0 <4.0.0'
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -45,6 +45,7 @@ dependencies:
     sdk: flutter
   flutter_downloader: ^1.12.0
   flutter_local_notifications: ^19.3.0
+  flutter_inappwebview: ^6.1.5
   workmanager: ^0.7.0
   # 4.2.3 supports Android API 21 and keeps the Kotlin plugin package path aligned.
   flutter_tts: 4.2.3

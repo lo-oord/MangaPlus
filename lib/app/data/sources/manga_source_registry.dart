@@ -12,6 +12,7 @@ import 'kawaii_manga_source.dart';
 import 'kawaii_novels_source.dart';
 import 'cenele_source.dart';
 import 'mangadar_source.dart';
+import 'dilar_source.dart';
 import 'kolnovel_source.dart';
 import 'procomic_source.dart';
 import 'seanovel_source.dart';
@@ -39,6 +40,7 @@ class MangaSourceRegistry {
   static final CeneleNovelSource ceneleNovels = CeneleNovelSource();
   static final CeneleMangaSource ceneleManga = CeneleMangaSource();
   static final MangaDarSource mangaDar = MangaDarSource();
+  static final DilarSource dilar = DilarSource();
   static final KolNovelSource kolNovel = KolNovelSource();
   static final ProComicSource proComic = ProComicSource();
   static final SeanovelSource seaNovel = SeanovelSource();
@@ -76,6 +78,7 @@ class MangaSourceRegistry {
         ceneleNovels,
         ceneleManga,
         mangaDar,
+        dilar,
         kolNovel,
         proComic,
         seaNovel,

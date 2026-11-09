@@ -41,6 +41,7 @@ class SourceBrand {
     'cenele manga': 'https://cenele.com',
     'cenele novels': 'https://cenele.com',
     'mangadar': 'https://mangadar.com',
+    'dilar': 'https://dilar.tube',
     'kolnovel': 'https://kolnovel.com',
     'galaxynovels': 'https://galaxynovels.com',
     'galaxy novels': 'https://galaxynovels.com',
