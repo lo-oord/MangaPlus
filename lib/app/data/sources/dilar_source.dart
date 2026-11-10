@@ -378,7 +378,9 @@ class DilarSource extends ContentSource {
       if (path.isEmpty || parsed == null || parsed.hasScheme || parsed.hasAuthority ||
           path.startsWith('/') || path.contains('\\') ||
           path.split('/').any((part) => part == '.' || part == '..') ||
-          path.contains('?') || path.contains('#')) continue;
+          path.contains('?') || path.contains('#')) {
+        continue;
+      }
       entries.add((page: page, index: i));
     }
     entries.sort((a, b) {
