@@ -22,6 +22,7 @@ void main() {
           </body></html>
           ''',
           200,
+          headers: {'content-type': 'text/html; charset=utf-8'},
         );
       }),
     );

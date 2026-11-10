@@ -170,7 +170,7 @@ const _astroReaderPage = '''
 
 const _lazyReaderPage = '''
 <html><body><div class="reader-content">
-  <img data-lazy-src="/chapters/450/14/01.webp">
-  <picture><source data-lazy-srcset="/chapters/450/14/02.webp 1x, /chapters/450/14/02@2x.webp 2x"></picture>
+  <img data-lazy-src="https://api.mangatek.com/chapters/450/14/01.webp">
+  <picture><source data-lazy-srcset="https://api.mangatek.com/chapters/450/14/02.webp 1x, https://api.mangatek.com/chapters/450/14/02@2x.webp 2x"></picture>
 </div></body></html>
 ''';

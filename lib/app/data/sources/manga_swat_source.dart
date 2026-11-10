@@ -30,19 +30,22 @@ class MangaSwatSource extends ContentSource {
           '$_api/series/?search=${Uri.encodeQueryComponent(query.trim())}&page=1'));
 
   @override
-  Future<List<Map<String, dynamic>>> latest({int page = 1}) async =>
-      _seriesList(await _json('$_api/series/?page=${page < 1 ? 1 : page}'));
+  Future<List<Map<String, dynamic>>> latest({int page = 1}) async {
+    final items =
+        _seriesList(await _json('$_api/series/?page=${page < 1 ? 1 : page}'));
+    return _populateLatestChapterData(items);
+  }
 
   @override
-  Future<
-      List<
-          Map<String,
-              dynamic>>> nextPage({String query = '', int page = 2}) async => query
-          .trim()
-          .isEmpty
-      ? await latest(page: page)
-      : _seriesList(await _json(
-          '$_api/series/?search=${Uri.encodeQueryComponent(query.trim())}&page=$page'));
+  Future<List<Map<String, dynamic>>> nextPage({
+    String query = '',
+    int page = 2,
+  }) async {
+    if (query.trim().isEmpty) return latest(page: page);
+    return _seriesList(await _json(
+      '$_api/series/?search=${Uri.encodeQueryComponent(query.trim())}&page=$page',
+    ));
+  }
 
   @override
   Future<Map<String, dynamic>?> streams(String url) async => null;
@@ -177,6 +180,55 @@ class MangaSwatSource extends ContentSource {
     if (response.statusCode < 200 || response.statusCode >= 300)
       throw Exception('Manga Swat request failed (${response.statusCode})');
     return jsonDecode(utf8.decode(response.bodyBytes, allowMalformed: true));
+  }
+
+  Future<List<Map<String, dynamic>>> _populateLatestChapterData(
+    List<Map<String, dynamic>> items,
+  ) async {
+    // The series listing often omits latest_chapter entirely. Fetch one chapter
+    // per series in small concurrent batches instead of downloading every page.
+    for (var start = 0; start < items.length; start += 4) {
+      final batch = items.skip(start).take(4);
+      await Future.wait(batch.map(_populateLatestChapterDataForItem));
+    }
+    return items;
+  }
+
+  Future<void> _populateLatestChapterDataForItem(
+    Map<String, dynamic> item,
+  ) async {
+    final id = int.tryParse('${item['manga_id'] ?? ''}');
+    if (id == null ||
+        ('${item['latest_chapter_date'] ?? ''}'.isNotEmpty &&
+            item['latest_chapter_number'] != null)) {
+      return;
+    }
+    try {
+      final uri = Uri.parse('$_api/series/$id/chapters/').replace(
+        queryParameters: const {'page_size': '1'},
+      );
+      final data = await _json(uri.toString());
+      if (data is! Map || data['results'] is! List) return;
+      final results = data['results'] as List;
+      if (results.isEmpty || results.first is! Map) return;
+      final chapter = Map<String, dynamic>.from(results.first as Map);
+      final date = _releaseDate(chapter);
+      if (date.isNotEmpty &&
+          '${item['latest_chapter_date'] ?? ''}'.isEmpty) {
+        item['latest_chapter_date'] = date;
+      }
+      final number = chapter['chapter'] ?? chapter['number'];
+      if (number != null && item['latest_chapter_number'] == null) {
+        item['latest_chapter_number'] = number;
+      }
+      final title = '${chapter['title'] ?? ''}'.trim();
+      if (title.isNotEmpty &&
+          '${item['latest_chapter_name'] ?? ''}'.isEmpty) {
+        item['latest_chapter_name'] = title;
+      }
+    } catch (_) {
+      // Keep the series visible if its chapter metadata endpoint is unavailable.
+    }
   }
 
   List<Map<String, dynamic>> _seriesList(dynamic data) {
