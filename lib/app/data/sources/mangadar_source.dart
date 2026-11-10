@@ -186,8 +186,24 @@ class MangaDarSource extends ContentSource {
       final title = mangaHtmlText(anchor.querySelector('h3'));
       if (title.isEmpty) continue;
       final image = mangaImageUrl(anchor.querySelector('img'), _site);
-      final text = mangaHtmlText(anchor);
-      final rating = SourceValues.rating(text);
+      final ratingNode = anchor.querySelector(
+        '[itemprop="ratingValue"], [data-current-average], [data-rating], [class*="rating"], span.tabular-nums',
+      );
+      final rating = SourceValues.rating([
+        ratingNode?.attributes['content'],
+        ratingNode?.attributes['data-current-average'],
+        ratingNode?.attributes['data-rating'],
+        mangaHtmlText(ratingNode),
+      ]);
+      final dateNode = anchor.querySelector(
+        'time[datetime], [itemprop="datePublished"], [data-date], .chapter-date, .date',
+      );
+      final latestChapterDate = _dateFromText(
+        dateNode?.attributes['datetime'] ??
+            dateNode?.attributes['content'] ??
+            dateNode?.attributes['data-date'] ??
+            mangaHtmlText(dateNode),
+      );
       final type = mangaHtmlText(anchor.querySelector('div.absolute span'));
       final status = mangaHtmlText(anchor.querySelector(
         'span.text-emerald-400, span.text-amber-400, span.text-red-400',
@@ -205,6 +221,8 @@ class MangaDarSource extends ContentSource {
       entry.addAll({
         if (status.isNotEmpty) 'status': status,
         if (chapters != null) 'total_chapters': chapters,
+        if (latestChapterDate.isNotEmpty)
+          'latest_chapter_date': latestChapterDate,
       });
       results.add(entry);
     }
@@ -311,8 +329,18 @@ class MangaDarSource extends ContentSource {
       if (parts == null || parts.$1 != slug || !seen.add(parts.$2)) continue;
       final title = mangaHtmlText(anchor);
       final number = mangaChapterNumber(title) ?? mangaChapterNumber(parts.$2);
-      final rowText = mangaHtmlText(anchor.parent);
-      final date = _dateFromText(rowText);
+      final dateNode = anchor.querySelector(
+            'time[datetime], [itemprop="datePublished"], [data-date], .chapter-date, .date',
+          ) ??
+          anchor.parent?.querySelector(
+            'time[datetime], [itemprop="datePublished"], [data-date], .chapter-date, .date',
+          );
+      final date = _dateFromText(
+        dateNode?.attributes['datetime'] ??
+            dateNode?.attributes['content'] ??
+            dateNode?.attributes['data-date'] ??
+            mangaHtmlText(dateNode),
+      );
       results.add({
         'title':
             title.isEmpty ? (number == null ? 'فصل' : 'الفصل $number') : title,
@@ -379,12 +407,16 @@ class MangaDarSource extends ContentSource {
   }
 
   String _rating(Document document) {
-    for (final node in document.querySelectorAll('span')) {
-      final classes = node.attributes['class'] ?? '';
-      if (classes.contains('tabular-nums')) {
-        final value = SourceValues.rating(mangaHtmlText(node));
-        if (value.isNotEmpty) return value;
-      }
+    for (final node in document.querySelectorAll(
+      '[itemprop="ratingValue"], [data-current-average], [data-rating], [class*="rating"], span.tabular-nums',
+    )) {
+      final value = SourceValues.rating([
+        node.attributes['content'],
+        node.attributes['data-current-average'],
+        node.attributes['data-rating'],
+        mangaHtmlText(node),
+      ]);
+      if (value.isNotEmpty) return value;
     }
     return '';
   }
@@ -440,9 +472,12 @@ class MangaDarSource extends ContentSource {
   }
 
   String _dateFromText(String value) {
+    final rawValue = value.trim();
+    final parsed = mangaDateFromUnixSeconds(rawValue);
+    if (parsed.isNotEmpty) return parsed;
     final match = RegExp(
       r'\b(19|20)\d{2}[-/]\d{1,2}[-/]\d{1,2}\b',
-    ).firstMatch(value);
+    ).firstMatch(rawValue);
     final raw = match?.group(0) ?? '';
     return raw.isEmpty ? '' : mangaDateFromUnixSeconds(raw);
   }

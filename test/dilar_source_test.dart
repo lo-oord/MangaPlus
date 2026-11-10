@@ -225,20 +225,44 @@ void main() {
     },
   );
 
-  test('decrypted reader manifest produces ordered signed page URLs', () {
-    final pages = DilarSource.pageUrlsFromManifest({
+  test('decrypted reader fixture produces ordered signed page URLs', () {
+    final fixture = {
+      'id': 'r11',
       'storage_key': 'release-folder',
       'media_token': 'signed token',
       'pages': [
-        {'url': 'page-2.webp', 'order': 2},
-        {'url': 'page-1.webp', 'order': 1},
+        {'url': '002/page-2.webp', 'order': 2},
+        {'url': '001/page-1.webp', 'order': 1},
+        {'url': '003/page-3.webp', 'order': 3},
       ],
-    });
-
-    expect(pages, [
-      'https://dilar.tube/uploads/releases/release-folder/hq/page-1.webp?t=signed+token',
-      'https://dilar.tube/uploads/releases/release-folder/hq/page-2.webp?t=signed+token',
+    };
+    expect(DilarSource.pageUrlsFromManifest(fixture), [
+      'https://dilar.tube/uploads/releases/release-folder/hq/001/page-1.webp?t=signed+token',
+      'https://dilar.tube/uploads/releases/release-folder/hq/002/page-2.webp?t=signed+token',
+      'https://dilar.tube/uploads/releases/release-folder/hq/003/page-3.webp?t=signed+token',
     ]);
+  });
+  test('manifest parser rejects incomplete and invalid page data', () {
+    expect(DilarSource.pageUrlsFromManifest({
+      'storage_key': 'folder',
+      'media_token': 'token',
+      'pages': [
+        {'url': 'https://evil.test/page.webp', 'order': 1},
+        {'url': '../private.webp', 'order': 2},
+        {'url': 'good.webp', 'order': 3},
+      ],
+    }), ['https://dilar.tube/uploads/releases/folder/hq/good.webp?t=token']);
+    expect(DilarSource.pageUrlsFromManifest({
+      'storage_key': '../escape', 'media_token': 'token',
+      'pages': [{'url': 'x.webp'}],
+    }), isEmpty);
+    expect(DilarSource.pageUrlsFromManifest({
+      'storage_key': 'folder', 'media_token': '',
+      'pages': [{'url': 'x.webp'}],
+    }), isEmpty);
+    expect(DilarSource.pageUrlsFromManifest({
+      'storage_key': 'folder', 'media_token': 'token', 'pages': 'invalid',
+    }), isEmpty);
   });
 }
 

@@ -273,10 +273,14 @@ class DilarSource extends ContentSource {
             try {
               final raw = arguments.first;
               final decoded = raw is String ? jsonDecode(raw) : raw;
-              if (decoded is! Map) return null;
+              if (decoded is! Map) {
+                throw const FormatException('Dilar: صيغة بيانات صفحات الفصل غير صالحة.');
+              }
               final manifest = Map<String, dynamic>.from(decoded);
               final pages = pageUrlsFromManifest(manifest);
-              if (pages.isEmpty) return null;
+              if (pages.isEmpty) {
+                throw const FormatException('Dilar: لم تُعثر على صور صالحة للفصل.');
+              }
               result.complete({
                 'title': 'الفصل ${_displayChapterNumber(_chapterLabel(uri))}',
                 'chapter_number': _displayChapterNumber(_chapterLabel(uri)),
@@ -310,27 +314,41 @@ class DilarSource extends ContentSource {
       (() => {
         const originalParse = JSON.parse;
         const targetRelease = $releaseLiteral;
+        const capture = (root) => {
+          const pending = [root];
+          const visited = new Set();
+          while (pending.length) {
+            const value = pending.shift();
+            if (!value || typeof value !== 'object' || visited.has(value)) continue;
+            visited.add(value);
+            const release = value.id ?? value.release_id ?? value.releaseId;
+            const storageKey = value.storage_key ?? value.storageKey;
+            const mediaToken = value.media_token ?? value.mediaToken;
+            if (String(release) === targetRelease && storageKey && mediaToken &&
+                Array.isArray(value.pages) && value.pages.length && !value.__dilarCaptured) {
+              value.__dilarCaptured = true;
+              const payload = JSON.stringify({
+                storage_key: storageKey, media_token: mediaToken, pages: value.pages
+              });
+              const send = (attempt) => {
+                const bridge = window.flutter_inappwebview;
+                if (bridge && bridge.callHandler) {
+                  bridge.callHandler('dilarPageManifest', payload);
+                } else if (attempt < 40) {
+                  setTimeout(() => send(attempt + 1), 100);
+                }
+              };
+              send(0);
+              return;
+            }
+            for (const key of Object.keys(value)) {
+              if (value[key] && typeof value[key] === 'object') pending.push(value[key]);
+            }
+          }
+        };
         JSON.parse = function () {
           const value = originalParse.apply(this, arguments);
-          if (value && String(value.id) === targetRelease &&
-              value.storage_key && Array.isArray(value.pages) &&
-              !value.__dilarCaptured) {
-            value.__dilarCaptured = true;
-            const payload = JSON.stringify({
-              storage_key: value.storage_key,
-              media_token: value.media_token,
-              pages: value.pages
-            });
-            const send = (attempt) => {
-              const bridge = window.flutter_inappwebview;
-              if (bridge && bridge.callHandler) {
-                bridge.callHandler('dilarPageManifest', payload);
-              } else if (attempt < 40) {
-                setTimeout(() => send(attempt + 1), 100);
-              }
-            };
-            send(0);
-          }
+          try { capture(value); } catch (_) {}
           return value;
         };
       })();
@@ -339,42 +357,49 @@ class DilarSource extends ContentSource {
 
   /// Converts Dilar's decrypted manifest to ordered, signed image URLs.
   static List<String> pageUrlsFromManifest(Map<String, dynamic> manifest) {
-    final storageKey = _text(manifest['storage_key']);
-    final token = _text(manifest['media_token']);
+    final storageKey = _text(manifest['storage_key'] ?? manifest['storageKey']);
+    final token = _text(manifest['media_token'] ?? manifest['mediaToken']);
     final rawPages = manifest['pages'];
     if (storageKey.isEmpty || token.isEmpty || rawPages is! List) {
       return const [];
     }
-    final pages =
-        rawPages.whereType<Map>().map((entry) {
-          return Map<String, dynamic>.from(entry);
-        }).toList()..sort(
-          (a, b) => (int.tryParse('${a['order']}') ?? 0).compareTo(
-            int.tryParse('${b['order']}') ?? 0,
-          ),
-        );
-    return pages
-        .map((page) {
-          final rawPath = _text(page['url']);
-          if (rawPath.isEmpty) return '';
-          final segments = rawPath.split('/').where((part) => part.isNotEmpty);
-          return Uri(
-            scheme: 'https',
-            host: 'dilar.tube',
-            pathSegments: [
-              'uploads',
-              'releases',
-              storageKey,
-              'hq',
-              ...segments,
-            ],
-            queryParameters: {'t': token},
-          ).toString();
-        })
-        .where((page) => page.isNotEmpty)
-        .toList(growable: false);
+    // Keys and page paths become URL path segments; reject traversal, query
+    // fragments and absolute URLs rather than constructing unsafe/bogus paths.
+    if (storageKey.contains('/') || storageKey == '.' || storageKey == '..') {
+      return const [];
+    }
+    final entries = <({Map<String, dynamic> page, int index})>[];
+    for (var i = 0; i < rawPages.length; i++) {
+      final raw = rawPages[i];
+      if (raw is! Map) continue;
+      final page = Map<String, dynamic>.from(raw);
+      final path = _text(page['url'] ?? page['path']);
+      final parsed = Uri.tryParse(path);
+      if (path.isEmpty || parsed == null || parsed.hasScheme || parsed.hasAuthority ||
+          path.startsWith('/') || path.contains('\\') ||
+          path.split('/').any((part) => part == '.' || part == '..') ||
+          path.contains('?') || path.contains('#')) continue;
+      entries.add((page: page, index: i));
+    }
+    entries.sort((a, b) {
+      final orderA = num.tryParse(_text(a.page['order'])) ?? a.index;
+      final orderB = num.tryParse(_text(b.page['order'])) ?? b.index;
+      final byOrder = orderA.compareTo(orderB);
+      return byOrder != 0 ? byOrder : a.index.compareTo(b.index);
+    });
+    return entries.map((entry) {
+      final rawPath = _text(entry.page['url'] ?? entry.page['path']);
+      return Uri(
+        scheme: 'https',
+        host: 'dilar.tube',
+        pathSegments: [
+          'uploads', 'releases', storageKey, 'hq',
+          ...rawPath.split('/').where((part) => part.isNotEmpty),
+        ],
+        queryParameters: {'t': token},
+      ).toString();
+    }).toList(growable: false);
   }
-
   static String _chapterLabel(Uri uri) {
     final segments = uri.pathSegments.where((part) => part.isNotEmpty).toList();
     return segments.isEmpty ? '' : segments.last;

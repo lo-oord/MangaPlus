@@ -6,6 +6,34 @@ import 'package:http/testing.dart';
 import 'package:mangaplus/app/data/sources/mangadar_source.dart';
 
 void main() {
+  test('latest cards expose rating and latest chapter date', () async {
+    final source = MangaDarSource(
+      client: MockClient((request) async {
+        expect(request.url.path, '/manga/');
+        return http.Response(
+          '''
+          <html><body>
+            <a class="group block" href="/manga/example/">
+              <h3>Example</h3>
+              <div data-current-average="8.2"></div>
+              <time datetime="2026-11-09T08:15:00+02:00"></time>
+              <span title="إجمالي الفصول">24</span>
+            </a>
+          </body></html>
+          ''',
+          200,
+        );
+      }),
+    );
+
+    final latest = await source.latest();
+
+    expect(latest, hasLength(1));
+    expect(latest.single['rating'], '8.2');
+    expect(latest.single['latest_chapter_date'], '2026-11-09T06:15:00.000Z');
+    expect(latest.single['total_chapters'], 24);
+  });
+
   test(
       'details load every chapter from MangaDar REST, not only navigation links',
       () async {
@@ -93,6 +121,8 @@ void main() {
             '''
           <html><body class="single-manga postid-7">
             <h1>Example</h1>
+            <div data-current-average="7.6"><svg></svg></div>
+            <div class="chapter-row"><a href="/manga/example/3/">الفصل 3</a><time datetime="2026-11-08T14:30:00+03:00"></time></div>
             <a href="/manga/example/1/">ابدأ القراءة</a>
             <a href="/manga/example/3/">آخر فصل (3)</a>
           </body></html>
@@ -111,5 +141,8 @@ void main() {
     expect(chapters, hasLength(2));
     expect(chapters.first['number'], 3);
     expect(chapters.last['number'], 1);
+    expect(detail['rating'], '7.6');
+    expect(chapters.first['release_date'], '2026-11-08T11:30:00.000Z');
+    expect(detail['latest_chapter_date'], '2026-11-08T11:30:00.000Z');
   });
 }

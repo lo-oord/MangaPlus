@@ -107,6 +107,11 @@ class MangaTekSource extends ContentSource {
       'author': '${manga['author'] ?? ''}',
       'status': _status('${manga['status'] ?? ''}'),
       'total_chapters': manga['chapters_count'] ?? manga['chapter_count'] ?? 0,
+      if (_dateValue(manga['latest_chapter_at'] ?? manga['latest_chapter_date'] ??
+              manga['updated_at'] ?? manga['updatedAt'])
+          .isNotEmpty)
+        'latest_chapter_date': _dateValue(manga['latest_chapter_at'] ??
+            manga['latest_chapter_date'] ?? manga['updated_at'] ?? manga['updatedAt']),
       if (manga['latest_chapter_number'] != null &&
           '${manga['latest_chapter_number']}' != '0')
         'latest_chapter_number': manga['latest_chapter_number'],
@@ -150,6 +155,7 @@ class MangaTekSource extends ContentSource {
               .where((tag) => tag.isNotEmpty)
               .toList(),
           'status': mangaHtmlText(document.querySelector('span.border')),
+          'rating': _htmlRating(document),
           'total_chapters': chapters.length,
           'latest_chapter_number':
               chapters.isEmpty ? '' : chapters.first['number'] ?? '',
@@ -187,7 +193,8 @@ class MangaTekSource extends ContentSource {
         'genres': genres,
         'author': '${manga['author'] ?? ''}',
         'status': _status('${manga['status'] ?? ''}'),
-        'rating': SourceValues.rating(manga['rating']),
+        'rating': SourceValues.rating(manga['rating'] ??
+            manga['rating_score'] ?? manga['average_rating'] ?? manga['score']),
         'total_chapters': chapters.length,
         'latest_chapter_number':
             chapters.isEmpty ? '' : chapters.first['number'] ?? '',
@@ -258,6 +265,14 @@ class MangaTekSource extends ContentSource {
           '.reader-content img[data-src]',
           '.reader-content img[srcset]',
           '.reader-content source[srcset]',
+          '.reader-content img[data-lazy-src]',
+          '.reader-content img[data-lazy-srcset]',
+          '.reader-content source[data-srcset]',
+          '.reader-content source[data-lazy-srcset]',
+          'div.manga-page img[data-lazy-src]',
+          'div.manga-page img[data-lazy-srcset]',
+          'div.manga-page source[data-srcset]',
+          'div.manga-page source[data-lazy-srcset]',
           '[data-page] img[src]',
           '[data-page] img[data-src]',
         ].join(', '))
@@ -446,9 +461,12 @@ class MangaTekSource extends ContentSource {
           final number =
               '${raw['chapter_number'] ?? raw['number'] ?? mangaChapterNumber('${raw['title'] ?? ''}') ?? ''}';
           final title = '${raw['title'] ?? 'الفصل $number'}'.trim();
-          final releaseDate = mangaDateFromUnixSeconds(
-            '${raw['created_at'] ?? raw['createdAt'] ?? ''}',
-          );
+          final releaseDate = _dateValue(raw['created_at'] ??
+              raw['createdAt'] ??
+              raw['release_date'] ??
+              raw['releaseDate'] ??
+              raw['published_at'] ??
+              raw['publishedAt']);
           return <String, dynamic>{
             'title': title.isEmpty ? 'الفصل $number' : title,
             'number': num.tryParse(number) ?? number,
@@ -520,6 +538,16 @@ class MangaTekSource extends ContentSource {
     return chapters;
   }
 
+  String _dateValue(dynamic value) =>
+      mangaDateFromUnixSeconds(SourceValues.text(value));
+
+  String _htmlRating(Document document) {
+    final raw = document.querySelector('[itemprop=ratingValue]')?.attributes['content'] ??
+        document.querySelector('[data-rating]')?.attributes['data-rating'] ??
+        mangaHtmlText(document.querySelector('.rating, .rate, .rating-value, #rating'));
+    return SourceValues.rating(raw);
+  }
+
   Future<Document> _document(String url) async {
     final response = await _client.get(Uri.parse(url), headers: const {
       'Accept': 'text/html,application/xhtml+xml',
@@ -587,7 +615,8 @@ class MangaTekSource extends ContentSource {
         'genres': _tagNames(data['Tags']),
         'author': '${data['author'] ?? ''}',
         'status': _status('${data['status'] ?? ''}'),
-        'rating': SourceValues.rating(data['rating']),
+        'rating': SourceValues.rating(data['rating'] ??
+            data['rating_score'] ?? data['average_rating'] ?? data['score']),
         'total_chapters': chapters.length,
         'latest_chapter_number':
             chapters.isEmpty ? '' : chapters.first['number'] ?? '',
