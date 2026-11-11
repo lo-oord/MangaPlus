@@ -7,9 +7,7 @@ String mangaHtmlText(Element? element) =>
 String mangaHtmlToText(String? html) {
   if (html == null || html.trim().isEmpty) return '';
   final document = html_parser.parse(html);
-  return (document.body?.text ?? html)
-      .replaceAll(RegExp(r'\s+'), ' ')
-      .trim();
+  return (document.body?.text ?? html).replaceAll(RegExp(r'\s+'), ' ').trim();
 }
 
 String mangaHtmlToReadableText(String? html) {
@@ -34,6 +32,7 @@ String mangaHtmlToReadableText(String? html) {
     final content = node.nodes.map(readNode).join();
     return blockElements.contains(name) ? '$content\n' : content;
   }
+
   return readNode(document.body ?? document.documentElement ?? document)
       .replaceAll('\u00a0', ' ')
       .replaceAll(RegExp(r'[\t\r ]+'), ' ')
@@ -44,13 +43,17 @@ String mangaHtmlToReadableText(String? html) {
 
 String mangaAbsoluteUrl(String baseUrl, String? raw) {
   final value = raw?.trim() ?? '';
-  if (value.isEmpty || value.startsWith('data:') || value.startsWith('javascript:')) {
+  if (value.isEmpty ||
+      value.startsWith('data:') ||
+      value.startsWith('javascript:')) {
     return '';
   }
   final parsed = Uri.tryParse(value);
   if (parsed == null) return '';
   if (parsed.hasScheme) {
-    return parsed.scheme == 'http' || parsed.scheme == 'https' ? parsed.toString() : '';
+    return parsed.scheme == 'http' || parsed.scheme == 'https'
+        ? parsed.toString()
+        : '';
   }
   return Uri.parse(baseUrl).resolveUri(parsed).toString();
 }
@@ -59,6 +62,8 @@ String mangaImageUrl(Element? element, String baseUrl) {
   if (element == null) return '';
   for (final attribute in const [
     'data-src',
+    'data-url',
+    'data-zoom-src',
     'data-lazy-src',
     'data-cfsrc',
     'data-original',
@@ -88,8 +93,10 @@ String mangaDateFromUnixSeconds(String raw) {
   final epoch = num.tryParse(value);
   if (epoch != null && epoch > 0) {
     try {
-      final milliseconds = epoch >= 1000000000000 ? epoch.round() : (epoch * 1000).round();
-      return DateTime.fromMillisecondsSinceEpoch(milliseconds, isUtc: true).toIso8601String();
+      final milliseconds =
+          epoch >= 1000000000000 ? epoch.round() : (epoch * 1000).round();
+      return DateTime.fromMillisecondsSinceEpoch(milliseconds, isUtc: true)
+          .toIso8601String();
     } on RangeError {
       return '';
     }

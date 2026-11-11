@@ -1,12 +1,14 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
-import 'package:cryptography/cryptography.dart';
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:http/http.dart' as http;
 
 import 'manga_html_utils.dart';
+import 'mangatek_bundle_seeds.dart';
+import 'mangatek_fingerprint.dart';
+import 'mangatek_overlay_crypto.dart';
 import 'source_base.dart';
 import 'source_values.dart';
 
@@ -16,6 +18,7 @@ class MangaTekSource extends ContentSource {
   MangaTekSource({http.Client? client}) : _client = client ?? http.Client();
 
   final http.Client _client;
+  final Map<String, Future<MangatekBundleSeeds>> _readerSeedCache = {};
 
   @override
   String get id => 'mangatek';
@@ -107,11 +110,15 @@ class MangaTekSource extends ContentSource {
       'author': '${manga['author'] ?? ''}',
       'status': _status('${manga['status'] ?? ''}'),
       'total_chapters': manga['chapters_count'] ?? manga['chapter_count'] ?? 0,
-      if (_dateValue(manga['latest_chapter_at'] ?? manga['latest_chapter_date'] ??
-              manga['updated_at'] ?? manga['updatedAt'])
+      if (_dateValue(manga['latest_chapter_at'] ??
+              manga['latest_chapter_date'] ??
+              manga['updated_at'] ??
+              manga['updatedAt'])
           .isNotEmpty)
         'latest_chapter_date': _dateValue(manga['latest_chapter_at'] ??
-            manga['latest_chapter_date'] ?? manga['updated_at'] ?? manga['updatedAt']),
+            manga['latest_chapter_date'] ??
+            manga['updated_at'] ??
+            manga['updatedAt']),
       if (manga['latest_chapter_number'] != null &&
           '${manga['latest_chapter_number']}' != '0')
         'latest_chapter_number': manga['latest_chapter_number'],
@@ -194,7 +201,9 @@ class MangaTekSource extends ContentSource {
         'author': '${manga['author'] ?? ''}',
         'status': _status('${manga['status'] ?? ''}'),
         'rating': SourceValues.rating(manga['rating'] ??
-            manga['rating_score'] ?? manga['average_rating'] ?? manga['score']),
+            manga['rating_score'] ??
+            manga['average_rating'] ??
+            manga['score']),
         'total_chapters': chapters.length,
         'latest_chapter_number':
             chapters.isEmpty ? '' : chapters.first['number'] ?? '',
@@ -218,21 +227,37 @@ class MangaTekSource extends ContentSource {
     if (props is Map) {
       final propsMap = Map<String, dynamic>.from(props);
       final embedded = _readerImages(propsMap['imageUrls']);
-      final fetched = embedded.any((image) => image['pending'] == true)
-          ? await _fetchReaderImages(document, propsMap, parts)
-          : const <Map<String, dynamic>>[];
-      // Never discard usable embedded pages when the rotating reader bundle
-      // changes and the pending-pages proof cannot be calculated yet.
+      final hasPendingPages = embedded.any((image) => image['pending'] == true);
+      final hasReaderApiCredentials = propsMap['chapterId'] != null &&
+          '${propsMap['unlockToken'] ?? ''}'.isNotEmpty;
+      final requiresCompleteReaderApi =
+          hasPendingPages || hasReaderApiCredentials;
+      var fetched = const <Map<String, dynamic>>[];
+      if (requiresCompleteReaderApi) {
+        // If the reader advertised server-backed credentials, its embedded
+        // list cannot be assumed complete. Fail closed rather than silently
+        // hiding chapter pages when that endpoint is unavailable.
+        fetched = await _fetchReaderImages(document, propsMap, parts);
+      }
+      if (requiresCompleteReaderApi && fetched.isEmpty) {
+        throw Exception(
+          'MangaTek: تعذر جلب جميع صفحات الفصل؛ لن تُعرض قائمة ناقصة.',
+        );
+      }
+      // Prefer the endpoint's complete chapter list whenever available.
       final images = fetched.isNotEmpty
           ? fetched
           : embedded.where((image) => image['pending'] != true).toList();
+      if (images.any((image) => image['pending'] == true)) {
+        throw Exception('MangaTek: استجابة صفحات الفصل ما زالت غير مكتملة.');
+      }
       final pages = images
           .where((image) => image['isTrap'] != true)
           .map((image) => '${image['url'] ?? ''}')
           .where((image) => image.isNotEmpty)
           .toList(growable: false);
       if (pages.isNotEmpty) {
-        final overlays = await _overlayPages(propsMap);
+        final overlays = await _overlayPages(propsMap, document);
         final pagesWithOverlays = pages.asMap().entries.map((entry) {
           final bubbleList = overlays[entry.key];
           if (bubbleList == null || bubbleList.isEmpty) return entry.value;
@@ -257,11 +282,15 @@ class MangaTekSource extends ContentSource {
     final pages = document
         .querySelectorAll([
           'div.manga-page img[src]',
+          'div.manga-page img[data-url]',
+          'div.manga-page img[data-zoom-src]',
           'div.manga-page img[data-src]',
           'div.manga-page img[srcset]',
           'div.manga-page img[data-srcset]',
           'div.manga-page source[srcset]',
           '.reader-content img[src]',
+          '.reader-content img[data-url]',
+          '.reader-content img[data-zoom-src]',
           '.reader-content img[data-src]',
           '.reader-content img[srcset]',
           '.reader-content source[srcset]',
@@ -274,6 +303,8 @@ class MangaTekSource extends ContentSource {
           'div.manga-page source[data-srcset]',
           'div.manga-page source[data-lazy-srcset]',
           '[data-page] img[src]',
+          '[data-page] img[data-url]',
+          '[data-page] img[data-zoom-src]',
           '[data-page] img[data-src]',
         ].join(', '))
         .map((image) => mangaImageUrl(image, _site))
@@ -293,8 +324,9 @@ class MangaTekSource extends ContentSource {
     if (value is! List) return const [];
     return value
         .map((entry) {
-          if (entry is String)
+          if (entry is String) {
             return {'url': entry, 'pending': false, 'isTrap': false};
+          }
           if (entry is Map) {
             final raw = Map<String, dynamic>.from(entry);
             return {
@@ -319,18 +351,29 @@ class MangaTekSource extends ContentSource {
     final token = '${props['unlockToken'] ?? ''}';
     final mangaSlug = '${props['mangaSlug'] ?? parts.$1}';
     final chapterRef = '${props['chapterRef'] ?? parts.$2}';
-    final salt = await _readerProofSalt(document);
-    if (chapterId == null || token.isEmpty || salt.isEmpty) return const [];
-    final proof =
-        sha256.convert(utf8.encode('$salt|$token|$chapterId')).toString();
+    if (chapterId == null || token.isEmpty) {
+      throw Exception('MangaTek: بيانات اعتماد صفحات القارئ غير مكتملة.');
+    }
+    final seeds = await _readerSeeds(document);
+    final proof = MangaTekOverlayCrypto.proof(
+      seeds.proofSalt,
+      token,
+      chapterId,
+    );
+    final fingerprint = await MangaTekFingerprint.create();
+    final headers = <String, String>{
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Origin': _site,
+      'Referer':
+          '$_site/reader/${Uri.encodeComponent(parts.$1)}/${Uri.encodeComponent(parts.$2)}',
+      'User-Agent': MangaTekFingerprint.userAgent,
+      if (fingerprint != null) ...fingerprint.headers,
+    };
     final response = await _client
         .post(
           Uri.parse('https://api.mangatek.com/api/reader/pages'),
-          headers: const {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'User-Agent': 'MangaPlus/1.1',
-          },
+          headers: headers,
           body: jsonEncode({
             'chapterId': chapterId,
             'mangaSlug': mangaSlug,
@@ -340,72 +383,218 @@ class MangaTekSource extends ContentSource {
           }),
         )
         .timeout(const Duration(seconds: 25));
-    if (response.statusCode < 200 || response.statusCode >= 300)
-      return const [];
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(
+        'MangaTek: فشل جلب جميع صفحات الفصل (${response.statusCode}).',
+      );
+    }
     final decoded =
         jsonDecode(utf8.decode(response.bodyBytes, allowMalformed: true));
     final data = decoded is Map ? decoded['data'] : null;
-    return _readerImages(data);
+    final images = _readerImages(data);
+    if (images.isEmpty || images.any((image) => image['pending'] == true)) {
+      throw Exception('MangaTek: أعاد API صفحات غير مكتملة للفصل.');
+    }
+    return images;
   }
 
   Future<Map<int, List<Map<String, dynamic>>>> _overlayPages(
     Map<String, dynamic> props,
+    Document document,
   ) async {
     final blob = '${props['overlayBlob'] ?? ''}';
-    if (blob.isEmpty || !blob.contains(':')) return const {};
+    String? decodedOverlay;
+    if (blob.isNotEmpty && blob.contains(':')) {
+      try {
+        decodedOverlay = await MangaTekOverlayCrypto.decryptHexBlob(blob);
+      } catch (_) {
+        // Newer reader bundles may provide an envelope through unlock below.
+      }
+    }
+    if (decodedOverlay == null && props['textMode'] == 'overlay') {
+      try {
+        decodedOverlay = await _unlockOverlay(document, props);
+      } catch (_) {
+        // Keep the image pages readable if the site's optional text layer is
+        // denied or requires an interactive challenge unavailable to the app.
+        return const {};
+      }
+    }
+    if (decodedOverlay == null || decodedOverlay.isEmpty) return const {};
     try {
-      final parts = blob.split(':').map(_hexBytes).toList();
-      if (parts.length != 3) return const {};
-      final clear = await AesGcm.with256bits().decrypt(
-        SecretBox(parts[1], nonce: parts[0], mac: Mac(parts[2])),
-        secretKey: SecretKey(_hexBytes(
-          'ff453871399fe268588a0936b45376022d85ed0fd1292001d5102f6a30291dc1',
-        )),
-      );
-      final decoded = jsonDecode(utf8.decode(clear));
+      final decoded = jsonDecode(decodedOverlay);
       final pages = decoded is Map ? decoded['pages'] : null;
       if (pages is! List) return const {};
       final offset = int.tryParse('${props['overlayPageOffset'] ?? 0}') ?? 0;
       return {
         for (final page in pages.whereType<Map>())
-          offset + (int.tryParse('${page['page_number'] ?? 0}') ?? 0) - 1:
-              (page['overlays'] is List
-                  ? page['overlays']
-                      .whereType<Map>()
-                      .map((item) => Map<String, dynamic>.from(item))
-                      .toList()
-                  : const <Map<String, dynamic>>[]),
+          offset +
+              (int.tryParse(
+                      '${page['page_number'] ?? page['pageNumber'] ?? 0}') ??
+                  0) -
+              1: (page['overlays']
+                  is List
+              ? page['overlays']
+                  .whereType<Map>()
+                  .map((item) => Map<String, dynamic>.from(item))
+                  .toList()
+              : const <Map<String, dynamic>>[]),
       };
     } catch (_) {
       return const {};
     }
   }
 
-  List<int> _hexBytes(String value) {
-    final clean = value.trim();
-    final bytes = <int>[];
-    for (var i = 0; i + 1 < clean.length; i += 2) {
-      bytes.add(int.parse(clean.substring(i, i + 2), radix: 16));
+  Future<String?> _unlockOverlay(
+    Document document,
+    Map<String, dynamic> props,
+  ) async {
+    final chapterId = props['chapterId'];
+    final token = '${props['unlockToken'] ?? ''}';
+    if (chapterId == null || token.isEmpty) return null;
+    final seeds = await _readerSeeds(document);
+    final fingerprint = await MangaTekFingerprint.create();
+    if (fingerprint == null) return null;
+    final proof = MangaTekOverlayCrypto.proof(
+      seeds.proofSalt,
+      token,
+      chapterId,
+    );
+    final body = <String, dynamic>{
+      'chapterId': chapterId,
+      'token': token,
+      'proof': proof,
+      'esid': MangaTekOverlayCrypto.esid(seeds.readerSeed),
+      'fpc': fingerprint.fpc,
+    };
+    final headers = <String, String>{
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Origin': _site,
+      'Referer': _site,
+      'User-Agent': MangaTekFingerprint.userAgent,
+      ...fingerprint.headers,
+    };
+    var response = await _postReaderJson(
+      'https://api.mangatek.com/api/reader/unlock',
+      body,
+      headers,
+    );
+    if (response['needs_challenge'] == true) {
+      final nonce = '${response['nonce'] ?? ''}';
+      final powBits = int.tryParse('${response['pow_bits'] ?? ''}') ?? 0;
+      if (nonce.isEmpty || powBits <= 0) return null;
+      final pow = await _proofOfWork(nonce, powBits);
+      if (pow == null) return null;
+      if (response['turnstile_required'] == true) {
+        // Do not forge or bypass a Turnstile challenge. A browser-based token
+        // flow can be added independently if MangaTek requires it here.
+        return null;
+      }
+      body.addAll({'nonce': nonce, 'pow': pow});
+      response = await _postReaderJson(
+        'https://api.mangatek.com/api/reader/unlock',
+        body,
+        headers,
+      );
     }
-    return bytes;
+    if (response['denied'] == true) return null;
+    final encrypted = '${response['overlay'] ?? ''}';
+    if (encrypted.isEmpty) return null;
+    final keySeed = response['ks'] == null ? null : '${response['ks']}';
+    final key = response['key'] == null ? null : '${response['key']}';
+    if (keySeed != null) {
+      return MangaTekOverlayCrypto.decryptEnvelope(
+        readerSeed: seeds.readerSeed,
+        overlay: encrypted,
+        keySeed: keySeed,
+        token: token,
+        chapterId: chapterId,
+      );
+    }
+    if (key != null) {
+      return MangaTekOverlayCrypto.decryptHexBlob(encrypted, keyHex: key);
+    }
+    return null;
   }
 
-  Future<String> _readerProofSalt(Document document) async {
+  Future<Map<String, dynamic>> _postReaderJson(
+    String url,
+    Map<String, dynamic> body,
+    Map<String, String> headers,
+  ) async {
+    final response = await _client
+        .post(Uri.parse(url), headers: headers, body: jsonEncode(body))
+        .timeout(const Duration(seconds: 25));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('MangaTek reader API failed (${response.statusCode}).');
+    }
+    final decoded =
+        jsonDecode(utf8.decode(response.bodyBytes, allowMalformed: true));
+    if (decoded is! Map) {
+      throw const FormatException('Invalid reader API response.');
+    }
+    return Map<String, dynamic>.from(decoded);
+  }
+
+  Future<String?> _proofOfWork(String nonce, int bits) async {
+    if (bits <= 0) return null;
+    for (var counter = 0; counter < 5000000; counter++) {
+      final answer = counter.toRadixString(36);
+      final digest = sha256.convert(utf8.encode('$nonce:$answer')).bytes;
+      var zeroBits = 0;
+      for (final byte in digest) {
+        if (byte == 0) {
+          zeroBits += 8;
+          continue;
+        }
+        var mask = 0x80;
+        while ((byte & mask) == 0) {
+          zeroBits++;
+          mask >>= 1;
+        }
+        break;
+      }
+      if (zeroBits >= bits) return answer;
+      if (counter % 10000 == 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+    return null;
+  }
+
+  Future<MangatekBundleSeeds> _readerSeeds(Document document) async {
     final component = document
         .querySelector('astro-island[component-url*="ChapterImageViewer"]')
         ?.attributes['component-url'];
-    if (component == null || component.isEmpty) return '';
+    if (component == null || component.isEmpty) {
+      throw const MangatekBundleSeedsException(
+        'Unable to locate the MangaTek reader bundle.',
+      );
+    }
     final bundleUrl = mangaAbsoluteUrl(_site, component);
-    if (bundleUrl.isEmpty) return '';
-    final response = await _client.get(Uri.parse(bundleUrl), headers: const {
-      'Accept': 'application/javascript',
-      'User-Agent': 'MangaPlus/1.1',
-    }).timeout(const Duration(seconds: 25));
-    if (response.statusCode < 200 || response.statusCode >= 300) return '';
-    // Keep this tolerant because Astro changes bundle formatting between releases.
-    final match = RegExp(r'''proofSalt["']?\s*[:=]\s*["']([^"']+)["']''')
-        .firstMatch(utf8.decode(response.bodyBytes, allowMalformed: true));
-    return match?.group(1) ?? '';
+    if (bundleUrl.isEmpty) {
+      throw const MangatekBundleSeedsException('Invalid reader bundle URL.');
+    }
+    final pending = _readerSeedCache.putIfAbsent(bundleUrl, () async {
+      final response = await _client.get(Uri.parse(bundleUrl), headers: const {
+        'Accept': 'application/javascript',
+        'User-Agent': MangaTekFingerprint.userAgent,
+      }).timeout(const Duration(seconds: 25));
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw MangatekBundleSeedsException(
+          'Could not load reader bundle (${response.statusCode}).',
+        );
+      }
+      final script = utf8.decode(response.bodyBytes, allowMalformed: true);
+      return extractMangatekBundleSeeds(script);
+    });
+    try {
+      return await pending;
+    } catch (_) {
+      _readerSeedCache.remove(bundleUrl);
+      rethrow;
+    }
   }
 
   Map<String, dynamic> _item(
@@ -542,9 +731,12 @@ class MangaTekSource extends ContentSource {
       mangaDateFromUnixSeconds(SourceValues.text(value));
 
   String _htmlRating(Document document) {
-    final raw = document.querySelector('[itemprop=ratingValue]')?.attributes['content'] ??
+    final raw = document
+            .querySelector('[itemprop=ratingValue]')
+            ?.attributes['content'] ??
         document.querySelector('[data-rating]')?.attributes['data-rating'] ??
-        mangaHtmlText(document.querySelector('.rating, .rate, .rating-value, #rating'));
+        mangaHtmlText(
+            document.querySelector('.rating, .rate, .rating-value, #rating'));
     return SourceValues.rating(raw);
   }
 
@@ -552,8 +744,7 @@ class MangaTekSource extends ContentSource {
     final response = await _client.get(Uri.parse(url), headers: const {
       'Accept': 'text/html,application/xhtml+xml',
       'Accept-Language': 'ar,en;q=0.8',
-      'User-Agent':
-          'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+      'User-Agent': MangaTekFingerprint.userAgent,
     }).timeout(const Duration(seconds: 25));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('MangaTek: فشل طلب المصدر (${response.statusCode}).');
@@ -588,8 +779,9 @@ class MangaTekSource extends ContentSource {
         data = _asMap((await _apiGet('/api/manga/${data['id']}'))['data']);
       }
     }
-    if (data.isEmpty)
+    if (data.isEmpty) {
       throw Exception('MangaTek: لم يتم العثور على تفاصيل المانجا.');
+    }
     final actualSlug = '${data['slug'] ?? slug}';
     final chapters =
         _chapters(data['MangaChapters'] ?? data['chapters'], actualSlug);
@@ -616,7 +808,9 @@ class MangaTekSource extends ContentSource {
         'author': '${data['author'] ?? ''}',
         'status': _status('${data['status'] ?? ''}'),
         'rating': SourceValues.rating(data['rating'] ??
-            data['rating_score'] ?? data['average_rating'] ?? data['score']),
+            data['rating_score'] ??
+            data['average_rating'] ??
+            data['score']),
         'total_chapters': chapters.length,
         'latest_chapter_number':
             chapters.isEmpty ? '' : chapters.first['number'] ?? '',
@@ -671,11 +865,13 @@ class MangaTekSource extends ContentSource {
   }
 
   dynamic _unwrap(dynamic value) {
-    if (value is List && value.length == 2 && value.first is String)
+    if (value is List && value.length == 2 && value.first is String) {
       return _unwrap(value[1]);
+    }
     if (value is List) return value.map(_unwrap).toList();
-    if (value is Map)
+    if (value is Map) {
       return value.map((key, item) => MapEntry(key, _unwrap(item)));
+    }
     return value;
   }
 

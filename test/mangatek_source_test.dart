@@ -72,9 +72,11 @@ void main() {
     expect(latest.single.containsKey('latest_chapter_number'), isFalse);
   });
 
-  test('reader includes lazy srcset pages omitted by initial image selectors', () async {
+  test('reader includes lazy srcset pages omitted by initial image selectors',
+      () async {
     final source = MangaTekSource(
-      client: MockClient((request) async => http.Response(_lazyReaderPage, 200)),
+      client:
+          MockClient((request) async => http.Response(_lazyReaderPage, 200)),
     );
     final chapter = await source.chapterImages(
       'mangatek://chapter?slug=fixture&number=14',
@@ -85,6 +87,50 @@ void main() {
     ]);
   });
 
+  test('reader does not silently return an incomplete pending-page list',
+      () async {
+    final source = MangaTekSource(
+      client: MockClient((request) async {
+        if (request.url.path == '/reader/fixture/15') {
+          return http.Response(_pendingReaderPage, 200);
+        }
+        if (request.url.path == '/_astro/ChapterImageViewer.js') {
+          return http.Response('function currentReaderBundle() {}', 200);
+        }
+        fail('Unexpected URL: ${request.url}');
+      }),
+    );
+
+    await expectLater(
+      source.chapterImages(
+        'mangatek://chapter?slug=fixture&number=15',
+      ),
+      throwsA(isA<Exception>()),
+    );
+  });
+
+  test('reader does not trust an embedded list when server credentials exist',
+      () async {
+    final source = MangaTekSource(
+      client: MockClient((request) async {
+        if (request.url.path == '/reader/fixture/16') {
+          return http.Response(_credentialReaderPage, 200);
+        }
+        if (request.url.path == '/_astro/ChapterImageViewer.js') {
+          return http.Response('not the expected MangaTek reader bundle', 200);
+        }
+        fail('Unexpected URL: ${request.url}');
+      }),
+    );
+
+    await expectLater(
+      source.chapterImages(
+        'mangatek://chapter?slug=fixture&number=16',
+      ),
+      throwsA(isA<Exception>()),
+    );
+  });
+
   test('API details expose rating and newest chapter date', () async {
     var detailRequests = 0;
     final source = MangaTekSource(
@@ -93,19 +139,33 @@ void main() {
           return http.Response('server error', 500);
         }
         if (request.url.path == '/api/manga') {
-          return http.Response(jsonEncode({'data': {'mangas': [
-            {'id': 7, 'slug': 'fixture', 'title': 'Fixture'}
-          ]}}), 200, headers: {'content-type': 'application/json'});
+          return http.Response(
+              jsonEncode({
+                'data': {
+                  'mangas': [
+                    {'id': 7, 'slug': 'fixture', 'title': 'Fixture'}
+                  ]
+                }
+              }),
+              200,
+              headers: {'content-type': 'application/json'});
         }
         if (request.url.path == '/api/manga/7') {
           detailRequests++;
-          return http.Response(jsonEncode({'data': {
-            'slug': 'fixture', 'title': 'Fixture', 'rating_score': 8.7,
-            'chapters': [
-              {'number': 3, 'release_date': '2026-11-07T10:00:00Z'},
-              {'number': 2, 'created_at': 1793959200},
-            ],
-          }}), 200, headers: {'content-type': 'application/json'});
+          return http.Response(
+              jsonEncode({
+                'data': {
+                  'slug': 'fixture',
+                  'title': 'Fixture',
+                  'rating_score': 8.7,
+                  'chapters': [
+                    {'number': 3, 'release_date': '2026-11-07T10:00:00Z'},
+                    {'number': 2, 'created_at': 1793959200},
+                  ],
+                }
+              }),
+              200,
+              headers: {'content-type': 'application/json'});
         }
         fail('Unexpected URL: ${request.url}');
       }),
@@ -173,4 +233,18 @@ const _lazyReaderPage = '''
   <img data-lazy-src="https://api.mangatek.com/chapters/450/14/01.webp">
   <picture><source data-lazy-srcset="https://api.mangatek.com/chapters/450/14/02.webp 1x, https://api.mangatek.com/chapters/450/14/02@2x.webp 2x"></picture>
 </div></body></html>
+''';
+
+const _pendingReaderPage = '''
+<html><body>
+  <astro-island component-url="/_astro/ChapterImageViewer.js"
+    props='{"imageUrls":[{"url":"https://api.mangatek.com/chapters/1.webp"},{"url":"","pending":true}],"chapterId":15,"unlockToken":"test-token","mangaSlug":"fixture","chapterRef":"15"}'></astro-island>
+</body></html>
+''';
+
+const _credentialReaderPage = '''
+<html><body>
+  <astro-island component-url="/_astro/ChapterImageViewer.js"
+    props='{"imageUrls":["https://api.mangatek.com/chapters/1.webp"],"chapterId":16,"unlockToken":"test-token","mangaSlug":"fixture","chapterRef":"16"}'></astro-island>
+</body></html>
 ''';
