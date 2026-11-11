@@ -22,7 +22,8 @@ android {
 
     defaultConfig {
         applicationId "com.mangaplus.app"
-        minSdkVersion flutter.minSdkVersion
+        // Firebase Auth 23.2.1 requires API 23 or newer.
+        minSdkVersion 23
         targetSdk flutter.targetSdkVersion
         versionCode flutter.versionCode
         versionName flutter.versionName
