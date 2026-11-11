@@ -27,9 +27,6 @@ class SourceBrand {
     'manga_online': 'https://manonga.online',
     'lava scans': 'https://lavascans.com',
     'lava_scans': 'https://lavascans.com',
-    'mangatek': 'https://mangatek.com',
-    'manga sid': 'https://mangasid.com',
-    'mangasid': 'https://mangasid.com',
     'mknov': 'https://mknov.com',
     'kawaii manga': 'https://kawaiimanga.org',
     'kawaii_manga': 'https://kawaiimanga.org',
@@ -79,9 +76,9 @@ class SourceBrand {
 
   static Future<Uri?> _loadIcon(Uri site) async {
     try {
-      final response = await http
-          .get(site, headers: const {'User-Agent': 'Mozilla/5.0 MangaPlus'})
-          .timeout(const Duration(seconds: 6));
+      final response = await http.get(site, headers: const {
+        'User-Agent': 'Mozilla/5.0 MangaPlus'
+      }).timeout(const Duration(seconds: 6));
       if (response.statusCode >= 200 && response.statusCode < 400) {
         final document = html_parser.parse(response.body);
         final links = document.querySelectorAll('link[rel][href]');
@@ -89,8 +86,8 @@ class SourceBrand {
           (element) {
             final rel = (element.attributes['rel'] ?? '').toLowerCase();
             return rel.split(RegExp(r'\s+')).any(
-              (value) => value == 'icon' || value == 'shortcut',
-            );
+                  (value) => value == 'icon' || value == 'shortcut',
+                );
           },
           orElse: () => null,
         );

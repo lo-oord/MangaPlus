@@ -68,16 +68,16 @@ void main() {
       expect(item.status, SourceValues.statusOngoing);
     });
 
-    test('normalizes MangaTek on_hiatus and prefers real chapter list count', () {
+    test('normalizes on_hiatus and prefers real chapter list count', () {
       final item = ComicService.mapComicItem({
-        'comic_id': 'mt-1',
-        'title': 'MangaTek Work',
-        'link': 'https://mangatek.test/work',
+        'comic_id': 'fixture-1',
+        'title': 'Fixture Work',
+        'link': 'https://fixture.test/work',
         'image': 'https://cdn.test/cover.jpg',
         'status': 'on_hiatus',
         'total_chapters': 0,
         'chapters': [
-          {'url': 'https://mangatek.test/c/10', 'number': 10},
+          {'url': 'https://fixture.test/c/10', 'number': 10},
         ],
       });
       expect(item.status, SourceValues.statusHiatus);
@@ -90,7 +90,10 @@ void main() {
         'title': 'Nested',
         'link': 'https://site.test/n',
         'image': 'https://cdn.test/n.jpg',
-        'details': {'status': {'name': 'Completed'}, 'chaptersCount': 87},
+        'details': {
+          'status': {'name': 'Completed'},
+          'chaptersCount': 87
+        },
       });
       expect(item.status, SourceValues.statusCompleted);
       expect(item.totalChapters, '87');
@@ -109,7 +112,8 @@ void main() {
   });
 
   group('ComicService.mapComicDetail regressions', () {
-    test('extracts author/artist/translator and de-dupes alternative titles', () {
+    test('extracts author/artist/translator and de-dupes alternative titles',
+        () {
       final detail = ComicService.mapComicDetail({
         'comic_id': 'd1',
         'title': 'Title',

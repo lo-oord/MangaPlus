@@ -54,7 +54,6 @@ jobs:
           test/home_source_selection_test.dart
           test/manga_swat_source_test.dart
           test/lava_scans_source_test.dart
-          test/mangatek_source_test.dart
           test/mknov_source_test.dart
           test/cenele_source_test.dart
           test/mangadar_source_test.dart

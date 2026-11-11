@@ -3,6 +3,9 @@
 Audit date: 2026-11-07 · Flutter 3.27.1 / Dart 3.6.0 · package `mangaplus` ·
 application id `com.mangaplus.app`.
 
+Update 2026-11-11: MangaTek and Mangasid were subsequently removed from the
+active app registry; source counts below describe the original audit snapshot.
+
 ## Project Health
 
 | Check | Result |
@@ -29,9 +32,8 @@ Verified live, independently, per source:
   (Cloudflare / Turnstile).
 - **Offline upstream (1):** Asgard Scans (domain stopped serving the site).
 
-Blocked sources remain registered and fail in isolation, so the feed, search and
-reader keep working. No source was removed or replaced, and no source name is
-shown in the UI.
+MangaTek and Mangasid are no longer registered. The remaining blocked sources
+still fail in isolation, so the feed, search and reader keep working.
 
 ## Features Audit
 

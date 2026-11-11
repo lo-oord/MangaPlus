@@ -2,6 +2,9 @@
 
 Last verified: 2026-11-06 (live network, Flutter 3.27.1 / Dart 3.6.0).
 
+Update 2026-11-11: MangaTek and Mangasid were removed from the active app registry;
+their rows below preserve the historical probe results only.
+
 ## How to reproduce
 
 Hermetic registry contract (runs in CI with no network):
@@ -41,13 +44,13 @@ errors, and search returns whatever healthy sources produce.
 | MKNOV | `mknov` | pass | pass | network/parse pass; native WOFF2 decode skipped in VM | Partially verified (Android-only decoder) |
 | Cenele Manga | `cenele_manga` | pass | pass | text pass | Fixed: catalog pagination no longer aborts on a 404 page; reader selector updated for `story-fold` |
 | Cenele Novels | `cenele_novels` | pass | pass | text pass | Fixed: same catalog + reader fixes |
-| MangaTek | `mangatek` | pass (API) | pass (fixed runtime crash in genre parsing) | blocked: `mangatek.com` returns Cloudflare 403 to non-browser clients | Partially working |
-| Mangasid | `mangasid` | blocked: Cloudflare "Just a moment" 403 | blocked | blocked | Blocked upstream |
+| MangaTek | `mangatek` | pass (API) | pass (fixed runtime crash in genre parsing) | blocked: `mangatek.com` returns Cloudflare 403 to non-browser clients | Removed from app (historically partially working) |
+| Mangasid | `mangasid` | blocked: Cloudflare "Just a moment" 403 | blocked | blocked | Removed from app (historically blocked upstream) |
 | MangaDar | `mangadar` | blocked: Cloudflare 403 | blocked | blocked | Blocked upstream |
 | ProComic | `procomic` | blocked: API now requires a Cloudflare Turnstile token | blocked | blocked | Blocked upstream |
 | Hijala | `hijala` | blocked: Cloudflare 403 | blocked | blocked | Blocked upstream |
 | Asgard Scans | `asgard` | unavailable: domain serves a "website stopped" page (404 on all routes) | unavailable | unavailable | Offline upstream |
 
-No source was deleted, renamed in the UI, or replaced. The blocked sources stay
-registered and fail in isolation, so the home feed, search and the reader keep
-working with the remaining sources.
+MangaTek and Mangasid are no longer registered and cannot be resolved by URL.
+Other blocked sources stay registered and fail in isolation, so the home feed,
+search and reader keep working with the remaining sources.

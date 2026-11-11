@@ -4,8 +4,6 @@ import 'azora_source.dart';
 import 'mangatime_source.dart';
 import 'manga_online_source.dart';
 import 'lava_scans_source.dart';
-import 'mangatek_source.dart';
-import 'manga_sid_source.dart';
 import 'team_x_source.dart';
 import 'mknov_source.dart';
 import 'kawaii_manga_source.dart';
@@ -32,8 +30,6 @@ class MangaSourceRegistry {
   static final MangaTimeSource mangaTime = MangaTimeSource();
   static final MangaOnlineSource mangaOnline = MangaOnlineSource();
   static final LavaScansSource lavaScans = LavaScansSource();
-  static final MangaTekSource mangaTek = MangaTekSource();
-  static final MangaSidSource mangaSid = MangaSidSource();
   static final MknovSource mknov = MknovSource();
   static final KawaiiMangaSource kawaiiManga = KawaiiMangaSource();
   static final KawaiiNovelsSource kawaiiNovels = KawaiiNovelsSource();
@@ -70,8 +66,6 @@ class MangaSourceRegistry {
         mangaTime,
         mangaOnline,
         lavaScans,
-        mangaTek,
-        mangaSid,
         mknov,
         kawaiiManga,
         kawaiiNovels,
@@ -110,21 +104,21 @@ class MangaSourceRegistry {
               source.id == 'kawaii_novels'
                   ? const Duration(seconds: 90)
                   : source.id == 'mknov'
-                  ? const Duration(seconds: 45)
-                  : source.id == 'azora'
-                  ? const Duration(seconds: 35)
-                  : source.id == 'mangasid'
-                  ? const Duration(seconds: 30)
-                  : const Duration(seconds: 18),
+                      ? const Duration(seconds: 45)
+                      : source.id == 'azora'
+                          ? const Duration(seconds: 35)
+                          : const Duration(seconds: 18),
             );
         final relevant = result.where(
           (item) => SearchRelevance.isRelevant(query, item),
         );
-        final tagged = relevant.map((item) => {
-              ...item,
-              'source_id': item['source_id'] ?? source.id,
-              'source': item['source'] ?? source.name,
-            }).toList(growable: false);
+        final tagged = relevant
+            .map((item) => {
+                  ...item,
+                  'source_id': item['source_id'] ?? source.id,
+                  'source': item['source'] ?? source.name,
+                })
+            .toList(growable: false);
         if (tagged.isNotEmpty) {
           batches.addAll(tagged);
           onBatch?.call(tagged);
