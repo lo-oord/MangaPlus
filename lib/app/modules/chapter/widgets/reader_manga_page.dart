@@ -129,7 +129,7 @@ class _ReaderMangaPageState extends State<ReaderMangaPage>
     _zoomAnimation = controller;
     final animation = Matrix4Tween(
       begin: Matrix4.identity(),
-      end: Matrix4.identity()..scaleByDouble(2.4, 2.4, 2.4, 1),
+      end: Matrix4.identity()..scale(2.4, 2.4, 2.4),
     ).animate(CurvedAnimation(parent: controller, curve: Curves.easeOutCubic));
     _zoomTween = animation;
     controller.addListener(() => _zoom.value = animation.value);

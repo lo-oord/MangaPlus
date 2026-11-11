@@ -1312,7 +1312,11 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
         contentPadding: EdgeInsets.zero,
         value: value,
         onChanged: onChanged,
-        activeThumbColor: AppColors.primary,
+        thumbColor: MaterialStateProperty.resolveWith<Color?>((states) {
+          return states.contains(MaterialState.selected)
+              ? AppColors.primary
+              : null;
+        }),
         title: Text(title,
             style: TextStyle(
                 color: AppColors.textPrimary,
