@@ -744,13 +744,18 @@ class _ChapterViewState extends State<ChapterView>
     final key = _paragraphKeys[index];
     final context = key?.currentContext;
     if (context != null) {
-      await Scrollable.ensureVisible(
-        context,
-        alignment: .06,
-        duration: animate ? const Duration(milliseconds: 260) : Duration.zero,
-        curve: Curves.easeOutCubic,
-      );
-      _novelAnchor = index;
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final ctx = key?.currentContext;
+        if (ctx == null) return;
+        Scrollable.ensureVisible(
+          ctx,
+          alignment: .06,
+          duration: animate ? const Duration(milliseconds: 260) : Duration.zero,
+          curve: Curves.easeOutCubic,
+        );
+        _novelAnchor = index;
+      });
       return;
     }
     final scroll = c.scrollController;
@@ -764,16 +769,23 @@ class _ChapterViewState extends State<ChapterView>
     // passes converge even for very long chapters.
     for (var attempt = 0; attempt < 6; attempt++) {
       await WidgetsBinding.instance.endOfFrame;
-      final targetContext = _paragraphKeys[index]?.currentContext;
+      final targetKey = _paragraphKeys[index];
+      if (targetKey == null) continue;
+      final targetContext = targetKey.currentContext;
       if (targetContext != null) {
-        await Scrollable.ensureVisible(
-          targetContext,
-          alignment: .06,
-          duration: animate && attempt == 0
-              ? const Duration(milliseconds: 220)
-              : Duration.zero,
-        );
-        _novelAnchor = index;
+        SchedulerBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final ctx = targetKey.currentContext;
+          if (ctx == null) return;
+          Scrollable.ensureVisible(
+            ctx,
+            alignment: .06,
+            duration: animate && attempt == 0
+                ? const Duration(milliseconds: 220)
+                : Duration.zero,
+          );
+          _novelAnchor = index;
+        });
         return;
       }
       final position = scroll.position;

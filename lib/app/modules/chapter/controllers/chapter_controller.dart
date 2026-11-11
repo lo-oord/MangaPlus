@@ -2691,8 +2691,9 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     final session = _readingStatsSession;
     final idle = _readingStatsIdleStopwatch;
     final clock = _readingStatsClock;
-    if (session == null || idle == null || clock == null || !clock.isRunning)
+    if (session == null || idle == null || clock == null || !clock.isRunning) {
       return;
+    }
     final elapsedMilliseconds = clock.elapsedMilliseconds;
     if (elapsedMilliseconds <= 0) return;
     final idleStartMilliseconds =
