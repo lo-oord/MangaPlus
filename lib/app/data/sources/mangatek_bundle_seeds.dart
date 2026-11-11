@@ -1,8 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_js/flutter_js.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 /// A failure to parse or verify the Mangatek reader bundle.
 class MangatekBundleSeedsException implements Exception {
@@ -124,7 +125,7 @@ class _Bundle {
         '$prelude JSON.stringify([${sites.map((s) => '(() => { try { return String(${s.expression}) } catch (e) { return null } })()').join(',')}])';
     try {
       final resultJson = evaluator == null
-          ? await _evaluateWithQuickJs(script)
+          ? await _evaluateWithWebView(script)
           : await evaluator!(script);
       final decoded = jsonDecode(resultJson);
       if (decoded is! List) {
@@ -176,18 +177,53 @@ class _Bundle {
     }
   }
 
-  Future<String> _evaluateWithQuickJs(String script) async {
-    final runtime = getJavascriptRuntime();
+  Future<String> _evaluateWithWebView(String script) async {
+    final result = Completer<String>();
+    final webView = HeadlessInAppWebView(
+      initialData: InAppWebViewInitialData(
+        data: '<!doctype html><html><head></head><body></body></html>',
+        mimeType: 'text/html',
+        encoding: 'utf-8',
+      ),
+      initialSettings: InAppWebViewSettings(
+        javaScriptEnabled: true,
+        domStorageEnabled: false,
+        cacheEnabled: false,
+      ),
+      onLoadStop: (controller, _) async {
+        if (result.isCompleted) return;
+        try {
+          final evaluated = await controller.evaluateJavascript(source: script);
+          if (evaluated is String) {
+            result.complete(evaluated);
+          } else if (evaluated != null) {
+            result.complete(jsonEncode(evaluated));
+          } else {
+            result.completeError(
+              const MangatekBundleSeedsException(
+                'Reader bundle JavaScript evaluation returned no value',
+              ),
+            );
+          }
+        } catch (error, stackTrace) {
+          if (!result.isCompleted) result.completeError(error, stackTrace);
+        }
+      },
+      onReceivedError: (_, request, error) {
+        if (!result.isCompleted && request.isForMainFrame == true) {
+          result.completeError(
+            MangatekBundleSeedsException(
+              'Unable to initialize reader JavaScript evaluator: ${error.description}',
+            ),
+          );
+        }
+      },
+    );
     try {
-      final result = runtime.evaluate(script);
-      if (result.isError) {
-        throw const MangatekBundleSeedsException(
-          'Reader bundle JavaScript evaluation failed',
-        );
-      }
-      return result.stringResult;
+      await webView.run();
+      return await result.future.timeout(const Duration(seconds: 20));
     } finally {
-      runtime.dispose();
+      await webView.dispose();
     }
   }
 
