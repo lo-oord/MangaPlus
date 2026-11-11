@@ -3,6 +3,7 @@ package com.mangaplus.app
 import android.content.Intent
 import android.net.Uri
 import android.os.PowerManager
+import android.view.WindowManager
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -47,6 +48,26 @@ class MainActivity : FlutterActivity() {
                         )
                     }
                 }
+            }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "com.mangaplus.app/reader",
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "setKeepScreenOn" -> {
+                    val enabled = call.arguments as? Boolean ?: false
+                    runOnUiThread {
+                        if (enabled) {
+                            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        } else {
+                            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        }
+                    }
+                    result.success(null)
+                }
+                else -> result.notImplemented()
             }
         }
 

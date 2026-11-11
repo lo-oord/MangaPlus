@@ -10,6 +10,8 @@ import 'package:mangaplus/app/data/models/comic_detail.dart';
 import 'package:mangaplus/app/data/models/download_task.dart';
 import 'package:mangaplus/app/data/models/downloaded_chapter.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
+import 'package:mangaplus/app/core/reader/reader_image_source.dart';
+import 'package:mangaplus/app/core/reader/reader_page_geometry.dart';
 import 'package:mangaplus/app/data/services/notification_presentation.dart';
 import 'package:mangaplus/app/data/sources/team_x_source.dart';
 import 'package:path_provider/path_provider.dart';
@@ -51,6 +53,7 @@ class DownloadManagerService extends GetxService {
     _httpClient.close();
     super.onClose();
   }
+
   Future<void> _load() async {
     final raw = _storage.read<List<dynamic>>(_tasksKey) ?? const [];
     tasks.assignAll(raw.whereType<Map>().map((item) {
@@ -99,14 +102,19 @@ class DownloadManagerService extends GetxService {
     bool grouped = false,
     bool isNovel = false,
   }) async {
-    final downloaded = _storage.read<List<dynamic>>('downloadedChapters') ?? const [];
+    final downloaded =
+        _storage.read<List<dynamic>>('downloadedChapters') ?? const [];
     final downloadedIds = downloaded
         .whereType<Map>()
-        .where((item) => (item['isNovel'] == true || (item['content']?.toString().isNotEmpty ?? false)) == isNovel)
+        .where((item) =>
+            (item['isNovel'] == true ||
+                (item['content']?.toString().isNotEmpty ?? false)) ==
+            isNovel)
         .map((item) => '${item['chapterId'] ?? ''}')
         .toSet();
     final activeIds = tasks
-        .where((task) => task.status != DownloadTaskStatus.completed &&
+        .where((task) =>
+            task.status != DownloadTaskStatus.completed &&
             task.status != DownloadTaskStatus.cancelled)
         .where((task) => task.isNovel == isNovel)
         .expand((task) => task.chapters)
@@ -148,7 +156,8 @@ class DownloadManagerService extends GetxService {
   Future<void> resume(String taskId) async {
     final task = _task(taskId);
     if (task == null || task.status == DownloadTaskStatus.completed) return;
-    await _replace(task.copyWith(status: DownloadTaskStatus.queued, clearError: true));
+    await _replace(
+        task.copyWith(status: DownloadTaskStatus.queued, clearError: true));
     unawaited(_pump());
   }
 
@@ -164,9 +173,7 @@ class DownloadManagerService extends GetxService {
     final task = _task(taskId);
     if (task == null) return;
     final failed = task.failedChapterIds.toSet();
-    final completed = failedOnly
-        ? task.completedChapterIds
-        : const <String>[];
+    final completed = failedOnly ? task.completedChapterIds : const <String>[];
     final progress = Map<String, double>.from(task.chapterProgress)
       ..removeWhere((id, _) => failed.contains(id) || !failedOnly);
     await _replace(task.copyWith(
@@ -269,7 +276,8 @@ class DownloadManagerService extends GetxService {
     await _notify(_task(original.id)!);
   }
 
-  Future<void> _downloadNovelChapter(DownloadTask task, String chapterId, String chapterTitle) async {
+  Future<void> _downloadNovelChapter(
+      DownloadTask task, String chapterId, String chapterTitle) async {
     final current = _task(task.id);
     if (current?.status == DownloadTaskStatus.paused ||
         current?.status == DownloadTaskStatus.cancelled) {
@@ -287,16 +295,36 @@ class DownloadManagerService extends GetxService {
     chapterProgress.refresh();
     await _storage.write(_progressKey, chapterProgress);
     final live = _task(task.id);
-    if (live != null) await _replace(live.copyWith(chapterProgress: {...live.chapterProgress, chapterId: 1.0}), notify: false);
+    if (live != null)
+      await _replace(
+          live.copyWith(
+              chapterProgress: {...live.chapterProgress, chapterId: 1.0}),
+          notify: false);
     await _saveDownloadedNovelChapter(task, chapterId, chapterTitle, content);
   }
-  Future<void> _saveDownloadedNovelChapter(DownloadTask task, String chapterId, String chapterTitle, String content) async {
+
+  Future<void> _saveDownloadedNovelChapter(DownloadTask task, String chapterId,
+      String chapterTitle, String content) async {
     final localCover = await _ensureLocalCover(task);
     final raw = _storage.read<List<dynamic>>('downloadedChapters') ?? [];
     raw.removeWhere((item) => item is Map && item['chapterId'] == chapterId);
-    raw.add(DownloadedChapter(comicId: task.comicId, chapterId: chapterId, comicTitle: task.comicTitle, chapterTitle: chapterTitle, coverImage: localCover, localImagePaths: const [], content: content, isNovel: true, downloadedAt: DateTime.now()).toJson());
+    raw.add(DownloadedChapter(
+      comicId: task.comicId,
+      chapterId: chapterId,
+      comicTitle: task.comicTitle,
+      chapterTitle: chapterTitle,
+      coverImage: localCover,
+      localImagePaths: const [],
+      content: content,
+      isNovel: true,
+      downloadedAt: DateTime.now(),
+      totalBytes: content.length,
+      complete: true,
+      formatVersion: DownloadedChapter.currentFormatVersion,
+    ).toJson());
     await _storage.write('downloadedChapters', raw);
   }
+
   Future<void> _downloadChapter(
     DownloadTask task,
     String chapterId,
@@ -313,6 +341,9 @@ class DownloadManagerService extends GetxService {
     await temp.create(recursive: true);
     final source = TeamXSource();
     final paths = List<String?>.filled(data.chapter.images.length, null);
+    final pageSizes =
+        List<ReaderPageSize?>.filled(data.chapter.images.length, null);
+    var totalBytes = 0;
     var completedPages = 0;
     var lastNotifiedPercent = 0;
     var nextIndex = 0;
@@ -336,14 +367,15 @@ class DownloadManagerService extends GetxService {
                     'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
               }
             : imageUri.host.contains('olympustaff.com')
-            ? source.imageRequestHeaders
-            : <String, String>{
-                'Referer': '${imageUri.scheme}://${imageUri.host}/',
-                'User-Agent':
-                    'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
-              };
+                ? source.imageRequestHeaders
+                : <String, String>{
+                    'Referer': '${imageUri.scheme}://${imageUri.host}/',
+                    'User-Agent':
+                        'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+                  };
         final response = await _getImageWithRetry(imageUri, headers);
-        final contentType = response.headers['content-type']?.toLowerCase() ?? '';
+        final contentType =
+            response.headers['content-type']?.toLowerCase() ?? '';
         final extension = contentType.contains('png')
             ? 'png'
             : contentType.contains('webp')
@@ -354,6 +386,8 @@ class DownloadManagerService extends GetxService {
         final file = File('${temp.path}/page_${index + 1}.$extension');
         await file.writeAsBytes(response.bodyBytes, flush: false);
         paths[index] = file.path;
+        pageSizes[index] = await measureEncodedImageBytes(response.bodyBytes);
+        totalBytes += response.bodyBytes.length;
         completedPages++;
         final progress = completedPages / data.chapter.images.length;
         chapterProgress[chapterId] = progress;
@@ -364,9 +398,12 @@ class DownloadManagerService extends GetxService {
         }
         final live = _task(task.id);
         if (live != null) {
-          await _replace(live.copyWith(
-            chapterProgress: {...live.chapterProgress, chapterId: progress},
-          ), notify: false, persist: shouldCheckpoint);
+          await _replace(
+              live.copyWith(
+                chapterProgress: {...live.chapterProgress, chapterId: progress},
+              ),
+              notify: false,
+              persist: shouldCheckpoint);
         }
         final percent = (progress * 100).floor();
         if (isLastPage || percent - lastNotifiedPercent >= 12) {
@@ -376,10 +413,10 @@ class DownloadManagerService extends GetxService {
         }
       }
     }
+
     try {
-      final concurrency = data.chapter.images.length < 3
-          ? data.chapter.images.length
-          : 3;
+      final concurrency =
+          data.chapter.images.length < 3 ? data.chapter.images.length : 3;
       await Future.wait(List.generate(concurrency, (_) => downloadImage()));
       final current = _task(task.id);
       if (completedPages != data.chapter.images.length ||
@@ -392,7 +429,14 @@ class DownloadManagerService extends GetxService {
       final finalPaths = paths
           .map((path) => path!.replaceFirst(temp.path, finalDir.path))
           .toList(growable: false);
-      await _saveDownloadedChapter(task, chapterId, chapterTitle, finalPaths);
+      await _saveDownloadedChapter(
+        task,
+        chapterId,
+        chapterTitle,
+        finalPaths,
+        imageSizes: pageSizes,
+        totalBytes: totalBytes,
+      );
     } catch (_) {
       if (await temp.exists()) await temp.delete(recursive: true);
       rethrow;
@@ -429,12 +473,23 @@ class DownloadManagerService extends GetxService {
     }
     throw const HttpException('تعذر تحميل صورة الفصل بعد إعادة المحاولة.');
   }
+
   Future<void> _saveDownloadedChapter(
     DownloadTask task,
     String chapterId,
     String chapterTitle,
-    List<String> paths,
-  ) async {
+    List<String> paths, {
+    required List<ReaderPageSize?> imageSizes,
+    required int totalBytes,
+  }) async {
+    // The record is written only after every page was downloaded, renamed and
+    // verified. A half-finished download can therefore never look complete.
+    for (final path in paths) {
+      final file = File(path);
+      if (!file.existsSync() || file.lengthSync() <= 0) {
+        throw StateError('ملف صفحة ناقص في الفصل المحمّل.');
+      }
+    }
     final localCover = await _ensureLocalCover(task);
     final raw = _storage.read<List<dynamic>>('downloadedChapters') ?? [];
     raw.removeWhere((item) => item is Map && item['chapterId'] == chapterId);
@@ -446,6 +501,14 @@ class DownloadManagerService extends GetxService {
       coverImage: localCover,
       localImagePaths: paths,
       downloadedAt: DateTime.now(),
+      imageSizes: imageSizes
+          .map((size) => size == null ? const <int>[] : size.toJson())
+          .where((size) => size.length == 2)
+          .toList(growable: false),
+      pageCount: paths.length,
+      totalBytes: totalBytes,
+      complete: true,
+      formatVersion: DownloadedChapter.currentFormatVersion,
     ).toJson());
     await _storage.write('downloadedChapters', raw);
   }
@@ -467,8 +530,8 @@ class DownloadManagerService extends GetxService {
         'User-Agent':
             'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
       }).timeout(
-            const Duration(seconds: 15),
-          );
+        const Duration(seconds: 15),
+      );
       if (response.statusCode >= 200 && response.statusCode < 300) {
         await cachedFile.writeAsBytes(response.bodyBytes, flush: true);
         return cachedFile.path;
@@ -507,7 +570,8 @@ class DownloadManagerService extends GetxService {
   }
 
   Future<void> _persist() async {
-    await _storage.write(_tasksKey, tasks.map((task) => task.toJson()).toList());
+    await _storage.write(
+        _tasksKey, tasks.map((task) => task.toJson()).toList());
   }
 
   Future<void> _notify(DownloadTask task) async {
@@ -569,21 +633,23 @@ class DownloadManagerService extends GetxService {
           importance: Importance.low,
           priority: Priority.low,
           onlyAlertOnce: true,
-          largeIcon: coverPath == null ? null : FilePathAndroidBitmap(coverPath),
+          largeIcon:
+              coverPath == null ? null : FilePathAndroidBitmap(coverPath),
           showProgress: !isTerminal,
           maxProgress: 100,
           progress: isTerminal ? 0 : percent,
           ongoing: task.status == DownloadTaskStatus.downloading,
           autoCancel: task.status != DownloadTaskStatus.downloading,
-
           actions: actions,
         ),
       ),
       payload: task.status == DownloadTaskStatus.downloading
           ? 'pause|${task.id}'
-          : task.status == DownloadTaskStatus.paused || task.status == DownloadTaskStatus.queued
+          : task.status == DownloadTaskStatus.paused ||
+                  task.status == DownloadTaskStatus.queued
               ? 'resume|${task.id}'
-              : task.status == DownloadTaskStatus.failed || task.status == DownloadTaskStatus.partiallyCompleted
+              : task.status == DownloadTaskStatus.failed ||
+                      task.status == DownloadTaskStatus.partiallyCompleted
                   ? 'retry|${task.id}'
                   : null,
     );

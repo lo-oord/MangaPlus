@@ -1,14 +1,15 @@
 import 'dart:async';
-import 'dart:io';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
-import 'package:mangaplus/app/core/utils/reader_load_issue.dart';
-import 'package:mangaplus/app/data/models/chapter.dart';
+import 'package:mangaplus/app/core/reader/novel_reader_model.dart';
+import 'package:mangaplus/app/core/reader/reader_page_geometry.dart';
+import 'package:mangaplus/app/core/utils/bidi_text.dart';
 import 'package:mangaplus/app/modules/chapter/controllers/chapter_controller.dart';
-import 'package:mangaplus/app/widgets/app_feedback.dart';
+import 'package:mangaplus/app/modules/chapter/widgets/reader_manga_page.dart';
+import 'package:mangaplus/app/modules/chapter/widgets/reader_tools_sheet.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
@@ -19,925 +20,678 @@ class ChapterView extends StatefulWidget {
   State<ChapterView> createState() => _ChapterViewState();
 }
 
-class _ChapterViewState extends State<ChapterView> {
-  ChapterController get controller => Get.find<ChapterController>();
+class _ChapterViewState extends State<ChapterView>
+    with TickerProviderStateMixin {
+  ChapterController get c => Get.find<ChapterController>();
 
-  final Map<String, GlobalKey> _pageKeys = <String, GlobalKey>{};
-  int _lastFollowedSpeechParagraph = -1;
-  bool _speechWasPlaying = false;
-  final Set<String> _preloadedImages = <String>{};
-  int _scrollAnchorPageIndex = 0;
-  double _scrollAnchorTop = 0;
-  double _scrollAnchorOffset = 0;
-  bool _pageUpdateQueued = false;
+  ReaderPageScrollIndex _index = ReaderPageScrollIndex.empty;
+  String _indexSignature = '';
+  int _anchorPage = 0;
+  double _anchorFraction = .5;
+  bool _restoreScheduled = false;
+  bool _initialScrollSynced = false;
+  String? _indexedChapterId;
+  int _lastWindowFirst = -1;
+  int _lastWindowLast = -1;
+
+  final Map<int, GlobalKey> _paragraphKeys = <int, GlobalKey>{};
+  int _novelAnchor = 0;
+  int _lastNovelRevision = -1;
+  int _lastSpeechParagraph = -1;
+
+  Ticker? _autoScrollTicker;
+  Duration _lastTick = Duration.zero;
+
+  @override
+  void dispose() {
+    _autoScrollTicker?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final images = controller.chapterData.value.chapter.images;
-      if (images.isNotEmpty && !controller.isOffline.value) {
-        _preloadImages(context, images);
-        if (controller.continuousNavigation.value) {
-          // Warm both boundaries as soon as chapter navigation is available.
-          // This keeps continuous scroll from waiting at either chapter edge.
-          _preloadAdjacentChapterImages(context);
-          _preloadAdjacentChapterImages(context, previous: true);
-        }
-      }
-    });
-
     return ThemeAwareBuilder(
-        builder: (context) => Scaffold(
-              backgroundColor: AppColors.background,
-              body: Stack(
-                children: [
-                  _buildContent(context),
-                  _buildPageLoadIndicator(context),
-                  _buildFloatingNavigation(),
-                ],
-              ),
-            ));
+      builder: (context) => Scaffold(
+        backgroundColor: _readerBackground(),
+        body: Stack(
+          children: [
+            Positioned.fill(child: _buildBody(context)),
+            _buildPageLoadChip(context),
+            _buildBrightnessOverlay(),
+            _buildChrome(context),
+          ],
+        ),
+      ),
+    );
   }
 
-  Widget _buildContent(BuildContext context) {
+  // ---------------------------------------------------------------------
+  // Content
+  // ---------------------------------------------------------------------
+
+  Widget _buildBody(BuildContext context) {
     return Obx(() {
-      if (controller.isLoading.value && !controller.hasReadableContent) {
+      // Subscribe to every layout-affecting setting once. The page list itself
+      // never depends on scroll progress, so it is not rebuilt while scrolling.
+      final mode = c.readerMode.value;
+      final fit = c.readerFit.value;
+      final gap = c.readerPageGap.value;
+      final metrics = c.pageMetricsRevision.value;
+      final doublePage = c.readerDoublePage.value;
+      final showTitle = c.showChapterTitle.value;
+      final isNovel = c.isNovel;
+      final offline = c.isOffline.value;
+      c.novelLayoutRevision.value;
+
+      if (c.isLoading.value && !c.hasReadableContent) {
         return BrandState(
           title: 'جارٍ تحميل الفصل'.tr,
           description: 'يتم تجهيز صفحات الفصل'.tr,
           loading: true,
         );
       }
-      if (controller.hasError.value) {
-        final issue = controller.loadIssue.value;
+      if (c.hasError.value) {
+        final issue = c.loadIssue.value;
         return BrandState(
           title: (issue?.titleKey ?? 'تعذر تحميل الفصل').tr,
           description:
               (issue?.descriptionKey ?? 'تعذر تحميل المحتوى. حاول مجددًا.').tr,
           icon: issue?.icon ?? Icons.error_outline_rounded,
           actionLabel: 'إعادة المحاولة'.tr,
-          onAction: () => controller.fetchChapter(controller.chapterId),
+          onAction: () => c.fetchChapter(c.chapterId),
         );
       }
-      final chapter = controller.chapterData.value.chapter;
-      if (controller.isNovel) {
+      final chapter = c.chapterData.value.chapter;
+      if (isNovel) {
         if (chapter.content.trim().isEmpty) {
           return BrandState(
             title: 'لا يوجد محتوى نصي متاح'.tr,
             actionLabel: 'إعادة المحاولة'.tr,
-            onAction: () => controller.fetchChapter(controller.chapterId),
+            onAction: () => c.fetchChapter(c.chapterId),
           );
         }
-        return _buildNovelContent(context, chapter);
+        return _buildNovel(context, chapter);
       }
       if (chapter.images.isEmpty) {
         return BrandState(
           title: 'لا توجد صور متاحة'.tr,
           actionLabel: 'إعادة المحاولة'.tr,
-          onAction: () => controller.fetchChapter(controller.chapterId),
+          onAction: () => c.fetchChapter(c.chapterId),
         );
       }
-      if (controller.readerMode.value == 'paged') {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (context.mounted) controller.syncPageController();
-        });
-        return GestureDetector(
-          onTapUp: (details) =>
-              _handlePagedTap(context, details, chapter.images.length),
-          behavior: HitTestBehavior.opaque,
-          child: Directionality(
-            textDirection: TextDirection.ltr,
-            child: PageView.builder(
-              controller: controller.pageController,
-              reverse: controller.readingDirection.value == 'rtl',
-              allowImplicitScrolling: true,
-              itemCount: chapter.images.length,
-              onPageChanged: (index) {
-                controller.onPageChanged(index);
-                if (!controller.isOffline.value) {
-                  _preloadImages(context, chapter.images, start: index + 1);
-                  if (index >= chapter.images.length - 2) {
-                    _preloadAdjacentChapterImages(context);
-                  }
-                  if (index <= 1) {
-                    _preloadAdjacentChapterImages(context, previous: true);
-                  }
-                }
-              },
-              itemBuilder: (context, index) =>
-                  _buildPagedImage(context, chapter.images[index], index),
-            ),
-          ),
-        );
-      }
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted) controller.syncScrollController();
-      });
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => _updateCurrentPage(context));
-      final chapterBoundaries =
-          controller.readerChapterPageRanges.skip(1).toList(growable: false);
-      final imageOccurrences = <String, int>{};
-      final pageKeys = chapter.images.map((image) {
-        final occurrence = imageOccurrences.update(
-          image,
-          (count) => count + 1,
-          ifAbsent: () => 0,
-        );
-        final identity = '$image\u0000$occurrence';
-        return _pageKeys.putIfAbsent(identity, GlobalKey.new);
-      }).toList(growable: false);
-      final childIndexes = <Key, int>{};
-      for (var pageIndex = 0; pageIndex < pageKeys.length; pageIndex++) {
-        final precedingDividers = chapterBoundaries
-            .where((range) => range.startIndex <= pageIndex)
-            .length;
-        childIndexes[pageKeys[pageIndex]] = pageIndex + precedingDividers;
-      }
-      return GestureDetector(
-        onTap: controller.toggleNavigationVisibility,
-        behavior: HitTestBehavior.opaque,
-        child: NotificationListener<ScrollNotification>(
-          onNotification: (notification) {
-            if (notification is ScrollUpdateNotification ||
-                notification is ScrollEndNotification) {
-              if (notification is ScrollUpdateNotification) {
-                _queueCurrentPageUpdate(context);
-              }
-              controller.handleScroll(
-                notification.metrics,
-                scrollDelta: notification is ScrollUpdateNotification
-                    ? notification.scrollDelta
-                    : null,
-                userInitiated: notification is ScrollUpdateNotification &&
-                    notification.dragDetails != null,
-                settled: notification is ScrollEndNotification,
-              );
-              if (notification.metrics.extentAfter <=
-                      notification.metrics.viewportDimension * 2 &&
-                  !controller.isOffline.value) {
-                _preloadAdjacentChapterImages(context);
-              }
-              if (notification.metrics.pixels <=
-                      notification.metrics.viewportDimension * 2 &&
-                  !controller.isOffline.value) {
-                _preloadAdjacentChapterImages(context, previous: true);
-              }
-            }
-            if (notification is OverscrollNotification) {
-              controller.handleScroll(
-                notification.metrics,
-                scrollDelta: notification.overscroll < 0 ? -1.0 : 1.0,
-              );
-            }
-            if (notification is ScrollEndNotification) {
-              final notificationContext = notification.context;
-              if (notificationContext != null) {
-                _queueCurrentPageUpdate(notificationContext);
-                if (!controller.isOffline.value) {
-                  _preloadImages(
-                    notificationContext,
-                    chapter.images,
-                    start: controller.currentPage.value + 1,
-                  );
-                }
-              }
-              controller.persistScrollOffset(notification.metrics.pixels);
-            }
-            return false;
-          },
-          child: ListView.builder(
-            controller: controller.scrollController,
-            cacheExtent: 1200,
-            itemCount: chapter.images.length + chapterBoundaries.length,
-            findChildIndexCallback: (key) => childIndexes[key],
-            itemBuilder: (context, index) {
-              var pageIndex = index;
-              for (var boundaryIndex = 0;
-                  boundaryIndex < chapterBoundaries.length;
-                  boundaryIndex++) {
-                final boundary = chapterBoundaries[boundaryIndex];
-                final insertionIndex = boundary.startIndex + boundaryIndex;
-                if (index == insertionIndex) {
-                  return _buildChapterDivider(
-                    title: controller.showChapterTitle.value
-                        ? controller.chapterDividerTitle(boundary.chapterId)
-                        : null,
-                  );
-                }
-                if (index > insertionIndex) pageIndex--;
-              }
-              return KeyedSubtree(
-                key: pageKeys[pageIndex],
-                child: _buildImage(
-                  context,
-                  chapter.images[pageIndex],
-                  pageIndex,
-                ),
-              );
-            },
-          ),
-        ),
-      );
+      // Keep the unused reads referenced so the analyzer does not drop them;
+      // the values above are genuine Obx dependencies.
+      assert(mode.isNotEmpty &&
+          fit.isNotEmpty &&
+          gap >= 0 &&
+          metrics >= 0 &&
+          (doublePage || !doublePage) &&
+          (showTitle || !showTitle) &&
+          (offline || !offline));
+      return mode == 'paged'
+          ? _buildPaged(context, chapter.images)
+          : _buildScroll(context, chapter.images);
     });
   }
 
-  Widget _buildNovelContent(BuildContext context, DataChapter chapter) {
-    return Obx(() {
-      final background =
-          _novelBackgroundColor(controller.novelBackground.value);
-      final foreground = _novelTextColor(controller.novelBackground.value);
-      final family = controller.novelFontFamily.value;
-      final speechParagraph = controller.novelSpeechCurrentParagraph.value;
-      final speechWord = controller.novelSpeechCurrentWord.value;
-      final speechPlaying = controller.novelSpeechPlaying.value;
-      final speechActive = speechPlaying || controller.novelSpeechPaused.value;
-      return FutureBuilder<List<String>>(
-        future: controller.paragraphsFor(chapter.content),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return ColoredBox(
-              color: background,
-              child: const Center(
-                child: MangaPlusLoader(size: 54),
-              ),
-            );
-          }
-          if (snapshot.hasError || !snapshot.hasData) {
-            return BrandState(
-              title: 'تعذر تحميل الفصل'.tr,
-              actionLabel: 'إعادة المحاولة'.tr,
-              onAction: () => controller.fetchChapter(controller.chapterId),
-            );
-          }
-
-          final paragraphs = snapshot.data!;
-          if (!speechActive) {
-            _lastFollowedSpeechParagraph = -1;
-            _speechWasPlaying = false;
-          }
-          final shouldFollowSpeech = speechActive &&
-              speechParagraph >= 0 &&
-              (speechParagraph != _lastFollowedSpeechParagraph ||
-                  (speechPlaying && !_speechWasPlaying));
-          _speechWasPlaying = speechPlaying;
-          if (shouldFollowSpeech && speechParagraph < paragraphs.length) {
-            _lastFollowedSpeechParagraph = speechParagraph;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!context.mounted || !controller.scrollController.hasClients) {
-                return;
-              }
-              final width = (MediaQuery.sizeOf(context).width - 48)
-                  .clamp(160.0, 1200.0)
-                  .toDouble();
-              final charsPerLine =
-                  (width / (controller.novelFontSize.value * .55))
-                      .floor()
-                      .clamp(12, 160)
-                      .toInt();
-              var estimatedOffset = 0.0;
-              for (var i = 0; i < speechParagraph; i++) {
-                final lines = (paragraphs[i].length / charsPerLine)
-                    .ceil()
-                    .clamp(1, 10000)
-                    .toInt();
-                estimatedOffset += lines *
-                        controller.novelFontSize.value *
-                        controller.novelLineHeight.value +
-                    controller.novelParagraphSpacing.value;
-              }
-              final position = controller.scrollController.position;
-              final target =
-                  (estimatedOffset - position.viewportDimension * .28)
-                      .clamp(0.0, position.maxScrollExtent)
-                      .toDouble();
-              controller.scrollController.animateTo(target,
-                  duration: const Duration(milliseconds: 420),
-                  curve: Curves.easeOutCubic);
-            });
-          }
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (context.mounted) controller.syncScrollController();
-          });
-          return ColoredBox(
-            color: background,
-            child: Listener(
-              behavior: HitTestBehavior.opaque,
-              onPointerDown: (event) => controller.beginReaderPointer(
-                event.position,
-                event.timeStamp,
-              ),
-              onPointerMove: (event) =>
-                  controller.updateReaderPointer(event.position),
-              onPointerUp: (event) =>
-                  controller.endReaderPointer(event.timeStamp),
-              onPointerCancel: (_) => controller.cancelReaderPointer(),
-              child: NotificationListener<ScrollNotification>(
-                onNotification: (notification) {
-                  if (notification is ScrollUpdateNotification ||
-                      notification is ScrollEndNotification) {
-                    controller.updateNovelProgress(
-                      notification.metrics.pixels,
-                      notification.metrics.maxScrollExtent,
-                    );
-                    controller.handleScroll(
-                      notification.metrics,
-                      scrollDelta: notification is ScrollUpdateNotification
-                          ? notification.scrollDelta
-                          : null,
-                      userInitiated: notification is ScrollUpdateNotification &&
-                          notification.dragDetails != null,
-                      settled: notification is ScrollEndNotification,
-                    );
-                  }
-                  if (notification is OverscrollNotification) {
-                    controller.handleScroll(
-                      notification.metrics,
-                      scrollDelta: notification.overscroll < 0 ? -1.0 : 1.0,
-                    );
-                  }
-                  if (notification is ScrollEndNotification) {
-                    controller.persistScrollOffset(notification.metrics.pixels);
-                  }
-                  return false;
-                },
-                child: Directionality(
-                  textDirection: controller.readingDirection.value == 'rtl'
-                      ? TextDirection.rtl
-                      : TextDirection.ltr,
-                  child: SelectionArea(
-                    child: ListView.builder(
-                      controller: controller.scrollController,
-                      cacheExtent: 900,
-                      padding: EdgeInsets.fromLTRB(
-                        24,
-                        MediaQuery.paddingOf(context).top + 28,
-                        24,
-                        MediaQuery.paddingOf(context).bottom + 110,
-                      ),
-                      itemCount: paragraphs.length,
-                      itemBuilder: (context, index) {
-                        final isCurrent =
-                            speechActive && index == speechParagraph;
-                        final paragraph = paragraphs[index];
-                        if (paragraph.startsWith(
-                            ChapterController.novelChapterDividerToken)) {
-                          final title =
-                              ChapterController.titleFromNovelChapterDivider(
-                                  paragraph);
-                          return _buildChapterDivider(
-                            title: controller.showChapterTitle.value
-                                ? title
-                                : null,
-                          );
-                        }
-                        final wordStart = isCurrent && speechWord.isNotEmpty
-                            ? paragraph
-                                .toLowerCase()
-                                .indexOf(speechWord.toLowerCase())
-                            : -1;
-                        final wordEnd =
-                            wordStart < 0 ? -1 : wordStart + speechWord.length;
-                        final baseStyle = TextStyle(
-                          color: foreground,
-                          fontSize: controller.novelFontSize.value,
-                          fontFamily: family == 'default' ? null : family,
-                          height: controller.novelLineHeight.value,
-                          letterSpacing: 0.05,
-                        );
-                        return Padding(
-                          padding: EdgeInsets.only(
-                            bottom: index == paragraphs.length - 1
-                                ? 0
-                                : controller.novelParagraphSpacing.value,
-                          ),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 220),
-                            decoration: BoxDecoration(
-                              color: isCurrent
-                                  ? AppColors.primary.withValues(alpha: .14)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(10),
-                              border: isCurrent
-                                  ? Border.all(
-                                      color: AppColors.primary
-                                          .withValues(alpha: .34))
-                                  : null,
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 5),
-                            child: Text.rich(
-                              TextSpan(children: [
-                                if (wordStart >= 0) ...[
-                                  TextSpan(
-                                      text: paragraph.substring(0, wordStart)),
-                                  TextSpan(
-                                    text:
-                                        paragraph.substring(wordStart, wordEnd),
-                                    style: TextStyle(
-                                      color: AppColors.primary,
-                                      backgroundColor: AppColors.primary
-                                          .withValues(alpha: .2),
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                  TextSpan(text: paragraph.substring(wordEnd)),
-                                ] else
-                                  TextSpan(text: paragraph),
-                              ]),
-                              textAlign:
-                                  controller.readingDirection.value == 'rtl'
-                                      ? TextAlign.right
-                                      : TextAlign.left,
-                              style: baseStyle,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      );
-    });
-  }
-
-  Color _novelBackgroundColor(String value) {
-    switch (value) {
-      case 'light':
-        return const Color(0xfffafafa);
-      case 'sepia':
-        return const Color(0xfff1e6d0);
-      case 'dark':
-        return const Color(0xff151515);
-      case 'black':
-        return Colors.black;
-      default:
-        return AppColors.background;
-    }
-  }
-
-  Color _novelTextColor(String value) {
-    switch (value) {
-      case 'light':
-        return const Color(0xff242424);
-      case 'sepia':
-        return const Color(0xff453b2d);
-      case 'dark':
-        return const Color(0xffe5e2dc);
-      case 'black':
-        return const Color(0xffeeeeee);
-      default:
-        return AppColors.textPrimary;
-    }
-  }
-
-  void _handlePagedTap(
-    BuildContext context,
-    TapUpDetails details,
-    int pageCount,
-  ) {
-    final width = MediaQuery.sizeOf(context).width;
-    final x = details.localPosition.dx;
-    final isLeftEdge = x <= width * 0.32;
-    final isRightEdge = x >= width * 0.68;
-    if (!isLeftEdge && !isRightEdge) {
-      controller.toggleNavigationVisibility();
-      return;
-    }
-
-    final isNextPage =
-        controller.readingDirection.value == 'rtl' ? isRightEdge : isLeftEdge;
-    final target = controller.currentPage.value + (isNextPage ? 1 : -1);
-    if (target >= 0 &&
-        target < pageCount &&
-        controller.pageController.hasClients) {
-      controller.pageController.animateToPage(
-        target,
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-      );
-    } else if (isNextPage) {
-      controller.navigateToChapter(
-        controller.nextChapterId,
-        joinContinuousStream: true,
-      );
-    } else {
-      controller.navigateToChapter(
-        controller.previousChapterId,
-        reverse: true,
-        joinContinuousStream: true,
-      );
-    }
-  }
-
-  void _queueCurrentPageUpdate(BuildContext context) {
-    if (_pageUpdateQueued) return;
-    _pageUpdateQueued = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _pageUpdateQueued = false;
-      if (mounted) _updateCurrentPage(context);
-    });
-  }
-
-  void _updateCurrentPage(BuildContext context) {
-    final screenCenter = MediaQuery.sizeOf(context).height / 2;
-    var bestIndex = controller.currentPage.value;
-    var bestDistance = double.infinity;
-    var fractionWithinPage = 1.0;
-    final images = controller.chapterData.value.chapter.images;
-    final imageOccurrences = <String, int>{};
-    final pageKeys = <GlobalKey>[];
-    for (final image in images) {
-      final occurrence = imageOccurrences.update(
-        image,
-        (count) => count + 1,
-        ifAbsent: () => 0,
-      );
-      pageKeys.add(_pageKeys.putIfAbsent(
-        '$image\u0000$occurrence',
-        GlobalKey.new,
-      ));
-    }
-    for (var index = 0; index < pageKeys.length; index++) {
-      final renderObject = pageKeys[index].currentContext?.findRenderObject();
-      if (renderObject is! RenderBox || !renderObject.hasSize) continue;
-      final top = renderObject.localToGlobal(Offset.zero).dy;
-      final bottom = top + renderObject.size.height;
-      if (top <= screenCenter && bottom >= screenCenter) {
-        bestIndex = index;
-        fractionWithinPage = renderObject.size.height <= 0
-            ? 1
-            : ((screenCenter - top) / renderObject.size.height)
-                .clamp(0.0, 1.0)
-                .toDouble();
-        break;
-      }
-      final distance =
-          screenCenter < top ? top - screenCenter : screenCenter - bottom;
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestIndex = index;
-      }
-    }
-    if (bestIndex != controller.currentPage.value ||
-        controller.readerMode.value == 'scroll') {
-      controller.updateImageScrollProgress(bestIndex, fractionWithinPage);
-    }
-    _captureScrollAnchor(bestIndex, pageKeys);
-  }
-
-  void _captureScrollAnchor(int pageIndex, List<GlobalKey> pageKeys) {
-    final scroll = controller.scrollController;
-    if (controller.readerMode.value != 'scroll' ||
-        !scroll.hasClients ||
-        pageIndex < 0 ||
-        pageIndex >= pageKeys.length) {
-      return;
-    }
-    final renderObject = pageKeys[pageIndex].currentContext?.findRenderObject();
-    if (renderObject is! RenderBox || !renderObject.hasSize) return;
-    _scrollAnchorPageIndex = pageIndex;
-    _scrollAnchorTop = renderObject.localToGlobal(Offset.zero).dy;
-    _scrollAnchorOffset = scroll.offset;
-  }
-
-  void _restoreScrollAnchorAfterImageLayout() {
-    if (controller.readerMode.value != 'scroll') return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final scroll = controller.scrollController;
-      if (!mounted || !scroll.hasClients) return;
-      final images = controller.chapterData.value.chapter.images;
-      final occurrences = <String, int>{};
-      GlobalKey? anchorKey;
-      for (var index = 0; index < images.length; index++) {
-        final image = images[index];
-        final occurrence = occurrences.update(
-          image,
-          (count) => count + 1,
-          ifAbsent: () => 0,
-        );
-        final key = _pageKeys['$image\u0000$occurrence'];
-        if (index == _scrollAnchorPageIndex) {
-          anchorKey = key;
-          break;
-        }
-      }
-      final renderObject = anchorKey?.currentContext?.findRenderObject();
-      if (renderObject is RenderBox && renderObject.hasSize) {
-        final currentOffset = scroll.offset;
-        final currentTop = renderObject.localToGlobal(Offset.zero).dy;
-        final expectedTop =
-            _scrollAnchorTop - (currentOffset - _scrollAnchorOffset);
-        final correction = currentTop - expectedTop;
-        if (correction.isFinite && correction.abs() > 1) {
-          scroll.jumpTo(
-            (currentOffset + correction)
-                .clamp(0.0, scroll.position.maxScrollExtent)
-                .toDouble(),
-          );
-        }
-      }
-      final currentKey = anchorKey;
-      final currentBox = currentKey?.currentContext?.findRenderObject();
-      if (currentBox is RenderBox && currentBox.hasSize) {
-        _scrollAnchorTop = currentBox.localToGlobal(Offset.zero).dy;
-        _scrollAnchorOffset = scroll.offset;
-      }
-    });
-  }
-
-  Widget _buildFloatingNavigation() {
-    return Obx(() {
-      final chapter = controller.chapterData.value.chapter;
-      final progress =
-          controller.readerProgress.value.clamp(0.0, 1.0).toDouble();
-      final activeChapterId = controller.activeReaderChapterId;
-      final activeChapter = controller.availableChapters.firstWhereOrNull(
-        (item) =>
-            item.chapterId == activeChapterId || item.url == activeChapterId,
-      );
-      final title = activeChapter?.title.trim().isNotEmpty == true
-          ? activeChapter!.title
-          : chapter.title.isNotEmpty
-              ? chapter.title
-              : 'الفصل'.tr;
-      final activeRange = controller.activeReaderPageRange;
-      final pageCount = activeRange?.pageCount ?? chapter.images.length;
-      final localPage = activeRange == null
-          ? controller.currentPage.value
-          : controller.currentPage.value - activeRange.startIndex;
-      return Positioned(
-        bottom: 0,
-        left: 0,
-        right: 0,
-        child: AnimatedSlide(
-          offset: controller.showNavigation.value
-              ? Offset.zero
-              : const Offset(0, 1.35),
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          child: IgnorePointer(
-            ignoring: !controller.showNavigation.value,
-            child: SafeArea(
-              minimum: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: Container(
-                constraints: const BoxConstraints(minHeight: 132),
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
-                decoration: BoxDecoration(
-                  color: AppColors.card.withValues(alpha: 0.96),
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: AppColors.divider),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.28),
-                      blurRadius: 18,
-                      offset: const Offset(0, 5),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          controller.isNovel || pageCount <= 0
-                              ? '${(progress * 100).round()}%'
-                              : '${(progress * 100).round()}%  •  ${localPage + 1}/$pageCount',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                    _buildProgressSlider(progress),
-                    Divider(height: 1, color: AppColors.divider),
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: 2,
-                      runSpacing: 0,
-                      children: _readerControlButtons(),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    });
-  }
-
-  Widget _buildProgressSlider(double progress) {
-    final bookmarks = controller.activeChapterBookmarks;
+  Widget _buildScroll(BuildContext context, List<String> images) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final rtl = Directionality.of(context) == TextDirection.rtl;
-        return SizedBox(
-          height: 46,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  trackHeight: 6,
-                  activeTrackColor: AppColors.primary,
-                  inactiveTrackColor: AppColors.divider,
-                  thumbColor: AppColors.primary,
-                  overlayColor: AppColors.primary.withValues(alpha: 0.16),
-                  thumbShape:
-                      const RoundSliderThumbShape(enabledThumbRadius: 9),
-                  overlayShape:
-                      const RoundSliderOverlayShape(overlayRadius: 18),
-                ),
-                child: Slider(
-                  value: progress,
-                  min: 0,
-                  max: 1,
-                  label: '${(progress * 100).round()}%',
-                  onChanged: controller.seekReaderProgress,
-                  onChangeEnd: (_) => controller.persistReaderProgress(),
-                ),
-              ),
-              for (final bookmark in bookmarks)
-                if (bookmark['progress'] is num)
-                  Positioned(
-                    left: _bookmarkMarkLeft(
-                      (bookmark['progress'] as num).toDouble(),
-                      constraints.maxWidth,
-                      rtl,
-                    ),
-                    child: GestureDetector(
-                      onTap: () => controller.openReaderBookmark(bookmark),
-                      child: Container(
-                        width: 13,
-                        height: 13,
-                        decoration: BoxDecoration(
-                          color: const Color(0xff31c46c),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: AppColors.card, width: 2),
-                          boxShadow: const [
-                            BoxShadow(color: Color(0x70000000), blurRadius: 3),
-                          ],
-                        ),
-                      ),
-                    ),
+        final width = constraints.maxWidth;
+        final height = constraints.maxHeight;
+        _ensureScrollIndex(images, width, height);
+        _syncInitialScroll();
+        return GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: c.toggleNavigationVisibility,
+          child: NotificationListener<ScrollNotification>(
+            onNotification: _onScrollNotification,
+            child: ListView.builder(
+              controller: c.scrollController,
+              // The list is given the exact extent of every page, measured or
+              // reserved. This removes the guesswork that made the old list
+              // shift while images finished decoding.
+              itemExtentBuilder: (index, dimensions) =>
+                  _index.startOf(index + 1) - _index.startOf(index),
+              itemCount: images.length,
+              cacheExtent: height * 1.5,
+              physics: const ClampingScrollPhysics(),
+              itemBuilder: (context, index) {
+                final extent =
+                    _index.startOf(index + 1) - _index.startOf(index);
+                final isStart = c.isChapterStartPage(index);
+                final dividerHeight = !isStart
+                    ? 0.0
+                    : c.showChapterTitle.value
+                        ? 34.0
+                        : 14.0;
+                return ReaderMangaPage(
+                  reference: images[index],
+                  pageIndex: index,
+                  extent: extent,
+                  gap: c.readerPageGap.value,
+                  fitValue: c.readerFit.value,
+                  imageQuality: c.readerImageQuality.value,
+                  retryToken: c.pageRetryToken(index),
+                  viewportWidth: width,
+                  viewportHeight: height,
+                  chapterDividerHeight: dividerHeight,
+                  chapterDividerTitle:
+                      isStart ? c.chapterDividerTitleForPage(index) : null,
+                  backgroundColor: _pageBackground(),
+                  onLoaded: () => c.markPageLoaded(
+                    index,
+                    pageReference: images[index],
                   ),
-            ],
+                  onFailed: () => c.markPageFailed(
+                    index,
+                    pageReference: images[index],
+                  ),
+                  onRetry: () => c.retryPage(
+                    index,
+                    pageReference: images[index],
+                  ),
+                );
+              },
+            ),
           ),
         );
       },
     );
   }
 
-  double _bookmarkMarkLeft(double progress, double width, bool rtl) {
-    final fraction =
-        progress.isFinite ? progress.clamp(0.0, 1.0).toDouble() : 0.0;
-    final alongTrack = rtl ? 1 - fraction : fraction;
-    return (16 + alongTrack * (width - 32) - 6.5).toDouble();
+  void _ensureScrollIndex(
+    List<String> images,
+    double width,
+    double height,
+  ) {
+    final signature = [
+      c.chapterId,
+      images.length,
+      c.readerFit.value,
+      c.readerPageGap.value,
+      c.pageMetricsRevision.value,
+      c.showChapterTitle.value,
+      c.readerChapterPageRanges
+          .map((range) => '${range.startIndex}:${range.chapterId}')
+          .join(','),
+      width.round(),
+      height.round(),
+    ].join('|');
+    if (signature == _indexSignature) return;
+    final extents = <double>[
+      for (var index = 0; index < images.length; index++)
+        c.mangaPageExtent(
+          index,
+          viewportWidth: width,
+          viewportHeight: height,
+        ),
+    ];
+    final firstBuildForChapter = _indexedChapterId != c.chapterId;
+    _index = ReaderPageScrollIndex(extents);
+    _indexSignature = signature;
+    if (firstBuildForChapter) {
+      _indexedChapterId = c.chapterId;
+      _initialScrollSynced = false;
+      _anchorPage = c.currentPage.value.clamp(0, images.length - 1).toInt();
+      _anchorFraction = .5;
+      _lastWindowFirst = -1;
+      _lastWindowLast = -1;
+    } else {
+      _scheduleAnchorRestore(height);
+    }
   }
 
-  List<Widget> _readerControlButtons() => [
-        _readerIconButton(
-          icon: Icons.settings_rounded,
-          tooltip: 'إعدادات القارئ'.tr,
-          onPressed: _openReaderSettings,
-        ),
-        _readerIconButton(
-          icon: Icons.list_alt_rounded,
-          tooltip: 'قائمة الفصول'.tr,
-          onPressed: _openChapterList,
-        ),
-        _readerIconButton(
-          icon: Icons.bookmarks_outlined,
-          tooltip: 'العلامات المرجعية'.tr,
-          onPressed: _openReaderBookmarks,
-        ),
-        if (controller.isNovel) ...[
-          _readerIconButton(
-            icon: controller.novelSpeechPlaying.value
-                ? Icons.pause_rounded
-                : controller.novelSpeechPaused.value
-                    ? Icons.play_arrow_rounded
-                    : Icons.volume_up_rounded,
-            tooltip: controller.novelSpeechPlaying.value
-                ? 'إيقاف مؤقت'.tr
-                : controller.novelSpeechPaused.value
-                    ? 'استئناف القراءة'.tr
-                    : 'القراءة الصوتية'.tr,
-            onPressed: () => controller.toggleNovelSpeech(),
-          ),
-          _readerIconButton(
-            icon: Icons.chevron_left_rounded,
-            tooltip: 'الفصل السابق'.tr,
-            onPressed: controller.previousChapterId == null
-                ? null
-                : () => controller.navigateToChapter(
-                      controller.previousChapterId,
-                      reverse: true,
-                      joinContinuousStream: true,
-                    ),
-          ),
-          _readerIconButton(
-            icon: Icons.chevron_right_rounded,
-            tooltip: 'الفصل التالي'.tr,
-            onPressed: controller.nextChapterId == null
-                ? null
-                : () => controller.navigateToChapter(
-                      controller.nextChapterId,
-                      joinContinuousStream: true,
-                    ),
-          ),
-        ] else ...[
-          _readerIconButton(
-            icon: controller.readerMode.value == 'paged'
-                ? Icons.view_stream_rounded
-                : Icons.menu_book_rounded,
-            tooltip: 'تبديل وضع القراءة'.tr,
-            onPressed: () => controller.setReaderMode(
-              controller.readerMode.value == 'paged' ? 'scroll' : 'paged',
-            ),
-          ),
-          if (controller.readerMode.value == 'paged')
-            _readerIconButton(
-              icon: Icons.swap_horiz_rounded,
-              tooltip: 'تبديل اتجاه القراءة'.tr,
-              onPressed: () => controller.setReadingDirection(
-                controller.readingDirection.value == 'rtl' ? 'ltr' : 'rtl',
-              ),
-            ),
-        ],
-      ];
+  void _syncInitialScroll() {
+    if (_initialScrollSynced) return;
+    _initialScrollSynced = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      c.syncScrollController();
+      final scroll = c.scrollController;
+      if (!scroll.hasClients || _index.pageCount == 0) return;
+      final position = _index.positionAt(
+        scroll.offset,
+        scroll.position.viewportDimension,
+        fallbackIndex: _anchorPage,
+      );
+      _anchorPage = position.index;
+      _anchorFraction = position.fractionWithinPage;
+      c.onMangaWindowChanged(
+        firstVisible: position.index,
+        lastVisible: position.index,
+      );
+    });
+  }
 
-  Widget _readerIconButton({
-    required IconData icon,
-    required String tooltip,
-    required VoidCallback? onPressed,
-  }) {
-    return SizedBox(
-      width: 40,
-      height: 40,
-      child: IconButton(
-        tooltip: tooltip,
-        onPressed: onPressed,
-        icon: Icon(icon),
-        color: onPressed == null
-            ? AppColors.icon.withValues(alpha: 0.35)
-            : AppColors.primary,
-        iconSize: 22,
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-        visualDensity: VisualDensity.compact,
+  /// Corrects the scroll offset by exactly the amount a newly measured page
+  /// above the anchor changed the layout, without ever touching pages below it.
+  void _scheduleAnchorRestore(double viewport) {
+    if (_restoreScheduled) return;
+    _restoreScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _restoreScheduled = false;
+      if (!mounted || _index.pageCount == 0) return;
+      final scroll = c.scrollController;
+      if (!scroll.hasClients) return;
+      final start = _index.startOf(_anchorPage);
+      final end = _index.startOf(_anchorPage + 1);
+      final extent = end - start;
+      final target = (start + _anchorFraction * extent - viewport / 2)
+          .clamp(0.0, scroll.position.maxScrollExtent)
+          .toDouble();
+      if ((scroll.offset - target).abs() > 1) scroll.jumpTo(target);
+    });
+  }
+
+  bool _onScrollNotification(ScrollNotification notification) {
+    if (notification.depth != 0) return false;
+    final metrics = notification.metrics;
+    if (notification is ScrollUpdateNotification) {
+      c.handleScroll(
+        metrics,
+        scrollDelta: notification.scrollDelta,
+        userInitiated: notification.dragDetails != null,
+      );
+      _updateMangaPosition(metrics);
+    } else if (notification is ScrollEndNotification) {
+      c.handleScroll(metrics, settled: true);
+      _updateMangaPosition(metrics, forceWindow: true);
+      c.persistScrollOffset(metrics.pixels);
+    } else if (notification is OverscrollNotification) {
+      c.handleScroll(
+        metrics,
+        scrollDelta: notification.overscroll < 0 ? -1.0 : 1.0,
+      );
+    }
+    return false;
+  }
+
+  void _updateMangaPosition(ScrollMetrics metrics, {bool forceWindow = false}) {
+    if (_index.pageCount == 0) return;
+    final position = _index.positionAt(
+      metrics.pixels,
+      metrics.viewportDimension,
+      fallbackIndex: _anchorPage,
+    );
+    _anchorPage = position.index;
+    _anchorFraction = position.fractionWithinPage;
+    c.updateImageScrollProgress(position.index, position.fractionWithinPage);
+    final first = _index
+        .positionAt(metrics.pixels, 1, fallbackIndex: position.index)
+        .index;
+    final last = _index
+        .positionAt(
+          metrics.pixels + metrics.viewportDimension - 1,
+          1,
+          fallbackIndex: position.index,
+        )
+        .index;
+    if (forceWindow || first != _lastWindowFirst || last != _lastWindowLast) {
+      _lastWindowFirst = first;
+      _lastWindowLast = last;
+      c.onMangaWindowChanged(firstVisible: first, lastVisible: last);
+    }
+  }
+
+  int get _pagesPerSpread {
+    if (!c.readerDoublePage.value) return 1;
+    return MediaQuery.orientationOf(context) == Orientation.landscape ? 2 : 1;
+  }
+
+  Widget _buildPaged(BuildContext context, List<String> images) {
+    final perSpread = _pagesPerSpread;
+    final spreadCount = (images.length / perSpread).ceil();
+    final rtl = c.readingDirection.value == 'rtl';
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) c.syncPageController();
+    });
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapUp: (details) => _handlePagedTap(details, images.length, perSpread),
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: PageView.builder(
+          controller: c.pageController,
+          reverse: rtl,
+          allowImplicitScrolling: true,
+          itemCount: spreadCount,
+          onPageChanged: (spread) {
+            final page = spread * perSpread;
+            c.onPageChanged(page);
+            c.onMangaWindowChanged(
+              firstVisible: page,
+              lastVisible: page + perSpread + 1,
+            );
+          },
+          itemBuilder: (context, spread) {
+            final firstPage = spread * perSpread;
+            final secondPage = perSpread > 1 && firstPage + 1 < images.length
+                ? firstPage + 1
+                : null;
+            return LayoutBuilder(
+              builder: (context, constraints) => Directionality(
+                textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
+                child: Row(
+                  children: [
+                    Expanded(child: _pagedPage(context, images, firstPage)),
+                    if (perSpread > 1)
+                      Expanded(
+                        child: secondPage == null
+                            ? const SizedBox.shrink()
+                            : _pagedPage(context, images, secondPage),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
 
-  BoxFit _imageFit(String value) {
-    switch (value) {
-      case 'height':
-        return BoxFit.fitHeight;
-      case 'natural':
-        return BoxFit.none;
-      case 'screen':
-        return BoxFit.contain;
-      default:
-        return BoxFit.fitWidth;
+  Widget _pagedPage(BuildContext context, List<String> images, int index) {
+    final size = MediaQuery.sizeOf(context);
+    return ReaderMangaPage(
+      reference: images[index],
+      pageIndex: index,
+      extent: size.height,
+      gap: 0,
+      fitValue: c.readerFit.value,
+      imageQuality: c.readerImageQuality.value,
+      retryToken: c.pageRetryToken(index),
+      viewportWidth: size.width / _pagesPerSpread,
+      viewportHeight: size.height,
+      zoomEnabled: true,
+      backgroundColor: _pageBackground(),
+      onLoaded: () => c.markPageLoaded(index, pageReference: images[index]),
+      onFailed: () => c.markPageFailed(index, pageReference: images[index]),
+      onRetry: () => c.retryPage(index, pageReference: images[index]),
+    );
+  }
+
+  void _handlePagedTap(TapUpDetails details, int pageCount, int perSpread) {
+    final width = MediaQuery.sizeOf(context).width;
+    final x = details.localPosition.dx;
+    if (x > width * .32 && x < width * .68) {
+      c.toggleNavigationVisibility();
+      return;
+    }
+    final rtl = c.readingDirection.value == 'rtl';
+    final isNext = rtl ? x >= width * .68 : x <= width * .32;
+    final spreadCount = (pageCount / perSpread).ceil();
+    final currentSpread = (c.currentPage.value / perSpread).floor();
+    if (isNext) {
+      if (currentSpread + 1 < spreadCount) {
+        c.pageController.nextPage(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+        );
+      } else {
+        c.navigateToChapter(c.nextChapterId, joinContinuousStream: true);
+      }
+    } else {
+      if (currentSpread > 0) {
+        c.pageController.previousPage(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+        );
+      } else {
+        c.navigateToChapter(
+          c.previousChapterId,
+          reverse: true,
+          joinContinuousStream: true,
+        );
+      }
     }
   }
 
-  Widget _buildChapterDivider({String? title}) {
-    final label = title?.trim() ?? '';
+  // ---------------------------------------------------------------------
+  // Novel reader
+  // ---------------------------------------------------------------------
+
+  Widget _buildNovel(BuildContext context, dynamic chapter) {
+    return FutureBuilder<List<String>>(
+      future: c.paragraphsFor(chapter.content as String),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return ColoredBox(
+            color: _readerBackground(),
+            child: const Center(
+              child: SizedBox(
+                width: 30,
+                height: 30,
+                child: CircularProgressIndicator(strokeWidth: 2.4),
+              ),
+            ),
+          );
+        }
+        if (!snapshot.hasData) {
+          return BrandState(
+            title: 'تعذر تحميل الفصل'.tr,
+            actionLabel: 'إعادة المحاولة'.tr,
+            onAction: () => c.fetchChapter(c.chapterId),
+          );
+        }
+        final paragraphs = snapshot.data!;
+        final content = chapter.content as String;
+        final direction = _novelDirection(content);
+        final palette = _novelPalette();
+        if (_lastNovelRevision != c.novelLayoutRevision.value) {
+          _lastNovelRevision = c.novelLayoutRevision.value;
+          _scheduleNovelAnchorRestore();
+        }
+        _syncAutoScroll(paragraphs.length);
+        _followSpeech(paragraphs);
+        final speechParagraph = c.novelSpeechCurrentParagraph.value;
+        final speechActive =
+            c.novelSpeechPlaying.value || c.novelSpeechPaused.value;
+        final speechWord = c.novelSpeechCurrentWord.value;
+        return ColoredBox(
+          color: palette.background,
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: c.toggleNavigationVisibility,
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification.depth != 0) return false;
+                final metrics = notification.metrics;
+                if (notification is ScrollUpdateNotification) {
+                  c.updateNovelProgress(
+                    metrics.pixels,
+                    metrics.maxScrollExtent,
+                  );
+                  c.handleScroll(
+                    metrics,
+                    scrollDelta: notification.scrollDelta,
+                    userInitiated: notification.dragDetails != null,
+                  );
+                } else if (notification is ScrollEndNotification) {
+                  c.updateNovelProgress(
+                    metrics.pixels,
+                    metrics.maxScrollExtent,
+                  );
+                  c.handleScroll(metrics, settled: true);
+                  c.persistScrollOffset(metrics.pixels);
+                  _captureNovelAnchor();
+                } else if (notification is OverscrollNotification) {
+                  c.handleScroll(
+                    metrics,
+                    scrollDelta: notification.overscroll < 0 ? -1.0 : 1.0,
+                  );
+                }
+                return false;
+              },
+              child: Directionality(
+                textDirection: direction,
+                child: SelectionArea(
+                  child: ListView.builder(
+                    controller: c.scrollController,
+                    cacheExtent: 900,
+                    padding: EdgeInsets.fromLTRB(
+                      c.novelMargins.value,
+                      MediaQuery.paddingOf(context).top + 68,
+                      c.novelMargins.value,
+                      MediaQuery.paddingOf(context).bottom + 120,
+                    ),
+                    itemCount: paragraphs.length,
+                    itemBuilder: (context, index) {
+                      final paragraph = paragraphs[index];
+                      if (isNovelChapterDivider(paragraph)) {
+                        return _novelDivider(
+                          title: c.showChapterTitle.value
+                              ? titleFromNovelChapterDivider(paragraph)
+                              : '',
+                          palette: palette,
+                        );
+                      }
+                      final notes = c.notesForParagraph(index);
+                      final isSpeaking =
+                          speechActive && index == speechParagraph;
+                      return Padding(
+                        key: _paragraphKeys.putIfAbsent(index, GlobalKey.new),
+                        padding: EdgeInsets.only(
+                          bottom: index == paragraphs.length - 1
+                              ? 0
+                              : c.novelParagraphSpacing.value,
+                        ),
+                        child: Text.rich(
+                          TextSpan(
+                            children: _novelSpans(
+                              paragraph: paragraph,
+                              notes: notes,
+                              speechWord: isSpeaking ? speechWord : '',
+                              speechColor: AppColors.primary,
+                            ),
+                          ),
+                          textAlign: _novelTextAlign(direction),
+                          style: TextStyle(
+                            color: palette.text,
+                            fontSize: c.novelFontSize.value,
+                            fontFamily: c.novelFontFamily.value == 'default'
+                                ? null
+                                : c.novelFontFamily.value,
+                            fontWeight: FontWeight.values[
+                                ((c.novelFontWeight.value ~/ 100) - 3)
+                                    .clamp(0, 5)
+                                    .toInt()],
+                            height: c.novelLineHeight.value,
+                            letterSpacing: .05,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  TextDirection _novelDirection(String content) {
+    switch (c.novelTextDirection.value) {
+      case 'rtl':
+        return TextDirection.rtl;
+      case 'ltr':
+        return TextDirection.ltr;
+      default:
+        return bidiTextDirection(content, fallback: TextDirection.rtl);
+    }
+  }
+
+  TextAlign _novelTextAlign(TextDirection direction) {
+    switch (c.novelTextAlign.value) {
+      case 'justify':
+        return TextAlign.justify;
+      case 'start':
+        return TextAlign.start;
+      default:
+        return TextAlign.start;
+    }
+  }
+
+  List<InlineSpan> _novelSpans({
+    required String paragraph,
+    required List<NovelNote> notes,
+    required String speechWord,
+    required Color speechColor,
+  }) {
+    final ranges = <({int start, int end, Color color, bool speech})>[];
+    for (final note in notes) {
+      final range = note.resolveRange(paragraph);
+      if (range.end <= range.start) continue;
+      ranges.add((
+        start: range.start,
+        end: range.end,
+        color: Color(novelNoteColorValue(note.color)),
+        speech: false,
+      ));
+      break;
+    }
+    final word = speechWord.trim().toLowerCase();
+    if (word.isNotEmpty) {
+      final start = paragraph.toLowerCase().indexOf(word);
+      if (start >= 0) {
+        ranges.add((
+          start: start,
+          end: start + word.length,
+          color: speechColor.withValues(alpha: .2),
+          speech: true,
+        ));
+      }
+    }
+    if (ranges.isEmpty) return [TextSpan(text: paragraph)];
+    ranges.sort((left, right) => left.start.compareTo(right.start));
+    final spans = <InlineSpan>[];
+    var cursor = 0;
+    for (final range in ranges) {
+      final start = range.start.clamp(cursor, paragraph.length);
+      final end = range.end.clamp(start, paragraph.length);
+      if (start > cursor) {
+        spans.add(TextSpan(text: paragraph.substring(cursor, start)));
+      }
+      if (end > start) {
+        spans.add(TextSpan(
+          text: paragraph.substring(start, end),
+          style: TextStyle(
+            backgroundColor:
+                range.speech ? range.color : range.color.withValues(alpha: .42),
+            fontWeight: range.speech ? FontWeight.w900 : FontWeight.w600,
+            color: range.speech ? speechColor : null,
+          ),
+        ));
+      }
+      cursor = end;
+    }
+    if (cursor < paragraph.length) {
+      spans.add(TextSpan(text: paragraph.substring(cursor)));
+    }
+    return spans;
+  }
+
+  Widget _novelDivider({
+    required String title,
+    required ({Color background, Color text}) palette,
+  }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 20),
       child: Row(
         children: [
           Expanded(
-            child: Divider(color: AppColors.divider, thickness: 1, height: 1),
+            child: Divider(
+              color: palette.text.withValues(alpha: .16),
+              height: 1,
+            ),
           ),
-          if (label.isNotEmpty) ...[
+          if (title.trim().isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Text(
-                label,
+                title,
                 style: TextStyle(
                   color: AppColors.primary,
                   fontSize: 12,
@@ -945,1002 +699,529 @@ class _ChapterViewState extends State<ChapterView> {
                 ),
               ),
             ),
-            Expanded(
-              child: Divider(color: AppColors.divider, thickness: 1, height: 1),
+          Expanded(
+            child: Divider(
+              color: palette.text.withValues(alpha: .16),
+              height: 1,
             ),
-          ],
+          ),
         ],
       ),
     );
   }
 
-  Future<void> _openReaderSettings() async {
-    if (controller.isNovel) {
-      await _openNovelReaderSettings();
+  void _captureNovelAnchor() {
+    if (!c.isNovel || !c.scrollController.hasClients) return;
+    final scroll = c.scrollController;
+    final viewportTop = scroll.offset + MediaQuery.paddingOf(context).top + 40;
+    var bestIndex = _novelAnchor;
+    var bestDistance = double.infinity;
+    for (final entry in _paragraphKeys.entries) {
+      final box = entry.value.currentContext?.findRenderObject();
+      if (box is! RenderBox || !box.hasSize) continue;
+      final top = box.localToGlobal(Offset.zero).dy;
+      final distance = (top - viewportTop).abs();
+      if (top <= viewportTop + 40 && distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = entry.key;
+      }
+    }
+    _novelAnchor = bestIndex;
+  }
+
+  void _scheduleNovelAnchorRestore() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await _jumpToParagraph(_novelAnchor, animate: false);
+    });
+  }
+
+  Future<void> _jumpToParagraph(int index, {bool animate = true}) async {
+    if (!c.isNovel) return;
+    final paragraphs =
+        await c.paragraphsFor(c.chapterData.value.chapter.content);
+    if (index < 0 || index >= paragraphs.length) return;
+    final key = _paragraphKeys[index];
+    final context = key?.currentContext;
+    if (context != null) {
+      await Scrollable.ensureVisible(
+        context,
+        alignment: .06,
+        duration: animate ? const Duration(milliseconds: 260) : Duration.zero,
+        curve: Curves.easeOutCubic,
+      );
+      _novelAnchor = index;
       return;
     }
-    await Get.bottomSheet(
-      Obx(
-        () => SafeArea(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 42,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppColors.divider,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'إعدادات القارئ'.tr,
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  _readerSettingsSection(
-                      'وضع القراءة'.tr, Icons.view_stream_rounded),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      _readerModeChoice('scroll', 'التمرير المستمر'.tr),
-                      _readerModeChoice('paged', 'صفحة بصفحة'.tr),
-                    ],
-                  ),
-                  if (controller.readerMode.value == 'paged') ...[
-                    const SizedBox(height: 12),
-                    _readerSettingsSection(
-                        'اتجاه القراءة'.tr, Icons.swap_horiz_rounded),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        _directionChoice('rtl', 'من اليمين إلى اليسار'.tr),
-                        _directionChoice('ltr', 'من اليسار إلى اليمين'.tr),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 14),
-                  _readerSettingsSection(
-                      'ملاءمة الصور'.tr, Icons.aspect_ratio_rounded),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      _fitChoice('screen', 'ملاءمة الشاشة'.tr),
-                      _fitChoice('width', 'ملاءمة العرض'.tr),
-                      _fitChoice('height', 'ملاءمة الارتفاع'.tr),
-                      _fitChoice('natural', 'الحجم الطبيعي'.tr),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Divider(color: AppColors.divider),
-                  SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    value: controller.continuousNavigation.value,
-                    onChanged: controller.setContinuousNavigation,
-                    title: Text('الانتقال التلقائي بين الفصول'.tr,
-                        style: TextStyle(color: AppColors.textPrimary)),
-                    subtitle: Text(
-                        'تحميل الفصل المجاور عند بلوغ نهاية الفصل'.tr,
-                        style: TextStyle(color: AppColors.textSecondary)),
-                    activeColor: AppColors.primary,
-                  ),
-                  if (controller.readerMode.value == 'scroll') ...[
-                    SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      value: controller.showChapterTitle.value,
-                      onChanged: controller.setShowChapterTitle,
-                      title: Text('إظهار اسم ورقم الفصل بين الفصول'.tr,
-                          style: TextStyle(color: AppColors.textPrimary)),
-                      subtitle: Text(
-                          'يبقى الخط الفاصل ظاهراً عند إخفاء اسم الفصل'.tr,
-                          style: TextStyle(color: AppColors.textSecondary)),
-                      activeColor: AppColors.primary,
-                    ),
-                  ],
-                ],
-              ),
+    final scroll = c.scrollController;
+    if (!scroll.hasClients) return;
+    final average = _averageParagraphExtent();
+    final target = (index * average)
+        .clamp(0.0, scroll.position.maxScrollExtent)
+        .toDouble();
+    scroll.jumpTo(target);
+    // Let the list build the target area, then align precisely. A handful of
+    // passes converge even for very long chapters.
+    for (var attempt = 0; attempt < 6; attempt++) {
+      await WidgetsBinding.instance.endOfFrame;
+      final targetContext = _paragraphKeys[index]?.currentContext;
+      if (targetContext != null) {
+        await Scrollable.ensureVisible(
+          targetContext,
+          alignment: .06,
+          duration: animate && attempt == 0
+              ? const Duration(milliseconds: 220)
+              : Duration.zero,
+        );
+        _novelAnchor = index;
+        return;
+      }
+      final position = scroll.position;
+      final direction =
+          index > _approximateParagraphAt(scroll.offset, average) ? 1 : -1;
+      final next = (scroll.offset + direction * position.viewportDimension * .6)
+          .clamp(0.0, position.maxScrollExtent)
+          .toDouble();
+      if ((next - scroll.offset).abs() < 1) break;
+      scroll.jumpTo(next);
+    }
+    _novelAnchor = index;
+  }
+
+  double _averageParagraphExtent() {
+    var total = 0.0;
+    var count = 0;
+    for (final entry in _paragraphKeys.entries) {
+      final box = entry.value.currentContext?.findRenderObject();
+      if (box is RenderBox && box.hasSize) {
+        total += box.size.height + c.novelParagraphSpacing.value;
+        count++;
+      }
+    }
+    if (count == 0) {
+      return c.novelFontSize.value * c.novelLineHeight.value * 4.2;
+    }
+    return total / count;
+  }
+
+  int _approximateParagraphAt(double offset, double average) =>
+      average <= 0 ? 0 : (offset / average).floor();
+
+  void _followSpeech(List<String> paragraphs) {
+    final active = c.novelSpeechPlaying.value || c.novelSpeechPaused.value;
+    final paragraph = c.novelSpeechCurrentParagraph.value;
+    if (!active || paragraph < 0 || paragraph >= paragraphs.length) {
+      _lastSpeechParagraph = -1;
+      return;
+    }
+    if (paragraph == _lastSpeechParagraph) return;
+    _lastSpeechParagraph = paragraph;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _jumpToParagraph(paragraph);
+    });
+  }
+
+  void _syncAutoScroll(int paragraphCount) {
+    final enabled = c.novelAutoScroll.value;
+    if (!enabled) {
+      _autoScrollTicker?.stop();
+      return;
+    }
+    _autoScrollTicker ??= createTicker((elapsed) {
+      final scroll = c.scrollController;
+      if (!scroll.hasClients) return;
+      if (_lastTick == Duration.zero) {
+        _lastTick = elapsed;
+        return;
+      }
+      final dt =
+          (elapsed - _lastTick).inMicroseconds / Duration.microsecondsPerSecond;
+      _lastTick = elapsed;
+      if (dt <= 0 || dt > .25) return;
+      final max = scroll.position.maxScrollExtent;
+      if (scroll.offset >= max - .5) {
+        c.setNovelAutoScroll(false);
+        return;
+      }
+      final target =
+          (scroll.offset + c.novelAutoScrollSpeed.value * dt).clamp(0.0, max);
+      scroll.jumpTo(target);
+    });
+    if (!_autoScrollTicker!.isActive) {
+      _lastTick = Duration.zero;
+      _autoScrollTicker!.start();
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Reader chrome
+  // ---------------------------------------------------------------------
+
+  Widget _buildChrome(BuildContext context) {
+    return Obx(() {
+      final visible = c.showNavigation.value;
+      final progress = c.readerProgress.value.clamp(0.0, 1.0).toDouble();
+      final range = c.activeReaderPageRange;
+      final totalPages =
+          range?.pageCount ?? c.chapterData.value.chapter.images.length;
+      final localPage = range == null
+          ? c.currentPage.value
+          : c.currentPage.value - range.startIndex;
+      final title = c.chapterDividerTitle(c.activeReaderChapterId);
+      final pageLabel = c.isNovel || totalPages <= 0
+          ? '${(progress * 100).round()}%'
+          : '${localPage + 1} / $totalPages';
+      return Stack(
+        children: [
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _chromeTransition(
+              visible: visible,
+              fromTop: true,
+              child: _topBar(title, pageLabel),
             ),
           ),
-        ),
-      ),
-      backgroundColor: AppColors.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-      ),
-      isScrollControlled: true,
-    );
-  }
-
-  Widget _fitChoice(String value, String label) {
-    final selected = controller.readerFit.value == value;
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => controller.setReaderFit(value),
-      selectedColor: AppColors.primary.withValues(alpha: 0.22),
-      labelStyle: TextStyle(
-        color: selected ? AppColors.primary : AppColors.textSecondary,
-        fontWeight: FontWeight.w700,
-      ),
-    );
-  }
-
-  Widget _readerSettingsSection(String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, size: 17, color: AppColors.primary),
-        const SizedBox(width: 7),
-        Text(
-          title,
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: _chromeTransition(
+              visible: visible,
+              fromTop: false,
+              child: _bottomBar(progress, title, pageLabel),
+            ),
           ),
+        ],
+      );
+    });
+  }
+
+  Widget _chromeTransition({
+    required bool visible,
+    required bool fromTop,
+    required Widget child,
+  }) {
+    return IgnorePointer(
+      ignoring: !visible,
+      child: AnimatedSlide(
+        offset: visible ? Offset.zero : Offset(0, fromTop ? -1.1 : 1.1),
+        duration: const Duration(milliseconds: 230),
+        curve: Curves.easeOutCubic,
+        child: AnimatedOpacity(
+          opacity: visible ? 1 : 0,
+          duration: const Duration(milliseconds: 180),
+          child: child,
         ),
-      ],
-    );
-  }
-
-  Widget _readerModeChoice(String value, String label) {
-    final selected = controller.readerMode.value == value;
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => controller.setReaderMode(value),
-      selectedColor: AppColors.primary.withValues(alpha: 0.22),
-      labelStyle: TextStyle(
-        color: selected ? AppColors.primary : AppColors.textSecondary,
-        fontWeight: FontWeight.w700,
       ),
     );
   }
 
-  Widget _directionChoice(String value, String label) {
-    final selected = controller.readingDirection.value == value;
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => controller.setReadingDirection(value),
-      selectedColor: AppColors.primary.withValues(alpha: 0.22),
-      labelStyle: TextStyle(
-        color: selected ? AppColors.primary : AppColors.textSecondary,
-        fontWeight: FontWeight.w700,
+  Widget _topBar(String title, String pageLabel) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.black.withValues(alpha: .86),
+            Colors.black.withValues(alpha: .45),
+            Colors.transparent,
+          ],
+        ),
       ),
-    );
-  }
-
-  Future<void> _openNovelReaderSettings() async {
-    await Get.bottomSheet(
-      Obx(() => SafeArea(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 10, 18, 20),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(6, 4, 8, 18),
+          child: Row(
+            children: [
+              _chromeIcon(
+                Icons.arrow_back_rounded,
+                'رجوع',
+                () => Get.back(),
+              ),
+              const SizedBox(width: 2),
+              Expanded(
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Center(
-                      child: Container(
-                        width: 42,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: AppColors.divider,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
                     Text(
-                      'إعدادات الرواية'.tr,
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 20,
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13.5,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 18),
-                    Text('حجم الخط'.tr,
-                        style: TextStyle(color: AppColors.textSecondary)),
-                    Row(
-                      children: [
-                        IconButton(
-                          onPressed: () => controller.setNovelFontSize(
-                              controller.novelFontSize.value - 1),
-                          icon: const Icon(Icons.remove_rounded),
-                        ),
-                        Expanded(
-                          child: Slider(
-                            value: controller.novelFontSize.value
-                                .clamp(14.0, 30.0)
-                                .toDouble(),
-                            min: 14,
-                            max: 30,
-                            divisions: 16,
-                            label: '${controller.novelFontSize.value.round()}',
-                            onChanged: controller.setNovelFontSize,
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => controller.setNovelFontSize(
-                              controller.novelFontSize.value + 1),
-                          icon: const Icon(Icons.add_rounded),
-                        ),
-                      ],
-                    ),
-                    Center(
-                      child: Text(
-                        'معاينة للنص'.tr,
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: controller.novelFontSize.value,
-                          fontFamily:
-                              controller.novelFontFamily.value == 'default'
-                                  ? null
-                                  : controller.novelFontFamily.value,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Text('اتجاه النص'.tr,
-                        style: TextStyle(color: AppColors.textSecondary)),
-                    const SizedBox(height: 7),
-                    Wrap(
-                      spacing: 7,
-                      children: [
-                        _directionChoice('rtl', 'من اليمين إلى اليسار'.tr),
-                        _directionChoice('ltr', 'من اليسار إلى اليمين'.tr),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Text('تباعد الأسطر'.tr,
-                        style: TextStyle(color: AppColors.textSecondary)),
-                    Slider(
-                      value: controller.novelLineHeight.value
-                          .clamp(1.4, 2.3)
-                          .toDouble(),
-                      min: 1.4,
-                      max: 2.3,
-                      divisions: 9,
-                      label:
-                          controller.novelLineHeight.value.toStringAsFixed(1),
-                      onChanged: controller.setNovelLineHeight,
-                    ),
-                    const SizedBox(height: 8),
-                    Text('تباعد الفقرات'.tr,
-                        style: TextStyle(color: AppColors.textSecondary)),
-                    Slider(
-                      value: controller.novelParagraphSpacing.value
-                          .clamp(8.0, 36.0)
-                          .toDouble(),
-                      min: 8,
-                      max: 36,
-                      divisions: 14,
-                      label:
-                          '${controller.novelParagraphSpacing.value.round()} px',
-                      onChanged: controller.setNovelParagraphSpacing,
-                    ),
-                    const SizedBox(height: 8),
-                    Text('نوع الخط'.tr,
-                        style: TextStyle(color: AppColors.textSecondary)),
-                    const SizedBox(height: 7),
-                    Wrap(
-                      spacing: 7,
-                      children: [
-                        _novelChoice('default', 'افتراضي'.tr),
-                        _novelChoice('serif', 'نسخي'.tr),
-                        _novelChoice('sans-serif', 'بسيط'.tr),
-                        _novelChoice('monospace', 'أحادي المسافة'.tr),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Text('القراءة الصوتية'.tr,
-                        style: TextStyle(color: AppColors.textSecondary)),
-                    const SizedBox(height: 7),
-                    Text('لغة القراءة الصوتية'.tr,
-                        style: TextStyle(color: AppColors.textSecondary)),
-                    const SizedBox(height: 7),
-                    Wrap(
-                      spacing: 7,
-                      children: [
-                        _speechLanguageChoice('ar-SA', 'العربية'.tr),
-                        _speechLanguageChoice('en-US', 'الإنجليزية'.tr),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text('سرعة القراءة الصوتية'.tr,
-                        style: TextStyle(color: AppColors.textSecondary)),
-                    Slider(
-                      value: controller.novelSpeechRate.value
-                          .clamp(0.25, 0.75)
-                          .toDouble(),
-                      min: 0.25,
-                      max: 0.75,
-                      divisions: 10,
-                      label:
-                          controller.novelSpeechRate.value.toStringAsFixed(2),
-                      onChanged: controller.setNovelSpeechRate,
-                    ),
-                    if (controller.novelSpeechPlaying.value ||
-                        controller.novelSpeechPaused.value)
-                      Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        child: TextButton.icon(
-                          onPressed: () => controller.stopNovelSpeech(),
-                          icon: const Icon(Icons.stop_rounded),
-                          label: Text('إيقاف القراءة'.tr),
-                        ),
-                      ),
-                    const SizedBox(height: 14),
-                    Text('خلفية القراءة'.tr,
-                        style: TextStyle(color: AppColors.textSecondary)),
-                    const SizedBox(height: 7),
-                    Wrap(
-                      spacing: 7,
-                      children: [
-                        _novelChoice('app', 'حسب الثيم'.tr),
-                        _novelChoice('light', 'فاتح'.tr),
-                        _novelChoice('sepia', 'ورقي'.tr),
-                        _novelChoice('dark', 'داكن'.tr),
-                        _novelChoice('black', 'أسود خالص'.tr),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Divider(color: AppColors.divider),
-                    SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      value: controller.continuousNavigation.value,
-                      onChanged: controller.setContinuousNavigation,
-                      title: Text('الانتقال التلقائي بين الفصول'.tr,
-                          style: TextStyle(color: AppColors.textPrimary)),
-                      subtitle: Text(
-                          'تحميل الفصل التالي عند بلوغ نهاية النص'.tr,
-                          style: TextStyle(color: AppColors.textSecondary)),
-                      activeColor: AppColors.primary,
-                    ),
-                    SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      value: controller.showChapterTitle.value,
-                      onChanged: controller.setShowChapterTitle,
-                      title: Text('إظهار اسم الفصل بين الفصول'.tr,
-                          style: TextStyle(color: AppColors.textPrimary)),
-                      subtitle: Text('يبقى الفاصل ظاهراً عند إخفاء الاسم'.tr,
-                          style: TextStyle(color: AppColors.textSecondary)),
-                      activeColor: AppColors.primary,
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.menu_book_rounded,
-                              color: AppColors.primary),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'تُعرض فصول الرواية متصلة ويفصل بينها خط رفيع'.tr,
-                              style: TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                        ],
+                    const SizedBox(height: 2),
+                    Text(
+                      pageLabel,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: .66),
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-          )),
-      backgroundColor: AppColors.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-      ),
-      isScrollControlled: true,
-    );
-  }
-
-  Widget _novelChoice(String value, String label) {
-    final selected = controller.novelFontFamily.value == value ||
-        controller.novelBackground.value == value;
-    final isFont =
-        const {'default', 'serif', 'sans-serif', 'monospace'}.contains(value);
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => isFont
-          ? controller.setNovelFontFamily(value)
-          : controller.setNovelBackground(value),
-      selectedColor: AppColors.primary.withValues(alpha: 0.22),
-      labelStyle: TextStyle(
-        color: selected ? AppColors.primary : AppColors.textSecondary,
-        fontWeight: FontWeight.w700,
-      ),
-    );
-  }
-
-  Widget _speechLanguageChoice(String value, String label) {
-    final selected = controller.novelSpeechLanguage.value == value;
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => controller.setNovelSpeechLanguage(value),
-      selectedColor: AppColors.primary.withValues(alpha: 0.22),
-      labelStyle: TextStyle(
-        color: selected ? AppColors.primary : AppColors.textSecondary,
-        fontWeight: FontWeight.w700,
-      ),
-    );
-  }
-
-  Future<void> _openReaderBookmarks() async {
-    await Get.bottomSheet(
-      Obx(() {
-        final bookmarks = controller.readerBookmarks.toList(growable: false);
-        return SafeArea(
-          child: SizedBox(
-            height: Get.height * 0.78,
-            child: Column(
-              children: [
-                const SizedBox(height: 12),
-                Container(
-                  width: 42,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.divider,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'العلامات المرجعية'.tr,
-                          style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                      Text('${bookmarks.length}',
-                          style: TextStyle(color: AppColors.textSecondary)),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.tonalIcon(
-                      onPressed: () => controller.saveReaderBookmark(),
-                      icon: const Icon(Icons.bookmark_add_outlined),
-                      label: Text('حفظ موضع القراءة'.tr),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: bookmarks.isEmpty
-                      ? Center(child: Text('لا توجد علامات مرجعية'.tr))
-                      : ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(14, 0, 14, 18),
-                          itemCount: bookmarks.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 6),
-                          itemBuilder: (context, index) {
-                            final item = bookmarks[index];
-                            final progressValue = item['progress'];
-                            final progress = progressValue is num
-                                ? progressValue.toDouble()
-                                : double.tryParse('$progressValue') ?? 0.0;
-                            final createdAt = DateTime.tryParse(
-                              '${item['createdAt'] ?? ''}',
-                            );
-                            final month =
-                                createdAt?.month.toString().padLeft(2, '0') ??
-                                    '';
-                            final day =
-                                createdAt?.day.toString().padLeft(2, '0') ?? '';
-                            final date = createdAt == null
-                                ? ''
-                                : '${createdAt.year}-$month-$day';
-                            final progressLabel =
-                                '${(progress * 100).round()}%';
-                            final bookmarkTitle =
-                                '${item['chapterTitle'] ?? ''}'.trim();
-                            final subtitle = date.isEmpty
-                                ? progressLabel
-                                : '$progressLabel • $date';
-                            return ListTile(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              tileColor: AppColors.searchBar,
-                              leading: Icon(Icons.bookmark_rounded,
-                                  color: AppColors.primary),
-                              title: Text(
-                                bookmarkTitle.isEmpty
-                                    ? 'الفصل'.tr
-                                    : bookmarkTitle,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(color: AppColors.textPrimary),
-                              ),
-                              subtitle: Text(
-                                subtitle,
-                                style:
-                                    TextStyle(color: AppColors.textSecondary),
-                              ),
-                              trailing: IconButton(
-                                tooltip: 'حذف'.tr,
-                                onPressed: () =>
-                                    controller.removeReaderBookmark(
-                                  '${item['id'] ?? ''}',
-                                ),
-                                icon: Icon(Icons.delete_outline_rounded,
-                                    color: AppColors.icon),
-                              ),
-                              onTap: () {
-                                Get.back();
-                                controller.openReaderBookmark(item);
-                              },
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }),
-      backgroundColor: AppColors.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-      ),
-      isScrollControlled: true,
-    );
-  }
-
-  Future<void> _openChapterList() async {
-    await controller.ensureChapterNavigation();
-    final chapters = controller.availableChapters;
-    if (chapters.isEmpty) {
-      AppFeedback.show(
-        title: 'قائمة الفصول'.tr,
-        message: 'لا توجد قائمة فصول متاحة'.tr,
-      );
-      return;
-    }
-    await Get.bottomSheet(
-      SafeArea(
-        child: SizedBox(
-          height: Get.height * 0.78,
-          child: Column(
-            children: [
-              const SizedBox(height: 12),
-              Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.divider,
-                  borderRadius: BorderRadius.circular(4),
-                ),
+              _chromeIcon(
+                c.readerFullscreen.value
+                    ? Icons.fullscreen_exit_rounded
+                    : Icons.fullscreen_rounded,
+                'ملء الشاشة',
+                () => c.setReaderFullscreen(!c.readerFullscreen.value),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 16, 18, 10),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text('الفصول'.tr,
-                          style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800)),
-                    ),
-                    Text('${chapters.length}',
-                        style: TextStyle(color: AppColors.textSecondary)),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Obx(() {
-                  controller.chapterNavigationRevision.value;
-                  controller.readerBookmarks.length;
-                  return ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 18),
-                    itemCount: chapters.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 6),
-                    itemBuilder: (context, index) {
-                      final item = chapters[index];
-                      final current = controller.isCurrentChapter(item);
-                      final isRead = controller.isChapterRead(item.chapterId);
-                      final bookmark =
-                          controller.bookmarkForChapter(item.chapterId);
-                      return ListTile(
-                        dense: true,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                        tileColor: current
-                            ? AppColors.primary.withValues(alpha: 0.14)
-                            : AppColors.searchBar,
-                        leading: Icon(
-                          current
-                              ? Icons.play_circle_filled_rounded
-                              : Icons.menu_book_rounded,
-                          color: current ? AppColors.primary : AppColors.icon,
-                        ),
-                        title: Text(item.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                                color: AppColors.textPrimary,
-                                fontWeight: current
-                                    ? FontWeight.w800
-                                    : FontWeight.w600)),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (bookmark != null)
-                              IconButton(
-                                tooltip: 'الانتقال إلى العلامة المرجعية'.tr,
-                                visualDensity: VisualDensity.compact,
-                                onPressed: () {
-                                  Get.back();
-                                  controller.openReaderBookmark(bookmark);
-                                },
-                                icon: const Icon(
-                                  Icons.bookmark_rounded,
-                                  color: Color(0xff31c46c),
-                                  size: 21,
-                                ),
-                              ),
-                            if (isRead)
-                              Text(
-                                'مقروء'.tr,
-                                style: TextStyle(
-                                  color: AppColors.primary,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                          ],
-                        ),
-                        onTap: current
-                            ? null
-                            : () {
-                                Get.back();
-                                controller.navigateToChapter(item.chapterId);
-                              },
-                      );
-                    },
-                  );
-                }),
+              _chromeIcon(
+                Icons.tune_rounded,
+                'أدوات القارئ',
+                () => _openTools(context),
               ),
             ],
           ),
         ),
       ),
-      backgroundColor: AppColors.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-      ),
-      isScrollControlled: true,
     );
   }
 
-  bool _isLocalReaderPage(String imageReference) =>
-      imageReference.startsWith('/');
-
-  void _markPageLoadedAndPreservePosition(int index, String imageReference) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      controller.markPageLoaded(index, pageReference: imageReference);
-      _restoreScrollAnchorAfterImageLayout();
-    });
-  }
-
-  Widget _buildPagedImage(
-    BuildContext context,
-    String imageUrl,
-    int pageIndex,
-  ) {
-    return Obx(() {
-      final isLocalPage = _isLocalReaderPage(imageUrl);
-      if (isLocalPage) {
-        WidgetsBinding.instance.addPostFrameCallback((_) =>
-            controller.markPageLoaded(pageIndex, pageReference: imageUrl));
-      }
-      final selectedFit = controller.readerFit.value;
-      final decodeWidth = selectedFit == 'natural'
-          ? null
-          : (MediaQuery.sizeOf(context).width *
-                  MediaQuery.devicePixelRatioOf(context))
-              .round();
-      final fit = selectedFit == 'height'
-          ? BoxFit.fitHeight
-          : selectedFit == 'natural'
-              ? BoxFit.none
-              : BoxFit.contain;
-      final Widget image = isLocalPage
-          ? Image.file(
-              File(imageUrl),
-              width: double.infinity,
-              height: double.infinity,
-              cacheWidth: decodeWidth,
-              fit: fit,
-              filterQuality: FilterQuality.medium,
-              gaplessPlayback: true,
-              errorBuilder: (context, error, stackTrace) {
-                WidgetsBinding.instance.addPostFrameCallback((_) => controller
-                    .markPageFailed(pageIndex, pageReference: imageUrl));
-                return const Center(child: MangaPlusLogo(size: 56));
-              },
-            )
-          : CachedNetworkImage(
-              key:
-                  ValueKey('$imageUrl#${controller.pageRetryToken(pageIndex)}'),
-              imageUrl: imageUrl,
-              httpHeaders: _imageHeaders(imageUrl),
-              memCacheWidth: decodeWidth,
-              imageBuilder: (context, imageProvider) {
-                WidgetsBinding.instance.addPostFrameCallback((_) => controller
-                    .markPageLoaded(pageIndex, pageReference: imageUrl));
-                return Image(
-                  image: imageProvider,
-                  width: double.infinity,
-                  height: double.infinity,
-                  fit: fit,
-                  filterQuality: FilterQuality.low,
-                  gaplessPlayback: true,
-                );
-              },
-              progressIndicatorBuilder: (context, url, downloadProgress) =>
-                  Center(
-                child: MangaPlusLoader(
-                  size: 58,
-                  progress:
-                      controller.isNovel ? null : downloadProgress.progress,
+  Widget _bottomBar(double progress, String title, String pageLabel) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xff181b20).withValues(alpha: .97),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: .08)),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .35),
+            blurRadius: 20,
+            offset: const Offset(0, -6),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 3,
+                backgroundColor: Colors.white.withValues(alpha: .1),
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Text(
+                  pageLabel,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: .62),
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(
+              height: 34,
+              child: SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  trackHeight: 2,
+                  activeTrackColor: AppColors.primary,
+                  inactiveTrackColor: Colors.white.withValues(alpha: .16),
+                  thumbColor: AppColors.primary,
+                  overlayColor: AppColors.primary.withValues(alpha: .12),
+                  thumbShape:
+                      const RoundSliderThumbShape(enabledThumbRadius: 6),
+                  overlayShape:
+                      const RoundSliderOverlayShape(overlayRadius: 14),
+                ),
+                child: Slider(
+                  value: progress,
+                  onChanged: c.seekReaderProgress,
+                  onChangeEnd: (_) => c.persistReaderProgress(),
                 ),
               ),
-              placeholder: (context, url) => const Center(
-                child: MangaPlusLoader(size: 54),
-              ),
-              errorWidget: (context, url, error) {
-                WidgetsBinding.instance.addPostFrameCallback((_) => controller
-                    .markPageFailed(pageIndex, pageReference: imageUrl));
-                final issue = ReaderLoadIssue.from(
-                  error,
-                  fallbackTitle: 'تعذر تحميل الصورة',
-                );
-                return Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const MangaPlusLogo(size: 56),
-                    const SizedBox(height: 8),
-                    Text(issue.titleKey.tr,
-                        style: TextStyle(color: AppColors.textPrimary)),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Text(
-                        issue.descriptionKey.tr,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                    ),
-                    TextButton.icon(
-                      onPressed: () => controller.retryPage(
-                        pageIndex,
-                        pageReference: imageUrl,
-                      ),
-                      icon: const Icon(Icons.refresh_rounded),
-                      label: Text('إعادة المحاولة'.tr),
-                    ),
-                  ],
-                );
-              },
-            );
-      return RepaintBoundary(
-        child: ColoredBox(
-          color: Colors.black,
-          child: SizedBox.expand(
-            child: image,
-          ),
-        ),
-      );
-    });
-  }
-
-  Widget _buildImage(
-    BuildContext context,
-    String imageUrl,
-    int pageIndex,
-  ) {
-    return RepaintBoundary(
-      child: Container(
-        width: double.infinity,
-        color: Colors.black,
-        child: Obx(
-          () {
-            final isLocalPage = _isLocalReaderPage(imageUrl);
-            if (isLocalPage) {
-              _markPageLoadedAndPreservePosition(pageIndex, imageUrl);
-            }
-            final selectedFit = controller.readerFit.value;
-            final decodeWidth = selectedFit == 'natural'
-                ? null
-                : (MediaQuery.sizeOf(context).width *
-                        MediaQuery.devicePixelRatioOf(context))
-                    .round();
-            final pageImage = isLocalPage
-                ? Image.file(
-                    File(imageUrl),
-                    width: double.infinity,
-                    cacheWidth: decodeWidth,
-                    fit: _imageFit(controller.readerFit.value),
-                    filterQuality: FilterQuality.low,
-                    alignment: Alignment.topCenter,
-                    gaplessPlayback: true,
-                    errorBuilder: (context, error, stackTrace) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) =>
-                          controller.markPageFailed(pageIndex,
-                              pageReference: imageUrl));
-                      return const Center(child: MangaPlusLogo(size: 56));
-                    },
-                  )
-                : CachedNetworkImage(
-                    key: ValueKey(
-                        '$imageUrl#${controller.pageRetryToken(pageIndex)}'),
-                    imageUrl: imageUrl,
-                    httpHeaders: _imageHeaders(imageUrl),
-                    memCacheWidth: decodeWidth,
-                    imageBuilder: (context, imageProvider) {
-                      _markPageLoadedAndPreservePosition(pageIndex, imageUrl);
-                      return Image(
-                        image: imageProvider,
-                        width: double.infinity,
-                        fit: _imageFit(controller.readerFit.value),
-                        filterQuality: FilterQuality.low,
-                        gaplessPlayback: true,
-                      );
-                    },
-                    progressIndicatorBuilder:
-                        (context, url, downloadProgress) => SizedBox(
-                      width: double.infinity,
-                      height: MediaQuery.sizeOf(context).height * 0.68,
-                      child: Center(
-                        child: MangaPlusLoader(
-                          size: 58,
-                          progress: controller.isNovel
-                              ? null
-                              : downloadProgress.progress,
-                        ),
-                      ),
-                    ),
-                    placeholder: (context, url) => SizedBox(
-                      width: double.infinity,
-                      height: MediaQuery.sizeOf(context).height * 0.68,
-                      child: const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          MangaPlusLoader(size: 54),
-                        ],
-                      ),
-                    ),
-                    errorWidget: (context, url, error) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) =>
-                          controller.markPageFailed(pageIndex,
-                              pageReference: imageUrl));
-                      final issue = ReaderLoadIssue.from(
-                        error,
-                        fallbackTitle: 'تعذر تحميل الصورة',
-                      );
-                      return SizedBox(
-                        width: double.infinity,
-                        height: MediaQuery.sizeOf(context).height * 0.68,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const MangaPlusLogo(size: 56),
-                            const SizedBox(height: 10),
-                            Text(
-                              issue.titleKey.tr,
-                              style: TextStyle(color: AppColors.textPrimary),
-                            ),
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 28),
-                              child: Text(
-                                issue.descriptionKey.tr,
-                                textAlign: TextAlign.center,
-                                style:
-                                    TextStyle(color: AppColors.textSecondary),
-                              ),
-                            ),
-                            TextButton.icon(
-                              onPressed: () => controller.retryPage(
-                                pageIndex,
-                                pageReference: imageUrl,
-                              ),
-                              icon: const Icon(Icons.refresh_rounded),
-                              label: Text('إعادة المحاولة'.tr),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  );
-            return pageImage;
-          },
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _chromeIcon(
+                  Icons.grid_view_rounded,
+                  'الصفحات',
+                  () => _openTools(context),
+                ),
+                _chromeIcon(
+                  Icons.chevron_left_rounded,
+                  'الفصل السابق',
+                  c.previousChapterId == null
+                      ? null
+                      : () => c.navigateToChapter(
+                            c.previousChapterId,
+                            reverse: true,
+                            joinContinuousStream: true,
+                          ),
+                ),
+                _chromeIcon(
+                  c.isNovel
+                      ? Icons.format_list_bulleted_rounded
+                      : (c.readerMode.value == 'paged'
+                          ? Icons.view_stream_rounded
+                          : Icons.menu_book_rounded),
+                  c.isNovel ? 'أدوات' : 'تبديل وضع القراءة',
+                  c.isNovel
+                      ? () => _openTools(context)
+                      : () => c.setReaderMode(
+                            c.readerMode.value == 'paged' ? 'scroll' : 'paged',
+                          ),
+                ),
+                _chromeIcon(
+                  c.isNovel
+                      ? (c.novelSpeechPlaying.value
+                          ? Icons.pause_rounded
+                          : Icons.volume_up_rounded)
+                      : Icons.chevron_right_rounded,
+                  c.isNovel ? 'القراءة الصوتية' : 'الفصل التالي',
+                  c.isNovel
+                      ? c.toggleNovelSpeech
+                      : (c.nextChapterId == null
+                          ? null
+                          : () => c.navigateToChapter(
+                                c.nextChapterId,
+                                joinContinuousStream: true,
+                              )),
+                ),
+                _chromeIcon(
+                  c.isNovel
+                      ? Icons.bookmarks_outlined
+                      : Icons.format_list_numbered_rounded,
+                  c.isNovel ? 'العلامات والملاحظات' : 'قائمة الفصول',
+                  () => _openTools(context),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
 
-  /// Small translucent chip with the real page-load ratio. It never takes taps
-  /// away from the reader and hides itself once the chapter has finished
-  /// loading (or shortly after, on a slow connection).
-  Widget _buildPageLoadIndicator(BuildContext context) {
+  Widget _chromeIcon(IconData icon, String tooltip, VoidCallback? onTap) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onTap,
+      icon: Icon(icon, size: 21),
+      color: onTap == null
+          ? Colors.white.withValues(alpha: .26)
+          : Colors.white.withValues(alpha: .9),
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints.tightFor(width: 42, height: 38),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+
+  Future<void> _openTools(BuildContext context) async {
+    await openReaderTools(
+      context,
+      onJumpToPage: _jumpToPage,
+      onJumpToParagraph: _jumpToParagraph,
+      currentNovelParagraph: () => _novelAnchor,
+    );
+  }
+
+  Future<void> _jumpToPage(int page) async {
+    final images = c.chapterData.value.chapter.images;
+    if (images.isEmpty) return;
+    final target = page.clamp(0, images.length - 1).toInt();
+    if (c.readerMode.value == 'paged') {
+      c.setCurrentPage(target);
+      if (c.pageController.hasClients) {
+        c.pageController.jumpToPage(target ~/ _pagesPerSpread);
+      }
+      return;
+    }
+    final scroll = c.scrollController;
+    if (!scroll.hasClients || _index.pageCount != images.length) return;
+    final offset = _index
+        .startOf(target)
+        .clamp(0.0, scroll.position.maxScrollExtent)
+        .toDouble();
+    scroll.jumpTo(offset);
+    _anchorPage = target;
+    _anchorFraction = 0;
+    c.setCurrentPage(target);
+    c.updateImageScrollProgress(target, 0);
+    c.onMangaWindowChanged(firstVisible: target, lastVisible: target);
+  }
+
+  // ---------------------------------------------------------------------
+  // Overlays and palette
+  // ---------------------------------------------------------------------
+
+  Widget _buildPageLoadChip(BuildContext context) {
     return Obx(() {
-      controller.pageLoadRevision.value;
-      if (!controller.showPageLoadProgress.value) {
+      c.pageLoadRevision.value;
+      if (!c.showPageLoadProgress.value || c.isNovel) {
         return const SizedBox.shrink();
       }
-      final progress = controller.pageLoadProgress;
+      final progress = c.pageLoadProgress;
       if (progress == null) return const SizedBox.shrink();
       final percent = (progress * 100).round().clamp(0, 100);
       return Positioned(
-        top: MediaQuery.paddingOf(context).top + 10,
+        top: MediaQuery.paddingOf(context).top + 64,
         left: 0,
         right: 0,
         child: IgnorePointer(
           child: Center(
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0x94000000),
-                borderRadius: BorderRadius.circular(30),
+                color: const Color(0xa6000000),
+                borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   SizedBox(
-                    width: 12,
-                    height: 12,
+                    width: 11,
+                    height: 11,
                     child: CircularProgressIndicator(
                       value: progress,
-                      strokeWidth: 1.8,
-                      backgroundColor: const Color(0x33FFFFFF),
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        AppColors.accent,
-                      ),
+                      strokeWidth: 1.6,
+                      backgroundColor: Colors.white.withValues(alpha: .2),
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(AppColors.primary),
                     ),
                   ),
-                  const SizedBox(width: 7),
+                  const SizedBox(width: 6),
                   Text(
                     '$percent%',
                     style: const TextStyle(
-                      color: Color(0xE6FFFFFF),
-                      fontSize: 11,
+                      color: Colors.white,
+                      fontSize: 10,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -1953,84 +1234,59 @@ class _ChapterViewState extends State<ChapterView> {
     });
   }
 
-  Future<void> _preloadImages(
-    BuildContext context,
-    List<String> imageUrls, {
-    int start = 0,
-    int count = 3,
-  }) async {
-    if (!context.mounted) return;
-    final urls = imageUrls
-        .skip(start)
-        .take(count)
-        .where((url) => !_isLocalReaderPage(url))
-        .where(_preloadedImages.add)
-        .toList(growable: false);
-    // Decode in small batches: a whole adjacent chapter can hold well over a
-    // hundred pages, and warming them all at once spikes memory on low-end
-    // devices. Batching keeps the boundary warm without the spike.
-    const batchSize = 3;
-    for (var offset = 0; offset < urls.length; offset += batchSize) {
-      if (!context.mounted) return;
-      final batch = urls.skip(offset).take(batchSize);
-      await Future.wait(batch.map((url) async {
-        try {
-          await precacheImage(
-            CachedNetworkImageProvider(
-              url,
-              headers: _imageHeaders(url),
-            ),
-            context,
-          );
-        } catch (error) {
-          _preloadedImages.remove(url);
-          debugPrint('Unable to preload page: $error');
-        }
-      }));
+  Widget _buildBrightnessOverlay() {
+    return Obx(() {
+      final opacity = (1 - c.readerBrightness.value).clamp(0.0, .65);
+      if (opacity <= .01) return const SizedBox.shrink();
+      return Positioned.fill(
+        child: IgnorePointer(
+          child: ColoredBox(
+            color: Colors.black.withValues(alpha: opacity),
+          ),
+        ),
+      );
+    });
+  }
+
+  Color _readerBackground() {
+    if (c.isNovel) return _novelPalette().background;
+    return _pageBackground();
+  }
+
+  Color _pageBackground() {
+    switch (c.readerBackground.value) {
+      case 'white':
+        return const Color(0xfffafafa);
+      case 'gray':
+        return const Color(0xff2b2d31);
+      case 'app':
+        return AppColors.background;
+      default:
+        return Colors.black;
     }
   }
 
-  void _preloadAdjacentChapterImages(
-    BuildContext context, {
-    bool previous = false,
-  }) {
-    final adjacentChapter =
-        previous ? controller.previousChapterId : controller.nextChapterId;
-    if (adjacentChapter == null) return;
-    unawaited(controller.prefetchChapter(adjacentChapter).then((data) {
-      if (!context.mounted || data == null || controller.isNovel) return;
-      const start = 0;
-      // Precache every page in the adjacent chapter. The chapter data itself
-      // is already cached by ComicService, so crossing the boundary becomes
-      // an in-memory list update instead of a network wait.
-      final count = data.chapter.images.length;
-      _preloadImages(
-        context,
-        data.chapter.images,
-        start: start,
-        count: count,
-      );
-    }));
-  }
-
-  Map<String, String> _imageHeaders(String imageUrl) {
-    final uri = Uri.tryParse(imageUrl);
-    final isMangaDar = uri?.host == 'storage.mangadar.com' ||
-        uri?.host.endsWith('.storage.mangadar.com') == true ||
-        uri?.host == 'mangadar.com';
-    final host = uri?.host.toLowerCase() ?? '';
-    final isProComic = host == 'procomic.pro' || host.endsWith('.procomic.pro');
-    final referer = isProComic
-        ? 'https://procomic.pro/'
-        : isMangaDar
-            ? 'https://mangadar.com/'
-            : uri == null || uri.host.isEmpty
-                ? 'https://olympustaff.com/'
-                : '${uri.scheme}://${uri.host}/';
-    return {
-      'Referer': referer,
-      'User-Agent':
-          'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
-    };
+  ({Color background, Color text}) _novelPalette() {
+    switch (c.novelBackground.value) {
+      case 'light':
+        return (
+          background: const Color(0xfffafafa),
+          text: const Color(0xff242424)
+        );
+      case 'sepia':
+        return (
+          background: const Color(0xfff1e6d0),
+          text: const Color(0xff453b2d)
+        );
+      case 'dark':
+        return (
+          background: const Color(0xff151515),
+          text: const Color(0xffe5e2dc)
+        );
+      case 'black':
+        return (background: Colors.black, text: const Color(0xffeeeeee));
+      default:
+        return (background: AppColors.background, text: AppColors.textPrimary);
+    }
   }
 }

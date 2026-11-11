@@ -22,6 +22,13 @@ import 'package:mangaplus/app/data/services/app_data_service.dart';
 import 'package:mangaplus/app/data/services/chapter_update_service.dart';
 import 'package:mangaplus/app/data/services/comic_service.dart';
 import 'package:mangaplus/app/core/utils/reader_load_issue.dart';
+import 'package:flutter/services.dart';
+import 'package:mangaplus/app/core/reader/novel_reader_model.dart';
+import 'package:mangaplus/app/core/reader/reader_chapter_cache.dart';
+import 'package:mangaplus/app/core/reader/reader_image_pipeline.dart';
+import 'package:mangaplus/app/core/reader/reader_image_source.dart';
+import 'package:mangaplus/app/core/reader/reader_offline_library.dart';
+import 'package:mangaplus/app/core/reader/reader_page_geometry.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 
 List<String> _splitNovelParagraphs(String content) => content
@@ -31,8 +38,7 @@ List<String> _splitNovelParagraphs(String content) => content
     .toList(growable: false);
 
 class ChapterController extends GetxController with WidgetsBindingObserver {
-  static const novelChapterDividerToken =
-      '__MANGAPLUS_NOVEL_CHAPTER_DIVIDER__';
+  static const novelChapterDividerToken = '__MANGAPLUS_NOVEL_CHAPTER_DIVIDER__';
 
   static String novelChapterDividerMarker(String title) =>
       '$novelChapterDividerToken${Uri.encodeComponent(title.trim())}';
@@ -54,7 +60,6 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   final List<ChapterElement> _argumentChapterNavigation = [];
   final List<ChapterElement> _fallbackChapterNavigation = [];
   List<ReaderChapterPageRange> _readerChapterPageRanges = [];
-  final Set<String> _prefetchingChapters = <String>{};
   final chapterNavigationRevision = 0.obs;
   List<ChapterElement>? _availableChaptersCache;
   List<ChapterElement>? _cachedLoadedChapterList;
@@ -71,12 +76,43 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   Future<void> _readingStatsQueue = Future<void>.value();
   bool _readingStatsEngaged = false;
 
+  // Reader engine: page geometry, chapter cache and the image warm-up queue.
+  ReaderPageMetricsStore _pageMetrics = ReaderPageMetricsStore();
+  late final ReaderChapterCache _chapterCache;
+  late final ReaderImagePipeline _imagePipeline;
+  bool _systemUiApplied = false;
+
+  final pageMetricsRevision = 0.obs;
+  final chapterStatus = Rxn<ReaderChapterStatus>();
+  final readerPageGap = 4.0.obs;
+  final readerBackground = 'black'.obs;
+  final readerBrightness = 1.0.obs;
+  final readerFullscreen = false.obs;
+  final readerKeepScreenOn = true.obs;
+  final readerOrientation = 'auto'.obs;
+  final readerDoublePage = false.obs;
+  final readerImageQuality = 'medium'.obs;
+  final readerPreloadDistance = 6.obs;
+
+  final novelFontWeight = 400.obs;
+  final novelMargins = 24.0.obs;
+  final novelTextAlign = 'auto'.obs;
+  final novelTextDirection = 'auto'.obs;
+  final novelLayoutRevision = 0.obs;
+  final novelAutoScroll = false.obs;
+  final novelAutoScrollSpeed = 26.0.obs;
+  final novelNotes = <NovelNote>[].obs;
+  final novelSearchHits = <NovelSearchHit>[].obs;
+  final novelSearchQuery = ''.obs;
+  final novelSearching = false.obs;
+
   PageController? _pageController;
   PageController get pageController => _pageController ??= PageController(
         initialPage: currentPage.value,
       );
   ScrollController? _scrollController;
-  ScrollController get scrollController => _scrollController ??= ScrollController(
+  ScrollController get scrollController =>
+      _scrollController ??= ScrollController(
         initialScrollOffset: _restoredScrollOffset,
       );
   double _restoredScrollOffset = 0;
@@ -97,19 +133,27 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
 
   Future<ChapterData?> prefetchChapter(String? id) async {
     final reference = _chapterReference(id);
-    if (reference == null ||
-        _sameChapterReference(reference, chapterId) ||
-        isOffline.value ||
-        !_prefetchingChapters.add(reference)) {
+    if (reference == null || _sameChapterReference(reference, chapterId)) {
       return null;
     }
     try {
-      return await _comicService.prefetchChapter(reference, isNovel: isNovel);
+      // The cache returns the *running* future when a prefetch is already in
+      // flight. The reader can therefore await this call and always receive the
+      // chapter it asked for instead of a null that led to merging stale pages.
+      final snapshot = await _chapterCache.load(reference);
+      if (!snapshot.isUsable) return null;
+      _seedPageMetricsForSnapshot(snapshot);
+      final images = snapshot.data.chapter.images;
+      for (var index = 0; index < images.length && index < 3; index++) {
+        _imagePipeline.request(
+          images[index],
+          priority: ReaderImagePriority.adjacent,
+        );
+      }
+      return snapshot.data;
     } catch (error) {
       debugPrint('Unable to prefetch adjacent chapter: $error');
       return null;
-    } finally {
-      _prefetchingChapters.remove(reference);
     }
   }
 
@@ -121,6 +165,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     };
     await Future.wait(targets.map(prefetchChapter));
   }
+
   String? _paragraphSource;
   Future<List<String>>? _paragraphsFuture;
 
@@ -234,8 +279,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     for (final candidate in candidates) {
       for (final chapter in candidate) {
         final identities = <String>{
-          if (chapter.chapterId.isNotEmpty)
-            _chapterIdentity(chapter.chapterId),
+          if (chapter.chapterId.isNotEmpty) _chapterIdentity(chapter.chapterId),
           if (chapter.url.isNotEmpty) _chapterIdentity(chapter.url),
         };
         if (identities.isEmpty || identities.any(seen.contains)) {
@@ -274,10 +318,9 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     return activeReaderPageRange?.chapterId ?? chapterId;
   }
 
-  double get _currentScrollOffset =>
-      _scrollController?.hasClients == true
-          ? _scrollController!.offset
-          : _restoredScrollOffset;
+  double get _currentScrollOffset => _scrollController?.hasClients == true
+      ? _scrollController!.offset
+      : _restoredScrollOffset;
 
   /// The chapter the reader is actually looking at.
   ///
@@ -291,14 +334,12 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     return active.isEmpty ? chapterId : active;
   }
 
-  List<Map<String, dynamic>> get activeChapterBookmarks =>
-      readerBookmarks
-          .where((bookmark) =>
-              _sameChapterReference(
-                '${bookmark['chapterId'] ?? ''}',
-                activeReaderChapterId,
-              ))
-          .toList(growable: false);
+  List<Map<String, dynamic>> get activeChapterBookmarks => readerBookmarks
+      .where((bookmark) => _sameChapterReference(
+            '${bookmark['chapterId'] ?? ''}',
+            activeReaderChapterId,
+          ))
+      .toList(growable: false);
 
   Map<String, dynamic>? bookmarkForChapter(String id) =>
       readerBookmarks.firstWhereOrNull((bookmark) =>
@@ -306,7 +347,8 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
 
   String chapterDividerTitle(String reference) {
     final chapter = availableChapters.firstWhereOrNull(
-      (item) => _sameChapterReference(item.chapterId, reference) ||
+      (item) =>
+          _sameChapterReference(item.chapterId, reference) ||
           _sameChapterReference(item.url, reference),
     );
     final title = chapter?.title.trim() ?? '';
@@ -493,110 +535,30 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
       hasError(false);
       loadIssue.value = null;
       endNoticeShown = false;
-      if (restoreSavedPosition && (!keepCurrentContent || !hasReadableContent)) {
+      chapterStatus.value = ReaderChapterStatus.loading;
+      if (restoreSavedPosition &&
+          (!keepCurrentContent || !hasReadableContent)) {
         _restoreReaderPosition(id);
       }
 
-      final downloadedChapters =
-          _storage.read<List<dynamic>>('downloadedChapters') ?? [];
-      final downloadedChapter = downloadedChapters.firstWhereOrNull(
-        (json) => json is Map && json['chapterId'] == id,
-      );
-
-      if (downloadedChapter != null) {
-        isOffline.value = true;
-        final localChapterRecords = downloadedChapters
-            .where((item) => item is Map && item['comicId'] == arguments['comicId'])
-            .cast<Map>()
-            .toList();
-        localChapterRecords.sort((left, right) {
-          final leftNumber = _chapterNumber('${left['chapterTitle'] ?? ''}');
-          final rightNumber = _chapterNumber('${right['chapterTitle'] ?? ''}');
-          if (leftNumber == null && rightNumber == null) return 0;
-          if (leftNumber == null) return 1;
-          if (rightNumber == null) return -1;
-          return rightNumber.compareTo(leftNumber);
-        });
-        final localIndex = localChapterRecords.indexWhere(
-          (item) => item['chapterId'] == id,
-        );
-        final localPrevious = localIndex >= 0 &&
-                localIndex + 1 < localChapterRecords.length
-            ? '${localChapterRecords[localIndex + 1]['chapterId']}'
-            : '';
-        final localNext = localIndex > 0
-            ? '${localChapterRecords[localIndex - 1]['chapterId']}'
-            : null;
-        final localNavigation = localChapterRecords
-            .map((item) => ChapterElement(
-                  chapterId: '${item['chapterId'] ?? ''}',
-                  title: '${item['chapterTitle'] ?? ''}',
-                  url: '${item['chapterId'] ?? ''}',
-                ))
-            .where((item) => item.chapterId.isNotEmpty)
-            .toList(growable: false);
-        final savedContent = '${downloadedChapter['content'] ?? ''}';
-        if (isNovel || savedContent.isNotEmpty) {
-          if (savedContent.trim().isEmpty) {
-            throw StateError('لا يوجد نص محلي صالح لهذا الفصل.');
-          }
-          chapterData.value = ChapterData(
-            chapter: DataChapter(
-              chapterId: id,
-              title: '${downloadedChapter['chapterTitle'] ?? id}',
-              images: const [],
-              content: savedContent,
-              previousChapter: localPrevious,
-              nextChapter: localNext,
-              chapters: localNavigation,
-            ),
-            source: 'local',
-          );
-        } else {
-          final paths = List<String>.from(downloadedChapter['localImagePaths'] ?? const [])
-              .where((path) => File(path).existsSync()).toList()
-            ..sort((left, right) => _pageNumber(left).compareTo(_pageNumber(right)));
-          if (paths.isEmpty) throw StateError('لا توجد صفحات محلية صالحة لهذا الفصل.');
-          localImages.assignAll(paths);
-          chapterData.value = ChapterData(
-            chapter: DataChapter(
-              chapterId: id,
-              title: '${downloadedChapter['chapterTitle'] ?? id}',
-              images: localImages.toList(growable: false),
-              previousChapter: localPrevious,
-              nextChapter: localNext,
-              chapters: localNavigation,
-            ),
-            source: 'local',
-          );
-        }
-      } else {
-        final loaded = isNovel
-            ? await _comicService.fetchNovelChapter(id)
-            : await _comicService.fetchChapter(id);
-        if (generation != _chapterLoadGeneration) return false;
-        isOffline.value = false;
-        final fallbackTitle = currentChapterTitle.trim();
-        final title = loaded.chapter.title.trim().isEmpty ||
-                loaded.chapter.title.trim() == 'الفصل' ||
-                loaded.chapter.title.trim().toLowerCase() == 'chapter'
-            ? fallbackTitle
-            : loaded.chapter.title;
-        chapterData.value = ChapterData(
-          chapter: DataChapter(
-            chapterId: loaded.chapter.chapterId,
-            title: title,
-            images: loaded.chapter.images,
-            content: loaded.chapter.content,
-            previousChapter: loaded.chapter.previousChapter,
-            nextChapter: loaded.chapter.nextChapter,
-            chapters: loaded.chapter.chapters,
-          ),
-          source: loaded.source,
-        );
+      // Offline-first: the cache loader validates every local file before it
+      // accepts an offline chapter, and only then falls back to the network.
+      final snapshot = await _chapterCache.load(id);
+      if (generation != _chapterLoadGeneration) return false;
+      if (!snapshot.isUsable) {
+        throw StateError('لا يوجد محتوى قابل للعرض لهذا الفصل.');
       }
+      chapterStatus.value = snapshot.status;
+      isOffline.value = snapshot.status == ReaderChapterStatus.offline;
+      localImages.assignAll(
+        isOffline.value ? snapshot.data.chapter.images : const <String>[],
+      );
+      chapterData.value = snapshot.data;
+      _seedPageMetricsForSnapshot(snapshot);
 
-      if (restoreSavedPosition && keepCurrentContent) _restoreReaderPosition(id);
+      if (restoreSavedPosition && keepCurrentContent) {
+        _restoreReaderPosition(id);
+      }
       final pageCount = chapterData.value.chapter.images.length;
       if (!keepCurrentContent) _beginPageLoads(pageCount);
       if (startAtEnd) _suppressEndBoundaryOnce = true;
@@ -625,7 +587,8 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
         );
         if (startAtEnd) _restoredScrollOffset = 0;
         if (isNovel || readerMode.value == 'scroll') {
-          _pendingScrollRestore = startAtEnd ? double.maxFinite : _restoredScrollOffset;
+          _pendingScrollRestore =
+              startAtEnd ? double.maxFinite : _restoredScrollOffset;
         }
         final loadedTitle = chapterData.value.chapter.title.trim();
         if (loadedTitle.isNotEmpty &&
@@ -642,7 +605,8 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
         }
       } else if (isNovel && chapterData.value.chapter.content.isNotEmpty) {
         if (startAtEnd) _restoredScrollOffset = 0;
-        _pendingScrollRestore = startAtEnd ? double.maxFinite : _restoredScrollOffset;
+        _pendingScrollRestore =
+            startAtEnd ? double.maxFinite : _restoredScrollOffset;
         currentPage.value = 0;
       }
       final loadedChapterId = chapterData.value.chapter.chapterId.isEmpty
@@ -668,11 +632,14 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
             await _replaceReadingStatsSession(id, currentChapterTitle);
           }
         });
+        unawaited(_prefetchAdjacentChapters());
+        if (!isNovel) unawaited(_warmCurrentChapterPages());
       }
       return true;
     } catch (error) {
       if (generation != _chapterLoadGeneration) return false;
       hasError(true);
+      chapterStatus.value = ReaderChapterStatus.failed;
       loadIssue.value = ReaderLoadIssue.from(error);
       _beginPageLoads(0);
       debugPrint('Chapter request failed: $error');
@@ -682,9 +649,428 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     }
   }
 
-  int _pageNumber(String path) {
-    final match = RegExp(r'page_(\d+)', caseSensitive: false).firstMatch(path);
-    return match == null ? 0 : int.tryParse(match.group(1)!) ?? 0;
+  /// Resolves a chapter offline-first through [ReaderChapterCache].
+  ///
+  /// The returned snapshot always carries the chapter it belongs to, so a
+  /// transition can never publish one chapter's title over another's pages.
+  Future<ReaderChapterSnapshot> _loadChapterSnapshot(String id) async {
+    final reference = _chapterReference(id) ?? id;
+    final downloaded =
+        _storage.read<List<dynamic>>('downloadedChapters') ?? const [];
+    final offline = ReaderOfflineLibrary.resolve(
+      records: downloaded,
+      chapterId: reference,
+      comicId: '${arguments['comicId'] ?? ''}',
+      isNovel: isNovel,
+      fileExists: (path) => File(path).existsSync(),
+      fileSize: (path) {
+        try {
+          return File(path).lengthSync();
+        } catch (_) {
+          return 0;
+        }
+      },
+    );
+    if (offline.isReady) {
+      final data = offline.toChapterData(fallbackTitle: currentChapterTitle);
+      if (data != null) {
+        _pageMetrics.putAll(offline.imageSizes);
+        _schedulePageMetricsPersist();
+        return ReaderChapterSnapshot(
+          chapterId: reference,
+          data: data,
+          status: ReaderChapterStatus.offline,
+        );
+      }
+    }
+
+    final loaded = isNovel
+        ? await _comicService.fetchNovelChapter(reference)
+        : await _comicService.fetchChapter(reference);
+    final title = loaded.chapter.title.trim();
+    final resolvedTitle =
+        title.isEmpty || title == 'الفصل' || title.toLowerCase() == 'chapter'
+            ? currentChapterTitle.trim()
+            : title;
+    final data = ChapterData(
+      chapter: DataChapter(
+        chapterId: loaded.chapter.chapterId.isEmpty
+            ? reference
+            : loaded.chapter.chapterId,
+        title: resolvedTitle,
+        images: loaded.chapter.images,
+        content: loaded.chapter.content,
+        previousChapter: loaded.chapter.previousChapter,
+        nextChapter: loaded.chapter.nextChapter,
+        chapters: loaded.chapter.chapters,
+      ),
+      source: loaded.source,
+    );
+    final usable = data.chapter.images.isNotEmpty ||
+        data.chapter.content.trim().isNotEmpty;
+    return ReaderChapterSnapshot(
+      chapterId: reference,
+      data: data,
+      status:
+          usable ? ReaderChapterStatus.ready : ReaderChapterStatus.unavailable,
+    );
+  }
+
+  void _seedPageMetricsForSnapshot(ReaderChapterSnapshot snapshot) {
+    if (snapshot.status == ReaderChapterStatus.offline) {
+      _schedulePageMetricsPersist();
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Page geometry, image warming and the reader page window
+  // ---------------------------------------------------------------------
+
+  ReaderPageSize? pageSizeAt(int index) {
+    final images = chapterData.value.chapter.images;
+    if (index < 0 || index >= images.length) return null;
+    return _pageMetrics.sizeOf(images[index]);
+  }
+
+  bool isChapterStartPage(int index) {
+    if (index == 0) return true;
+    return _readerChapterPageRanges.any((range) => range.startIndex == index);
+  }
+
+  String? chapterDividerTitleForPage(int index) {
+    final range = _readerChapterPageRanges.firstWhereOrNull(
+      (item) => item.startIndex == index,
+    );
+    if (range == null) return null;
+    return chapterDividerTitle(range.chapterId);
+  }
+
+  /// Height the given page occupies in the vertical reader, including the gap
+  /// and (for the first page of a merged chapter) the divider.
+  double mangaPageExtent(
+    int index, {
+    required double viewportWidth,
+    required double viewportHeight,
+  }) {
+    final images = chapterData.value.chapter.images;
+    if (index < 0 || index >= images.length) return 0;
+    final layout = resolveReaderPageLayout(
+      size: _pageMetrics.sizeOf(images[index]),
+      fit: readerFitModeFrom(readerFit.value),
+      viewportWidth: viewportWidth,
+      viewportHeight: viewportHeight,
+    );
+    final divider = !isChapterStartPage(index)
+        ? 0.0
+        : showChapterTitle.value
+            ? 34.0
+            : 14.0;
+    return layout.height + readerPageGap.value + divider;
+  }
+
+  Future<void> _warmCurrentChapterPages() async {
+    final images = chapterData.value.chapter.images;
+    if (images.isEmpty) return;
+    final first = currentPage.value.clamp(0, images.length - 1).toInt();
+    final last = (first + readerPreloadDistance.value)
+        .clamp(first, images.length - 1)
+        .toInt();
+    _warmImageRange(first, last);
+  }
+
+  void _warmImageRange(int first, int last) {
+    final images = chapterData.value.chapter.images;
+    if (images.isEmpty) return;
+    final start = first.clamp(0, images.length - 1).toInt();
+    final end = last.clamp(start, images.length - 1).toInt();
+    for (var index = start; index <= end; index++) {
+      _imagePipeline.request(
+        images[index],
+        priority: index <= currentPage.value + 1
+            ? ReaderImagePriority.visible
+            : ReaderImagePriority.near,
+      );
+    }
+  }
+
+  /// Called by the reader with the real visible page window. It warms only a
+  /// bounded window ahead and cancels queued work far behind the reader.
+  void onMangaWindowChanged({
+    required int firstVisible,
+    required int lastVisible,
+  }) {
+    if (isNovel) return;
+    final images = chapterData.value.chapter.images;
+    if (images.isEmpty) return;
+    final first = firstVisible.clamp(0, images.length - 1).toInt();
+    final last = lastVisible.clamp(first, images.length - 1).toInt();
+    _warmImageRange(
+      (first - 1).clamp(0, images.length - 1).toInt(),
+      (last + readerPreloadDistance.value).clamp(0, images.length - 1).toInt(),
+    );
+    if (last >= images.length - 3) {
+      unawaited(prefetchChapter(nextChapterId));
+    } else if (first <= 1) {
+      unawaited(prefetchChapter(previousChapterId));
+    }
+    if (last >= images.length - 6) {
+      unawaited(prefetchChapter(nextChapterId));
+    }
+  }
+
+  Timer? _pageMetricsWriteTimer;
+
+  void _schedulePageMetricsPersist() {
+    _pageMetricsWriteTimer?.cancel();
+    _pageMetricsWriteTimer = Timer(const Duration(seconds: 2), () {
+      unawaited(_storage.write(
+        'reader_page_metrics_v1',
+        _pageMetrics.toJson(),
+      ));
+    });
+  }
+
+  Future<void> _warmPageImage(String reference) async {
+    final size = await measureReaderImageSize(reference);
+    if (size == null) return;
+    if (_pageMetrics.put(reference, size)) {
+      pageMetricsRevision.value++;
+      _schedulePageMetricsPersist();
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Reader appearance and behaviour settings
+  // ---------------------------------------------------------------------
+
+  Future<void> setReaderPageGap(double value) async {
+    readerPageGap.value = value.clamp(0.0, 24.0).toDouble();
+    await _storage.write(_readerSettingKey('page_gap'), readerPageGap.value);
+  }
+
+  Future<void> setReaderBackground(String value) async {
+    if (!const {'black', 'white', 'gray', 'app'}.contains(value)) return;
+    readerBackground.value = value;
+    await _storage.write(_readerSettingKey('background'), value);
+  }
+
+  Future<void> setReaderBrightness(double value) async {
+    readerBrightness.value = value.clamp(0.35, 1.0).toDouble();
+    await _storage.write(
+        _readerSettingKey('brightness'), readerBrightness.value);
+  }
+
+  Future<void> setReaderFullscreen(bool value) async {
+    readerFullscreen.value = value;
+    await _storage.write(_readerSettingKey('fullscreen'), value);
+    await applyReaderSystemUi();
+  }
+
+  Future<void> setReaderKeepScreenOn(bool value) async {
+    readerKeepScreenOn.value = value;
+    await _storage.write(_readerSettingKey('keep_screen_on'), value);
+    await applyReaderSystemUi();
+  }
+
+  Future<void> setReaderOrientation(String value) async {
+    if (!const {'auto', 'portrait', 'landscape'}.contains(value)) return;
+    readerOrientation.value = value;
+    await _storage.write(_readerSettingKey('orientation'), value);
+    await applyReaderSystemUi();
+  }
+
+  Future<void> setReaderDoublePage(bool value) async {
+    readerDoublePage.value = value;
+    await _storage.write(_readerSettingKey('double_page'), value);
+  }
+
+  Future<void> setReaderImageQuality(String value) async {
+    if (!const {'low', 'medium', 'high'}.contains(value)) return;
+    readerImageQuality.value = value;
+    await _storage.write(_readerSettingKey('image_quality'), value);
+  }
+
+  Future<void> setReaderPreloadDistance(int value) async {
+    readerPreloadDistance.value = value.clamp(2, 12).toInt();
+    await _storage.write(
+      _readerSettingKey('preload_distance'),
+      readerPreloadDistance.value,
+    );
+    unawaited(_warmCurrentChapterPages());
+  }
+
+  Future<void> setNovelFontWeight(int value) async {
+    novelFontWeight.value = value.clamp(300, 800).toInt();
+    novelLayoutRevision.value++;
+    await _storage.write(
+      _readerSettingKey('novel_font_weight'),
+      novelFontWeight.value,
+    );
+  }
+
+  Future<void> setNovelMargins(double value) async {
+    novelMargins.value = value.clamp(12.0, 56.0).toDouble();
+    novelLayoutRevision.value++;
+    await _storage.write(
+      _readerSettingKey('novel_margins'),
+      novelMargins.value,
+    );
+  }
+
+  Future<void> setNovelTextAlign(String value) async {
+    if (!const {'auto', 'start', 'justify'}.contains(value)) return;
+    novelTextAlign.value = value;
+    novelLayoutRevision.value++;
+    await _storage.write(_readerSettingKey('novel_text_align'), value);
+  }
+
+  Future<void> setNovelTextDirection(String value) async {
+    if (!const {'auto', 'rtl', 'ltr'}.contains(value)) return;
+    novelTextDirection.value = value;
+    novelLayoutRevision.value++;
+    await _storage.write(_readerSettingKey('novel_text_direction'), value);
+  }
+
+  Future<void> setNovelAutoScroll(bool value) async {
+    novelAutoScroll.value = value;
+    await _storage.write(_readerSettingKey('novel_auto_scroll'), value);
+  }
+
+  Future<void> setNovelAutoScrollSpeed(double value) async {
+    novelAutoScrollSpeed.value = value.clamp(8.0, 160.0).toDouble();
+    await _storage.write(
+      _readerSettingKey('novel_auto_scroll_speed'),
+      novelAutoScrollSpeed.value,
+    );
+  }
+
+  List<NovelNote> notesForParagraph(int paragraphIndex) => novelNotes
+      .where((note) =>
+          note.paragraphIndex == paragraphIndex &&
+          _sameChapterReference(note.chapterId, activeReaderChapterId))
+      .toList(growable: false);
+
+  List<NovelNote> get activeChapterNotes => novelNotes
+      .where((note) =>
+          _sameChapterReference(note.chapterId, activeReaderChapterId))
+      .toList(growable: false);
+
+  Future<void> saveNovelNote({
+    required int paragraphIndex,
+    required String quote,
+    required String note,
+    required String color,
+    int start = 0,
+    int end = 0,
+  }) async {
+    final chapterReference = activeReaderChapterId;
+    if (chapterReference.isEmpty) return;
+    final entry = NovelNote(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      chapterId: chapterReference,
+      paragraphIndex: paragraphIndex < 0 ? 0 : paragraphIndex,
+      note: note.trim(),
+      quote: quote.trim(),
+      color: color,
+      createdAt: DateTime.now(),
+      start: start,
+      end: end,
+    );
+    novelNotes.insert(0, entry);
+    await _persistNovelNotes();
+  }
+
+  Future<void> removeNovelNote(String id) async {
+    novelNotes.removeWhere((note) => note.id == id);
+    await _persistNovelNotes();
+  }
+
+  Future<void> _persistNovelNotes() async {
+    await _storage.write(
+      _readerSettingKey('novel_notes'),
+      novelNotes.map((note) => note.toJson()).toList(growable: false),
+    );
+  }
+
+  Future<void> searchNovel(String query) async {
+    final value = query.trim();
+    novelSearchQuery.value = value;
+    if (value.isEmpty) {
+      novelSearchHits.clear();
+      novelSearching.value = false;
+      return;
+    }
+    novelSearching.value = true;
+    try {
+      final paragraphs = await paragraphsFor(chapterData.value.chapter.content);
+      if (novelSearchQuery.value != value) return;
+      novelSearchHits.assignAll(searchNovelParagraphs(paragraphs, value));
+    } finally {
+      novelSearching.value = false;
+    }
+  }
+
+  void clearNovelSearch() {
+    novelSearchQuery.value = '';
+    novelSearchHits.clear();
+    novelSearching.value = false;
+  }
+
+  // ---------------------------------------------------------------------
+  // System UI: full screen, orientation and keep-screen-on
+  // ---------------------------------------------------------------------
+
+  static const MethodChannel _readerChannel =
+      MethodChannel('com.mangaplus.app/reader');
+
+  Future<void> applyReaderSystemUi() async {
+    _systemUiApplied = true;
+    try {
+      await SystemChrome.setEnabledSystemUIMode(
+        readerFullscreen.value
+            ? SystemUiMode.immersiveSticky
+            : SystemUiMode.edgeToEdge,
+      );
+      switch (readerOrientation.value) {
+        case 'portrait':
+          await SystemChrome.setPreferredOrientations(
+            const [DeviceOrientation.portraitUp],
+          );
+          break;
+        case 'landscape':
+          await SystemChrome.setPreferredOrientations(
+            const [
+              DeviceOrientation.landscapeLeft,
+              DeviceOrientation.landscapeRight
+            ],
+          );
+          break;
+        default:
+          await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+      }
+      if (!kIsWeb && Platform.isAndroid) {
+        await _readerChannel.invokeMethod<void>(
+          'setKeepScreenOn',
+          readerKeepScreenOn.value,
+        );
+      }
+    } catch (error) {
+      debugPrint('Unable to apply reader system UI: $error');
+    }
+  }
+
+  Future<void> _restoreSystemUi() async {
+    if (!_systemUiApplied) return;
+    _systemUiApplied = false;
+    try {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      await SystemChrome.setPreferredOrientations(const []);
+      if (!kIsWeb && Platform.isAndroid) {
+        await _readerChannel.invokeMethod<void>('setKeepScreenOn', false);
+      }
+    } catch (error) {
+      debugPrint('Unable to restore system UI: $error');
+    }
   }
 
   String? get nextChapterId => _adjacentChapterId(forward: true);
@@ -730,8 +1116,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     );
   }
 
-  double? _chapterNumber(String title) =>
-      ChapterSequence.chapterNumber(title);
+  double? _chapterNumber(String title) => ChapterSequence.chapterNumber(title);
 
   String? _chapterReference(dynamic value) {
     if (value is Map) {
@@ -763,7 +1148,8 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
 
   String _chapterTitleFor(String id) {
     final chapter = availableChapters.firstWhereOrNull(
-      (item) => _sameChapterReference(item.chapterId, id) ||
+      (item) =>
+          _sameChapterReference(item.chapterId, id) ||
           _sameChapterReference(item.url, id),
     );
     return chapter?.title ?? '';
@@ -800,9 +1186,8 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     if (reference == null || isNavigating.value) {
       ReaderNavigationLog.log('transition-ignored', {
         'target': id,
-        'reason': reference == null
-            ? 'invalid-reference'
-            : 'transition-in-flight',
+        'reason':
+            reference == null ? 'invalid-reference' : 'transition-in-flight',
         'reader': isNovel ? 'novel' : 'manga',
       });
       return;
@@ -839,7 +1224,8 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
         (_novelStreamAppendOlder ||
             (currentNextAdjacentId == null &&
                 previousAdjacentId != null &&
-                _sameChapterReference(id?.toString() ?? '', previousAdjacentId)));
+                _sameChapterReference(
+                    id?.toString() ?? '', previousAdjacentId)));
     if (!joinContinuousStream && isNovel) _novelStreamAppendOlder = false;
     if (!joinContinuousStream) _continuousPrependPending = false;
     final previousData = chapterData.value;
@@ -905,9 +1291,8 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
             : previousData.chapter.images.isNotEmpty);
     ChapterData? prefetchedAdjacent;
     final listedTitle = _chapterTitleFor(reference).trim();
-    final nextTitle = listedTitle.isEmpty
-        ? chapterDividerTitle(reference)
-        : listedTitle;
+    final nextTitle =
+        listedTitle.isEmpty ? chapterDividerTitle(reference) : listedTitle;
     endNoticeShown = false;
     try {
       if (novelSpeechPlaying.value || novelSpeechPaused.value) {
@@ -940,11 +1325,11 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
       // navigation when the adjacent chapter was prefetched already.
       final bool loaded;
       if (keepContinuousStream && !isOffline.value) {
-        prefetchedAdjacent = await _comicService.prefetchChapter(
-          reference,
-          isNovel: isNovel,
-        );
-        loaded = true;
+        final adjacentSnapshot = await _chapterCache.load(reference);
+        if (transition != _transitionGeneration) return;
+        prefetchedAdjacent = adjacentSnapshot.data;
+        loaded = adjacentSnapshot.isUsable;
+        if (loaded) _seedPageMetricsForSnapshot(adjacentSnapshot);
       } else {
         loaded = await fetchChapter(
           reference,
@@ -1038,7 +1423,8 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
                   ? newChapter.chapters
                   : oldChapter.chapters,
             ),
-            source: adjacent.source.isEmpty ? previousData.source : adjacent.source,
+            source:
+                adjacent.source.isEmpty ? previousData.source : adjacent.source,
           );
           // Record where this chapter starts inside the merged text so the
           // navigation anchor follows the text the reader actually sees.
@@ -1054,8 +1440,9 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
           } else {
             _novelAnchors.append(
               chapterId: mergedNovelChapterId,
-              boundaryOffset:
-                  previousScrollExtent > 0 ? previousScrollExtent : previousOffset,
+              boundaryOffset: previousScrollExtent > 0
+                  ? previousScrollExtent
+                  : previousOffset,
             );
           }
         } else {
@@ -1063,9 +1450,8 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
             currentPages: oldChapter.images,
             adjacentPages: newChapter.images,
             currentRanges: previousPageRanges,
-            adjacentChapterId: newChapter.chapterId.isEmpty
-                ? reference
-                : newChapter.chapterId,
+            adjacentChapterId:
+                newChapter.chapterId.isEmpty ? reference : newChapter.chapterId,
             currentPage: previousPage,
             prepend: reverse,
             pagedReader: readerMode.value == 'paged',
@@ -1073,20 +1459,22 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
           _readerChapterPageRanges = mergedStream.chapterRanges;
           chapterData.value = ChapterData(
             chapter: DataChapter(
-              chapterId: newChapter.chapterId.isEmpty ? reference : newChapter.chapterId,
+              chapterId: newChapter.chapterId.isEmpty
+                  ? reference
+                  : newChapter.chapterId,
               title: newChapter.title.isEmpty ? nextTitle : newChapter.title,
               images: mergedStream.pages,
               previousChapter: reverse
                   ? newChapter.previousChapter
                   : oldChapter.previousChapter,
-              nextChapter: reverse
-                  ? oldChapter.nextChapter
-                  : newChapter.nextChapter,
+              nextChapter:
+                  reverse ? oldChapter.nextChapter : newChapter.nextChapter,
               chapters: newChapter.chapters.isNotEmpty
                   ? newChapter.chapters
                   : oldChapter.chapters,
             ),
-            source: adjacent.source.isEmpty ? previousData.source : adjacent.source,
+            source:
+                adjacent.source.isEmpty ? previousData.source : adjacent.source,
           );
           currentPage.value = mergedStream.currentPage;
           // Appending keeps the pages already loaded; prepending inserts pages
@@ -1224,14 +1612,35 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     }
     final comicId = '${arguments['comicId'] ?? ''}'.trim();
     if (comicId.isEmpty) return;
+    final downloaded =
+        _storage.read<List<dynamic>>('downloadedChapters') ?? const [];
+    final local = ReaderOfflineLibrary.chaptersForComic(
+      downloaded,
+      comicId: comicId,
+    )
+        .where((item) => item.isNovel == isNovel)
+        .map((item) => ChapterElement(
+              chapterId: item.chapterId,
+              title: item.title.isEmpty ? item.chapterId : item.title,
+              url: item.chapterId,
+            ))
+        .toList(growable: false);
+    if (local.isNotEmpty) {
+      _fallbackChapterNavigation
+        ..clear()
+        ..addAll(local);
+      chapterNavigationRevision.value++;
+      endNoticeShown = false;
+      return;
+    }
     _isLoadingChapterNavigation = true;
     try {
       final details = await _comicService.fetchComicDetail(comicId);
       _fallbackChapterNavigation
         ..clear()
         ..addAll(details.comicDetail.chapters.map((item) {
-          final reference = _chapterReference(item.chapterId) ??
-              _chapterReference(item.link);
+          final reference =
+              _chapterReference(item.chapterId) ?? _chapterReference(item.link);
           return ChapterElement(
             chapterId: reference ?? '',
             title: item.title,
@@ -1256,17 +1665,15 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     final key = _readerPositionKey(id);
     final saved = positions is Map ? positions[key] : null;
     final savedPage = saved is Map ? saved['page'] : saved;
-    final parsed = savedPage is num
-        ? savedPage.toInt()
-        : int.tryParse('$savedPage') ?? 0;
+    final parsed =
+        savedPage is num ? savedPage.toInt() : int.tryParse('$savedPage') ?? 0;
     final savedOffset = saved is Map ? saved['offset'] : null;
     final offset = savedOffset is num ? savedOffset.toDouble() : 0.0;
     _restoredScrollOffset = offset.isFinite && offset > 0 ? offset : 0;
     currentPage.value = parsed < 0 ? 0 : parsed;
   }
 
-  String _readerPositionKey(String id) =>
-      '${arguments['comicId'] ?? ''}::$id';
+  String _readerPositionKey(String id) => '${arguments['comicId'] ?? ''}::$id';
 
   Future<void> _persistReaderPosition(int page, {double? scrollOffset}) async {
     final pageRange = _readerChapterPageRanges.firstWhereOrNull(
@@ -1279,9 +1686,8 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     final chapterPage = pageRange == null ? page : page - pageRange.startIndex;
     final key = _readerPositionKey(currentChapterId);
     final stored = _storage.read('readerPositions');
-    final positions = stored is Map
-        ? Map<String, dynamic>.from(stored)
-        : <String, dynamic>{};
+    final positions =
+        stored is Map ? Map<String, dynamic>.from(stored) : <String, dynamic>{};
     positions[key] = {
       'page': chapterPage,
       'offset': scrollOffset ?? _restoredScrollOffset,
@@ -1327,9 +1733,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   }
 
   void seekReaderProgress(double value) {
-    final progress = value.isFinite
-        ? value.clamp(0.0, 1.0).toDouble()
-        : 0.0;
+    final progress = value.isFinite ? value.clamp(0.0, 1.0).toDouble() : 0.0;
     if (isNovel || readerMode.value == 'scroll') {
       final scroll = _scrollController;
       if (scroll?.hasClients != true) return;
@@ -1400,7 +1804,8 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     final position = scroll!.position;
     if (_continuousPrependPending && readerMode.value == 'scroll') {
       final addedExtent =
-          (position.maxScrollExtent - _continuousPrependBaseExtent).clamp(0.0, double.infinity);
+          (position.maxScrollExtent - _continuousPrependBaseExtent)
+              .clamp(0.0, double.infinity);
       final target = (_continuousPrependOffset + addedExtent)
           .clamp(0.0, position.maxScrollExtent)
           .toDouble();
@@ -1433,57 +1838,76 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   }
 
   void _loadReaderPreferences() {
+    T read<T>(String name, T fallback) =>
+        _storage.read<T>(_readerSettingKey(name)) ??
+        _storage.read<T>('reader_$name') ??
+        fallback;
+
     readerFit.value = _storage.read<String>('reader_fit') ?? 'width';
-    readerMode.value = _storage.read<String>(_readerSettingKey('mode')) ??
-        _storage.read<String>('reader_mode') ??
-        'scroll';
-    readingDirection.value =
-        _storage.read<String>(_readerSettingKey('direction')) ??
-            _storage.read<String>('reader_direction') ??
-            'rtl';
-    continuousNavigation.value =
-        _storage.read<bool>(_readerSettingKey('continuous_navigation')) ??
-            _storage.read<bool>('reader_continuous_navigation') ??
-            true;
-    showChapterTitle.value =
-        _storage.read<bool>(_readerSettingKey('show_chapter_title')) ?? true;
+    readerMode.value =
+        read<String>('mode', _storage.read<String>('reader_mode') ?? 'scroll');
+    readingDirection.value = read<String>(
+      'direction',
+      _storage.read<String>('reader_direction') ?? 'rtl',
+    );
+    continuousNavigation.value = read<bool>(
+      'continuous_navigation',
+      _storage.read<bool>('reader_continuous_navigation') ?? true,
+    );
+    showChapterTitle.value = read<bool>('show_chapter_title', true);
+    readerPageGap.value = read<num>('page_gap', 4).toDouble().clamp(0, 24);
+    readerBackground.value = read<String>('background', 'black');
+    readerBrightness.value =
+        read<num>('brightness', 1).toDouble().clamp(0.35, 1.0);
+    readerFullscreen.value = read<bool>('fullscreen', false);
+    readerKeepScreenOn.value = read<bool>('keep_screen_on', true);
+    readerOrientation.value = read<String>('orientation', 'auto');
+    readerDoublePage.value = read<bool>('double_page', false);
+    readerImageQuality.value = read<String>('image_quality', 'medium');
+    readerPreloadDistance.value =
+        read<num>('preload_distance', 6).toInt().clamp(2, 12);
     novelFontSize.value =
-        (_storage.read<num>(_readerSettingKey('novel_font_size')) ?? 19).toDouble();
-    novelFontFamily.value =
-        _storage.read<String>(_readerSettingKey('novel_font_family')) ?? 'default';
-    novelBackground.value =
-        _storage.read<String>(_readerSettingKey('novel_background')) ?? 'app';
+        read<num>('novel_font_size', 19).toDouble().clamp(14.0, 30.0);
+    novelFontFamily.value = read<String>('novel_font_family', 'default');
+    novelBackground.value = read<String>('novel_background', 'app');
     novelLineHeight.value =
-        (_storage.read<num>(_readerSettingKey('novel_line_height')) ?? 1.85)
-            .toDouble()
-            .clamp(1.4, 2.3)
-            .toDouble();
+        read<num>('novel_line_height', 1.85).toDouble().clamp(1.4, 2.3);
     novelParagraphSpacing.value =
-        (_storage.read<num>(_readerSettingKey('novel_paragraph_spacing')) ?? 18)
-            .toDouble()
-            .clamp(8.0, 36.0)
-            .toDouble();
+        read<num>('novel_paragraph_spacing', 18).toDouble().clamp(8.0, 36.0);
     novelSpeechRate.value =
-        (_storage.read<num>(_readerSettingKey('novel_speech_rate')) ?? 0.42)
-            .toDouble()
-            .clamp(0.25, 0.75)
-            .toDouble();
-    novelSpeechLanguage.value =
-        _storage.read<String>(_readerSettingKey('novel_speech_language')) ??
-            'ar-SA';
+        read<num>('novel_speech_rate', 0.42).toDouble().clamp(0.25, 0.75);
+    novelSpeechLanguage.value = read<String>('novel_speech_language', 'ar-SA');
+    novelFontWeight.value =
+        read<num>('novel_font_weight', 400).toInt().clamp(300, 800);
+    novelMargins.value =
+        read<num>('novel_margins', 24).toDouble().clamp(12.0, 56.0);
+    novelTextAlign.value = read<String>('novel_text_align', 'auto');
+    novelTextDirection.value = read<String>('novel_text_direction', 'auto');
+    novelAutoScroll.value = read<bool>('novel_auto_scroll', false);
+    novelAutoScrollSpeed.value =
+        read<num>('novel_auto_scroll_speed', 26).toDouble().clamp(8.0, 160.0);
+
     final storedBookmarks = _storage.read<List<dynamic>>(
           _readerSettingKey('bookmarks'),
         ) ??
         (isNovel
             ? _storage.read<List<dynamic>>(
-                  _readerSettingKey('novel_bookmarks'),
-                ) ??
+                    _readerSettingKey('novel_bookmarks')) ??
                 []
             : <dynamic>[]);
     readerBookmarks.assignAll(
       storedBookmarks
           .whereType<Map>()
           .map((item) => Map<String, dynamic>.from(item)),
+    );
+    final storedNotes =
+        _storage.read<List<dynamic>>(_readerSettingKey('novel_notes')) ??
+            const [];
+    novelNotes.assignAll(
+      storedNotes
+          .whereType<Map>()
+          .map((item) => NovelNote.fromJson(Map<String, dynamic>.from(item)))
+          .where((note) => note.chapterId.isNotEmpty),
     );
   }
 
@@ -1493,11 +1917,13 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
       _readerSettingKey('novel_font_size'),
       novelFontSize.value,
     );
+    novelLayoutRevision.value++;
   }
 
   Future<void> setNovelFontFamily(String value) async {
     novelFontFamily.value = value;
     await _storage.write(_readerSettingKey('novel_font_family'), value);
+    novelLayoutRevision.value++;
   }
 
   Future<void> setNovelBackground(String value) async {
@@ -1511,6 +1937,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
       _readerSettingKey('novel_line_height'),
       novelLineHeight.value,
     );
+    novelLayoutRevision.value++;
   }
 
   Future<void> setNovelParagraphSpacing(double value) async {
@@ -1519,6 +1946,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
       _readerSettingKey('novel_paragraph_spacing'),
       novelParagraphSpacing.value,
     );
+    novelLayoutRevision.value++;
   }
 
   Future<void> setNovelSpeechRate(double value) async {
@@ -1589,7 +2017,8 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
       novelSpeechPaused.value = false;
     });
     _flutterTts.setCompletionHandler(_onSpeechChunkCompleted);
-    _flutterTts.setProgressHandler((String text, int start, int end, String word) {
+    _flutterTts
+        .setProgressHandler((String text, int start, int end, String word) {
       if (!_speechSessionActive || word.trim().isEmpty) return;
       novelSpeechCurrentWord.value = word.trim();
     });
@@ -1677,7 +2106,9 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     final chunks = <String>[];
     _speechChunkParagraphIndexes.clear();
     final paragraphs = _splitNovelParagraphs(value);
-    for (var paragraphIndex = 0; paragraphIndex < paragraphs.length; paragraphIndex++) {
+    for (var paragraphIndex = 0;
+        paragraphIndex < paragraphs.length;
+        paragraphIndex++) {
       if (paragraphs[paragraphIndex] == novelChapterDividerToken) continue;
       final buffer = StringBuffer();
       for (final word in paragraphs[paragraphIndex].split(RegExp(r'\s+'))) {
@@ -1777,8 +2208,8 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     final targetChapter = '${bookmark['chapterId'] ?? ''}';
     if (targetChapter.isEmpty) return;
 
-    var targetRange = _readerChapterPageRanges.firstWhereOrNull((range) =>
-        _sameChapterReference(range.chapterId, targetChapter));
+    var targetRange = _readerChapterPageRanges.firstWhereOrNull(
+        (range) => _sameChapterReference(range.chapterId, targetChapter));
     final isInLoadedStream = isNovel
         ? _sameChapterReference(targetChapter, activeReaderChapterId)
         : targetRange != null;
@@ -1788,8 +2219,8 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
       if (!_sameChapterReference(targetChapter, chapterId)) return;
       await WidgetsBinding.instance.endOfFrame;
       await WidgetsBinding.instance.endOfFrame;
-      targetRange = _readerChapterPageRanges.firstWhereOrNull((range) =>
-          _sameChapterReference(range.chapterId, targetChapter));
+      targetRange = _readerChapterPageRanges.firstWhereOrNull(
+          (range) => _sameChapterReference(range.chapterId, targetChapter));
     }
 
     if (isNovel || readerMode.value == 'scroll') {
@@ -1803,9 +2234,8 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
       final savedOffset = savedOffsetValue is num
           ? savedOffsetValue.toDouble()
           : double.tryParse('$savedOffsetValue') ?? 0.0;
-      final preserveStreamOffset = isInLoadedStream &&
-          savedOffset.isFinite &&
-          savedOffset >= 0;
+      final preserveStreamOffset =
+          isInLoadedStream && savedOffset.isFinite && savedOffset >= 0;
       final position = scroll!.position;
       final offset = (preserveStreamOffset
               ? savedOffset
@@ -1822,14 +2252,12 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     }
 
     final pageValue = bookmark['page'];
-    final localPage = pageValue is num
-        ? pageValue.toInt()
-        : int.tryParse('$pageValue') ?? 0;
-    final targetPage = (targetRange == null
-            ? localPage
-            : targetRange.startIndex + localPage)
-        .clamp(0, chapterData.value.chapter.images.length - 1)
-        .toInt();
+    final localPage =
+        pageValue is num ? pageValue.toInt() : int.tryParse('$pageValue') ?? 0;
+    final targetPage =
+        (targetRange == null ? localPage : targetRange.startIndex + localPage)
+            .clamp(0, chapterData.value.chapter.images.length - 1)
+            .toInt();
     if (_pageController?.hasClients == true) {
       _pageController!.jumpToPage(targetPage);
     }
@@ -2040,7 +2468,6 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   }
 
   void _showEndNoticeOnce() {
-
     if (endNoticeShown) return;
     endNoticeShown = true;
     AppFeedback.show(
@@ -2095,9 +2522,23 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   void onInit() {
     super.onInit();
     WidgetsBinding.instance.addObserver(this);
-    _storage.listenKey('readChapters', (_) => chapterNavigationRevision.value++);
-    _storage.listenKey('reading_history', (_) => chapterNavigationRevision.value++);
+    _storage.listenKey(
+        'readChapters', (_) => chapterNavigationRevision.value++);
+    _storage.listenKey(
+        'reading_history', (_) => chapterNavigationRevision.value++);
     _readChapterNavigationArguments();
+    final storedMetrics = _storage.read('reader_page_metrics_v1');
+    _pageMetrics = ReaderPageMetricsStore.fromJson(
+      storedMetrics is Map ? Map<String, dynamic>.from(storedMetrics) : null,
+    );
+    _chapterCache = ReaderChapterCache(loader: _loadChapterSnapshot);
+    _imagePipeline = ReaderImagePipeline(
+      loader: _warmPageImage,
+      maxConcurrent: 3,
+      maxAttempts: 3,
+      onError: (url, error) =>
+          debugPrint('Reader image warm-up failed: $error'),
+    );
     _loadReaderPreferences();
     _configureNovelSpeech();
     _novelAnchors = ReaderChapterAnchors.single(chapterId);
@@ -2105,6 +2546,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
       readerMode.value = 'scroll';
       showNavigation.value = true;
     }
+    unawaited(applyReaderSystemUi());
     unawaited(fetchChapter(chapterId).then((loaded) async {
       if (loaded && hasReadableContent) {
         await _markAsRead(chapterId, currentChapterTitle);
@@ -2120,8 +2562,12 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     unawaited(_enqueueReadingStats(_finishReadingStatsSession));
     unawaited(stopNovelSpeech());
     _pageLoadHideTimer?.cancel();
+    _pageMetricsWriteTimer?.cancel();
+    _imagePipeline.dispose();
+    _chapterCache.dispose();
     _pageController?.dispose();
     _scrollController?.dispose();
+    unawaited(_restoreSystemUi());
     super.onClose();
   }
 
@@ -2139,14 +2585,14 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     if (comicId.isEmpty || !Get.isRegistered<AppDataService>()) return;
     try {
       await Get.find<AppDataService>().addHistory(HistoryItem(
-            comicId: comicId,
-            title: '${arguments['comicTitle'] ?? ''}',
-            coverImage: '${arguments['coverImage'] ?? ''}',
-            chapterId: id,
-            chapterTitle: title.isNotEmpty ? title : id,
-            lastRead: DateTime.now(),
-            type: '${arguments['comicType'] ?? 'manga'}',
-          ));
+        comicId: comicId,
+        title: '${arguments['comicTitle'] ?? ''}',
+        coverImage: '${arguments['coverImage'] ?? ''}',
+        chapterId: id,
+        chapterTitle: title.isNotEmpty ? title : id,
+        lastRead: DateTime.now(),
+        type: '${arguments['comicType'] ?? 'manga'}',
+      ));
     } catch (error) {
       debugPrint('Unable to sync reader history: $error');
     }
@@ -2245,10 +2691,12 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     final session = _readingStatsSession;
     final idle = _readingStatsIdleStopwatch;
     final clock = _readingStatsClock;
-    if (session == null || idle == null || clock == null || !clock.isRunning) return;
+    if (session == null || idle == null || clock == null || !clock.isRunning)
+      return;
     final elapsedMilliseconds = clock.elapsedMilliseconds;
     if (elapsedMilliseconds <= 0) return;
-    final idleStartMilliseconds = idle.elapsedMilliseconds - elapsedMilliseconds;
+    final idleStartMilliseconds =
+        idle.elapsedMilliseconds - elapsedMilliseconds;
     final remainingGraceMilliseconds =
         const Duration(minutes: 2).inMilliseconds - idleStartMilliseconds;
     var seconds = elapsedMilliseconds ~/ Duration.millisecondsPerSecond;
