@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mangaplus/app/core/theme/app_palette.dart';
 import 'package:mangaplus/app/core/theme/design_tokens.dart';
+import 'package:mangaplus/app/widgets/app_motion_widgets.dart';
 
 /// The visual weight of an action in MangaPlus.
 enum AppButtonVariant {
@@ -117,7 +118,10 @@ class AppButton extends StatelessWidget {
     );
     final minimumSize = Size(64, height);
 
-    final button = switch (variant) {
+    final button = PressableScale(
+      enabled: effectiveOnPressed != null,
+      scale: .98,
+      child: switch (variant) {
       AppButtonVariant.primary ||
       AppButtonVariant.secondary ||
       AppButtonVariant.danger =>
@@ -159,7 +163,8 @@ class AppButton extends StatelessWidget {
           ),
           child: content,
         ),
-    };
+      },
+    );
 
     return Semantics(
       button: true,

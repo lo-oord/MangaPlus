@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/theme/app_motion.dart';
+import 'package:mangaplus/app/core/navigation/app_navigation.dart';
 import 'package:readmore/readmore.dart';
 import 'package:mangaplus/app/core/cache/manga_cover_cache_manager.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
@@ -15,6 +17,7 @@ import 'package:mangaplus/app/modules/home/controllers/home_controller.dart';
 import 'package:mangaplus/app/modules/main/controllers/main_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
+import 'package:mangaplus/app/widgets/app_motion_widgets.dart';
 import 'package:mangaplus/app/widgets/app_dialogs.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
@@ -386,6 +389,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
       return CachedNetworkImage(
         imageUrl: imagePath,
         cacheManager: MangaCoverCacheManager.instance,
+        fadeInDuration: AppMotion.page,
         httpHeaders: _imageHeaders(imagePath),
         memCacheWidth: memCacheWidth,
         maxWidthDiskCache: 1080,
@@ -429,30 +433,39 @@ class ComicDetailView extends GetView<ComicDetailController> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _actionButtons(context, comic),
+          // Sections appear in reading order instead of all at once. The
+          // offsets are intentional and short: the primary action is already
+          // interactive on the first frame, the animation only fades it in.
+          AnimatedEntry(child: _actionButtons(context, comic)),
           if (comic.synopsis.trim().isNotEmpty) ...[
             const SizedBox(height: 18),
-            _InfoCard(
-              title: isNovel ? 'نبذة عن الرواية'.tr : 'نبذة عن المانجا'.tr,
-              icon: Icons.menu_book_rounded,
-              child: ReadMoreText(
-                comic.synopsis,
-                textAlign: TextAlign.start,
-                trimLines: 4,
-                trimMode: TrimMode.Line,
-                trimCollapsedText: '... المزيد'.tr,
-                trimExpandedText: ' أقل'.tr,
-                moreStyle: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700),
-                lessStyle: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700),
-                style: TextStyle(color: AppColors.textSecondary, height: 1.75, fontSize: 15),
+            AnimatedEntry(
+              delay: const Duration(milliseconds: 60),
+              child: _InfoCard(
+                title: isNovel ? 'نبذة عن الرواية'.tr : 'نبذة عن المانجا'.tr,
+                icon: Icons.menu_book_rounded,
+                child: ReadMoreText(
+                  comic.synopsis,
+                  textAlign: TextAlign.start,
+                  trimLines: 4,
+                  trimMode: TrimMode.Line,
+                  trimCollapsedText: '... المزيد'.tr,
+                  trimExpandedText: ' أقل'.tr,
+                  moreStyle: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700),
+                  lessStyle: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700),
+                  style: TextStyle(color: AppColors.textSecondary, height: 1.75, fontSize: 15),
+                ),
               ),
             ),
           ],
           if (hasMetadata) ...[
             const SizedBox(height: 16),
-            _MetadataGrid(
-              comic: comic,
-              sourceName: controller.comicDetailData.value.source,
+            AnimatedEntry(
+              delay: const Duration(milliseconds: 120),
+              child: _MetadataGrid(
+                comic: comic,
+                sourceName: controller.comicDetailData.value.source,
+              ),
             ),
           ],
 
@@ -500,7 +513,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
     Chapter chapter,
   ) {
     if (!context.mounted) return;
-    Get.toNamed(Routes.CHAPTER, arguments: {
+    AppNavigation.toNamed(Routes.CHAPTER, arguments: {
       'chapterId': chapter.chapterId,
       'comicId': comic.comicId,
       'comicTitle': comic.title,
@@ -523,7 +536,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
       Get.back();
       return;
     }
-    Get.toNamed(Routes.GENRE_DETAIL, arguments: genre);
+    AppNavigation.toNamed(Routes.GENRE_DETAIL, arguments: genre);
   }
 }
 
@@ -1106,19 +1119,28 @@ class _ChapterListState extends State<_ChapterList> {
     return Card(
       margin: EdgeInsets.zero,
       elevation: 0,
-      color: selected
-          ? AppColors.primary.withValues(alpha: 0.12)
-          : AppColors.card,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
+      color: Colors.transparent,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      // Selection is confirmed by animating the row's own colour and border
+      // instead of rebuilding the list: the Obx above the tile stays the only
+      // reactive dependency.
+      child: AnimatedContainer(
+        duration: AppMotion.effective(context, AppMotion.fast),
+        curve: AppMotion.standard,
+        decoration: BoxDecoration(
           color: selected
-              ? AppColors.primary.withValues(alpha: 0.65)
-              : AppColors.divider.withValues(alpha: 0.82),
-          width: selected ? 1.4 : 1,
+              ? AppColors.primary.withValues(alpha: 0.12)
+              : AppColors.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected
+                ? AppColors.primary.withValues(alpha: 0.65)
+                : AppColors.divider.withValues(alpha: 0.82),
+            width: selected ? 1.4 : 1,
+          ),
         ),
-      ),
-      child: InkWell(
+        child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () {
           if (widget.controller.isSelectionMode.value) {
@@ -1208,6 +1230,7 @@ class _ChapterListState extends State<_ChapterList> {
             ],
           ),
         ),
+        ),
       ),
     );
   }
@@ -1226,7 +1249,7 @@ class _ChapterListState extends State<_ChapterList> {
 
   void _openChapter(BuildContext context, Chapter chapter) {
     if (!mounted) return;
-    Get.toNamed(Routes.CHAPTER, arguments: {
+    AppNavigation.toNamed(Routes.CHAPTER, arguments: {
       'chapterId': chapter.chapterId,
       'comicId': widget.comic.comicId,
       'comicTitle': widget.comic.title,

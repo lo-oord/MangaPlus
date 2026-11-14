@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/theme/app_motion.dart';
 import 'package:mangaplus/app/core/theme/app_palette.dart';
 import 'package:mangaplus/app/core/theme/design_tokens.dart';
 import 'package:mangaplus/app/modules/bookmark/views/bookmark_view.dart';
@@ -83,8 +84,8 @@ class MainView extends GetView<MainController> {
           IgnorePointer(
             child: AnimatedAlign(
               alignment: Alignment(-1 + (selectedIndex * 2 / 3), 0),
-              duration: AppDurations.slow,
-              curve: Curves.easeInOutCubic,
+              duration: AppMotion.effective(context, AppMotion.slow),
+              curve: AppMotion.standard,
               child: FractionallySizedBox(
                 widthFactor: 0.25,
                 heightFactor: 1,
@@ -188,12 +189,12 @@ class _NavItem extends StatelessWidget {
                 children: [
                   AnimatedScale(
                     scale: selected ? 1.08 : 1,
-                    duration: AppDurations.normal,
-                    curve: Curves.easeOut,
+                    duration: AppMotion.effective(context, AppMotion.normal),
+                    curve: AppMotion.enter,
                     child: AnimatedSwitcher(
-                      duration: AppDurations.fast,
-                      switchInCurve: Curves.easeOutCubic,
-                      switchOutCurve: Curves.easeInCubic,
+                      duration: AppMotion.effective(context, AppMotion.fast),
+                      switchInCurve: AppMotion.enter,
+                      switchOutCurve: AppMotion.exit,
                       transitionBuilder: (child, animation) => FadeTransition(
                         opacity: animation,
                         child: ScaleTransition(
@@ -218,8 +219,8 @@ class _NavItem extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   AnimatedDefaultTextStyle(
-                    duration: AppDurations.fast,
-                    curve: Curves.easeOutCubic,
+                    duration: AppMotion.effective(context, AppMotion.fast),
+                    curve: AppMotion.enter,
                     style: Theme.of(context).textTheme.labelSmall!.copyWith(
                           color: selected ? p.primary : p.textSecondary,
                           fontWeight:

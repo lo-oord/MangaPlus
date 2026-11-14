@@ -1,5 +1,6 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/navigation/app_navigation.dart';
 import 'package:mangaplus/app/data/services/download_manager_service.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 
@@ -65,13 +66,13 @@ class NotificationPresentation {
       return;
     }
     if (payload == weeklySummaryPayload) {
-      Get.toNamed(Routes.PROFILE);
+      AppNavigation.toNamed(Routes.PROFILE);
       return;
     }
     if (payload.isNotEmpty) {
-      Get.toNamed(Routes.COMIC_DETAIL, arguments: payload);
+      AppNavigation.toNamed(Routes.COMIC_DETAIL, arguments: payload);
       return;
     }
-    Get.toNamed(Routes.NOTIFICATIONS);
+    AppNavigation.toNamed(Routes.NOTIFICATIONS);
   }
 }

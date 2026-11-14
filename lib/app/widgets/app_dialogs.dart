@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/theme/app_motion.dart';
 import 'package:mangaplus/app/core/theme/app_palette.dart';
 import 'package:mangaplus/app/core/theme/design_tokens.dart';
 import 'package:mangaplus/app/widgets/app_buttons.dart';
@@ -13,6 +14,16 @@ class AppDialogs {
 
   /// Shows a message dialog. [actions] are rendered end-aligned in the order
   /// given, so the affirmative action is always last.
+  /// Overlay motion. Overlays follow the same page timing as routes so opening
+  /// a confirm dialog from a pushed screen does not feel faster or slower than
+  /// the push itself; reduced motion collapses it to an instant swap.
+  static Duration _duration(Duration duration) {
+    final context = Get.context;
+    return context == null
+        ? duration
+        : AppMotion.effective(context, duration);
+  }
+
   static Future<T?> show<T>({
     required String title,
     String? message,
@@ -40,6 +51,8 @@ class AppDialogs {
       ),
       barrierDismissible: dismissible,
       barrierColor: Get.context?.palette.scrim,
+      transitionDuration: _duration(AppMotion.page),
+      transitionCurve: AppMotion.emphasized,
     );
   }
 
@@ -80,6 +93,8 @@ class AppDialogs {
       ),
       barrierDismissible: true,
       barrierColor: Get.context?.palette.scrim,
+      transitionDuration: _duration(AppMotion.page),
+      transitionCurve: AppMotion.emphasized,
     );
     return result ?? false;
   }
@@ -110,6 +125,8 @@ class AppDialogs {
       enableDrag: dismissible,
       backgroundColor: Colors.transparent,
       barrierColor: Get.context?.palette.scrim,
+      enterBottomSheetDuration: _duration(AppMotion.page),
+      exitBottomSheetDuration: _duration(AppMotion.fast),
     );
   }
 }

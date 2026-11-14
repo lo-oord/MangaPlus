@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/navigation/app_navigation.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/modules/genre/controllers/genre_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
@@ -42,7 +43,7 @@ class GenreView extends GetView<GenreController> {
                   style: TextStyle(color: AppColors.textPrimary),
                 ),
                 trailing: Icon(Icons.chevron_right, color: AppColors.icon),
-                onTap: () => Get.toNamed(
+                onTap: () => AppNavigation.toNamed(
                   Routes.GENRE_DETAIL,
                   arguments: {
                     'value': genre.link.isNotEmpty ? genre.link : genre.name,

@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/core/theme/app_motion.dart';
 import 'package:mangaplus/app/core/reader/novel_reader_model.dart';
 import 'package:mangaplus/app/core/reader/reader_page_geometry.dart';
 import 'package:mangaplus/app/core/utils/bidi_text.dart';
 import 'package:mangaplus/app/modules/chapter/controllers/chapter_controller.dart';
 import 'package:mangaplus/app/modules/chapter/widgets/reader_manga_page.dart';
 import 'package:mangaplus/app/modules/chapter/widgets/reader_tools_sheet.dart';
+import 'package:mangaplus/app/widgets/app_motion_widgets.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
@@ -883,6 +885,7 @@ class _ChapterViewState extends State<ChapterView>
             left: 0,
             right: 0,
             child: _chromeTransition(
+              context: context,
               visible: visible,
               fromTop: true,
               child: _topBar(title, pageLabel),
@@ -893,6 +896,7 @@ class _ChapterViewState extends State<ChapterView>
             left: 0,
             right: 0,
             child: _chromeTransition(
+              context: context,
               visible: visible,
               fromTop: false,
               child: _bottomBar(progress, title, pageLabel),
@@ -904,19 +908,24 @@ class _ChapterViewState extends State<ChapterView>
   }
 
   Widget _chromeTransition({
+    required BuildContext context,
     required bool visible,
     required bool fromTop,
     required Widget child,
   }) {
+    // The chrome hides instantly for reduced motion: a reader must never wait
+    // for an effect to reach the page again.
+    final slide = AppMotion.effective(context, AppMotion.chrome);
+    final fade = AppMotion.effective(context, AppMotion.fast);
     return IgnorePointer(
       ignoring: !visible,
       child: AnimatedSlide(
         offset: visible ? Offset.zero : Offset(0, fromTop ? -1.1 : 1.1),
-        duration: const Duration(milliseconds: 230),
-        curve: Curves.easeOutCubic,
+        duration: slide,
+        curve: AppMotion.enter,
         child: AnimatedOpacity(
           opacity: visible ? 1 : 0,
-          duration: const Duration(milliseconds: 180),
+          duration: fade,
           child: child,
         ),
       ),
@@ -1135,16 +1144,22 @@ class _ChapterViewState extends State<ChapterView>
   }
 
   Widget _chromeIcon(IconData icon, String tooltip, VoidCallback? onTap) {
-    return IconButton(
-      tooltip: tooltip,
-      onPressed: onTap,
-      icon: Icon(icon, size: 21),
-      color: onTap == null
-          ? Colors.white.withValues(alpha: .26)
-          : Colors.white.withValues(alpha: .9),
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints.tightFor(width: 42, height: 38),
-      visualDensity: VisualDensity.compact,
+    // Press feedback only: the reader controls must react on touch-down and
+    // must never animate the page itself.
+    return PressableScale(
+      enabled: onTap != null,
+      scale: .94,
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: onTap,
+        icon: Icon(icon, size: 21),
+        color: onTap == null
+            ? Colors.white.withValues(alpha: .26)
+            : Colors.white.withValues(alpha: .9),
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 42, height: 38),
+        visualDensity: VisualDensity.compact,
+      ),
     );
   }
 

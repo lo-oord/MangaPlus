@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/theme/app_motion.dart';
+import 'package:mangaplus/app/core/navigation/app_navigation.dart';
 import 'package:mangaplus/app/core/cache/manga_cover_cache_manager.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/modules/local_library/controllers/local_library_controller.dart';
@@ -83,7 +85,7 @@ class LocalLibraryView extends GetView<LocalLibraryController> {
           controller.toggleSelection(group.comicId);
           return;
         }
-        Get.toNamed(Routes.COMIC_DETAIL, arguments: {
+        AppNavigation.toNamed(Routes.COMIC_DETAIL, arguments: {
           'comicId': group.comicId,
           'localOnly': true,
           'comicTitle': group.title,
@@ -119,6 +121,7 @@ class LocalLibraryView extends GetView<LocalLibraryController> {
                           : CachedNetworkImage(
                               imageUrl: group.coverImage,
                               cacheManager: MangaCoverCacheManager.instance,
+                              fadeInDuration: AppMotion.page,
                               memCacheWidth: 228,
                               maxWidthDiskCache: 720,
                               fit: BoxFit.cover,

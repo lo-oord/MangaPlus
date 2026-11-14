@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/theme/app_motion.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/data/models/app_notification.dart';
 import 'package:mangaplus/app/modules/notifications/controllers/notifications_controller.dart';
@@ -72,6 +73,7 @@ class NotificationsView extends GetView<NotificationsController> {
                       )
                     : CachedNetworkImage(
                         imageUrl: item.imageUrl,
+                        fadeInDuration: AppMotion.page,
                         memCacheWidth: 144,
                         maxWidthDiskCache: 480,
                         fit: BoxFit.cover,

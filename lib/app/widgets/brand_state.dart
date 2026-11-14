@@ -7,6 +7,7 @@ import 'package:mangaplus/app/core/theme/app_palette.dart';
 import 'package:mangaplus/app/core/theme/design_tokens.dart';
 import 'package:mangaplus/app/core/utils/bidi_text.dart';
 import 'package:mangaplus/app/widgets/app_buttons.dart';
+import 'package:mangaplus/app/widgets/app_motion_widgets.dart';
 
 const _mangaPlusLogoAsset = 'assets/images/mangaplus_logo.png';
 
@@ -466,7 +467,8 @@ class BrandState extends StatelessWidget {
     final theme = Theme.of(context);
     final p = context.palette;
     final markSize = compact ? 52.0 : 64.0;
-    return Center(
+    return AnimatedEntry(
+      child: Center(
       child: SingleChildScrollView(
         padding: EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
@@ -532,6 +534,7 @@ class BrandState extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
   }
 }

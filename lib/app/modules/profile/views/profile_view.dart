@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/navigation/app_navigation.dart';
 import 'package:mangaplus/app/core/theme/app_palette.dart';
 import 'package:mangaplus/app/core/theme/design_tokens.dart';
 import 'package:mangaplus/app/data/models/user_profile.dart';
@@ -35,7 +36,7 @@ class ProfileView extends GetView<ProfileController> {
               children: [
                 _ProfileHeader(
                   controller: controller,
-                  onOpenDetails: () => Get.toNamed(Routes.PROFILE_DETAILS),
+                  onOpenDetails: () => AppNavigation.toNamed(Routes.PROFILE_DETAILS),
                   onEditName: _editDisplayName,
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -63,22 +64,22 @@ class ProfileView extends GetView<ProfileController> {
                     AppSettingsTile(
                       icon: Icons.notifications_none_rounded,
                       title: 'الإشعارات'.tr,
-                      onTap: () => Get.toNamed(Routes.NOTIFICATIONS),
+                      onTap: () => AppNavigation.toNamed(Routes.NOTIFICATIONS),
                     ),
                     AppSettingsTile(
                       icon: Icons.history_rounded,
                       title: 'سجل القراءة'.tr,
-                      onTap: () => Get.toNamed(Routes.HISTORY),
+                      onTap: () => AppNavigation.toNamed(Routes.HISTORY),
                     ),
                     AppSettingsTile(
                       icon: Icons.download_outlined,
                       title: 'التحميلات'.tr,
-                      onTap: () => Get.toNamed(Routes.DOWNLOAD),
+                      onTap: () => AppNavigation.toNamed(Routes.DOWNLOAD),
                     ),
                     AppSettingsTile(
                       icon: Icons.storage_rounded,
                       title: 'التخزين المحلي'.tr,
-                      onTap: () => Get.toNamed(Routes.LOCAL_LIBRARY),
+                      onTap: () => AppNavigation.toNamed(Routes.LOCAL_LIBRARY),
                     ),
                   ],
                 ),

@@ -2,6 +2,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/navigation/app_navigation.dart';
 import 'package:mangaplus/app/data/services/auth_service.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 
@@ -100,7 +101,7 @@ class AccountGateService {
       barrierDismissible: true,
     );
     if (shouldOpen != true) return;
-    await Get.toNamed(Routes.AUTH);
+    await AppNavigation.toNamed(Routes.AUTH);
   }
 
   Future<bool> get isOffline async {

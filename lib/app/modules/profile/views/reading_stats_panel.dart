@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/navigation/app_navigation.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/data/models/reading_stats.dart';
 import 'package:mangaplus/app/data/services/reading_stats_service.dart';
@@ -10,6 +11,7 @@ import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/core/theme/design_tokens.dart';
 import 'package:mangaplus/app/widgets/app_buttons.dart';
 import 'package:mangaplus/app/widgets/app_dialogs.dart';
+import 'package:mangaplus/app/widgets/app_motion_widgets.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 
 class ReadingStatsPanel extends StatefulWidget {
@@ -20,94 +22,26 @@ class ReadingStatsPanel extends StatefulWidget {
 }
 
 class _ReadingStatsPanelState extends State<ReadingStatsPanel> {
-  bool _expanded = false;
-
   @override
   Widget build(BuildContext context) {
     final controller = Get.find<ReadingStatsController>();
     return Obx(() {
       controller.refreshRevision.value;
       final report = controller.report;
-      return Container(
-        decoration: BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.divider.withValues(alpha: .8)),
-        ),
-        child: Column(
-          children: [
-            InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: () => setState(() => _expanded = !_expanded),
-              child: Padding(
-                padding: const EdgeInsetsDirectional.fromSTEB(16, 15, 16, 15),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: .12),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(Icons.auto_graph_rounded,
-                          color: AppColors.primary),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'إحصاءات القراءة'.tr,
-                            style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            report.totalSeconds == 0 &&
-                                    report.completedChapters == 0
-                                ? 'ابدأ القراءة لبناء إحصاءاتك'.tr
-                                : '${_duration(report.totalSeconds)} • ${report.completedChapters} ${'فصل مكتمل'.tr}',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                                color: AppColors.textSecondary, fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(
-                      _expanded
-                          ? Icons.keyboard_arrow_up_rounded
-                          : Icons.keyboard_arrow_down_rounded,
-                      color: AppColors.icon,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            AnimatedCrossFade(
-              duration: const Duration(milliseconds: 220),
-              crossFadeState: _expanded
-                  ? CrossFadeState.showSecond
-                  : CrossFadeState.showFirst,
-              firstChild: const SizedBox(width: double.infinity, height: 0),
-              secondChild: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 16),
-                child: controller.isLoading.value
-                    ? const Padding(
-                        padding: EdgeInsets.all(22),
-                        child: MangaPlusLoader(size: 38),
-                      )
-                    : _dashboard(controller),
-              ),
-            ),
-          ],
-        ),
+      // The expanded section reuses the shared expandable shell, so a profile
+      // panel and a settings group open with exactly the same motion.
+      return AppExpandable(
+        title: 'إحصاءات القراءة'.tr,
+        subtitle: report.totalSeconds == 0 && report.completedChapters == 0
+            ? 'ابدأ القراءة لبناء إحصاءاتك'.tr
+            : '${_duration(report.totalSeconds)} • ${report.completedChapters} ${'فصل مكتمل'.tr}',
+        icon: Icons.auto_graph_rounded,
+        child: controller.isLoading.value
+            ? const Padding(
+                padding: EdgeInsets.all(22),
+                child: MangaPlusLoader(size: 38),
+              )
+            : _dashboard(controller),
       );
     });
   }
@@ -1069,7 +1003,7 @@ class _ReadingStatsPanelState extends State<ReadingStatsPanel> {
                   trailing: Icon(Icons.chevron_right_rounded,
                       color: AppColors.icon, size: 18),
                   onTap: () =>
-                      Get.toNamed(Routes.COMIC_DETAIL, arguments: work.comicId),
+                      AppNavigation.toNamed(Routes.COMIC_DETAIL, arguments: work.comicId),
                 )),
         ],
       ),

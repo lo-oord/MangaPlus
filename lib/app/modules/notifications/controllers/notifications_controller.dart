@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/navigation/app_navigation.dart';
 import 'package:mangaplus/app/data/models/app_notification.dart';
 import 'package:mangaplus/app/data/services/app_notification_service.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
@@ -54,7 +55,7 @@ class NotificationsController extends GetxController {
         final arguments = data.isNotEmpty
             ? <String, dynamic>{...data, 'comicId': comicId}
             : comicId;
-        await Get.toNamed(routePath, arguments: arguments);
+        await AppNavigation.toNamed(routePath, arguments: arguments);
         return;
       }
       final arguments = data.isNotEmpty
@@ -62,12 +63,12 @@ class NotificationsController extends GetxController {
           : query.isNotEmpty
               ? query
               : null;
-      await Get.toNamed(routePath, arguments: arguments);
+      await AppNavigation.toNamed(routePath, arguments: arguments);
       return;
     }
 
     if (comicId.isNotEmpty) {
-      await Get.toNamed(Routes.COMIC_DETAIL, arguments: comicId);
+      await AppNavigation.toNamed(Routes.COMIC_DETAIL, arguments: comicId);
     }
   }
 }

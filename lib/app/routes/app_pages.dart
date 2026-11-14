@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/theme/app_motion.dart';
 
 import '../modules/auth/bindings/auth_binding.dart';
 import '../modules/auth/views/auth_view.dart';
@@ -39,92 +40,130 @@ class AppPages {
   static const initial = Routes.SPLASH;
 
   static final routes = [
+    // Motion is chosen by relationship: a screen pushed on top of another
+    // slides in from the reading edge, a destination that replaces the shell
+    // fades, and the reader opens with its shortest transition so page images
+    // are never withheld for an effect.
     GetPage(
       name: _Paths.AUTH,
       page: () => const AuthView(),
       binding: AuthBinding(),
+      transition: Transition.rightToLeftWithFade,
+      transitionDuration: AppMotion.page,
+      curve: AppMotion.emphasized,
     ),
     GetPage(
       name: _Paths.SPLASH,
       page: () => const SplashView(),
+      transition: Transition.fadeIn,
+      transitionDuration: AppMotion.slow,
     ),
     GetPage(
       name: _Paths.HOME,
       page: () => const HomeView(),
       binding: HomeBinding(),
+      transition: Transition.rightToLeftWithFade,
+      transitionDuration: AppMotion.page,
+      curve: AppMotion.emphasized,
     ),
     GetPage(
       name: _Paths.GENRE,
       page: () => const GenreView(),
       binding: GenreBinding(),
+      transition: Transition.rightToLeftWithFade,
+      transitionDuration: AppMotion.page,
+      curve: AppMotion.emphasized,
     ),
     GetPage(
       name: _Paths.COMIC_DETAIL,
       page: () => const ComicDetailView(),
       binding: ComicDetailBinding(),
       transition: Transition.rightToLeftWithFade,
-      transitionDuration: const Duration(milliseconds: 280),
+      transitionDuration: AppMotion.page,
+      curve: AppMotion.emphasized,
     ),
     GetPage(
       name: _Paths.CHAPTER,
       page: () => const ChapterView(),
       binding: ChapterBinding(),
       transition: Transition.fadeIn,
-      transitionDuration: const Duration(milliseconds: 180),
+      transitionDuration: AppMotion.fast,
     ),
     GetPage(
       name: _Paths.GENRE_DETAIL,
       page: () => const GenreDetailView(),
       binding: GenreDetailBinding(),
       transition: Transition.rightToLeftWithFade,
-      transitionDuration: const Duration(milliseconds: 240),
+      transitionDuration: AppMotion.page,
+      curve: AppMotion.emphasized,
     ),
     GetPage(
       name: _Paths.MAIN,
       page: () => const MainView(),
       binding: MainBinding(),
+      transition: Transition.fadeIn,
+      transitionDuration: AppMotion.page,
     ),
     GetPage(
       name: _Paths.DOWNLOAD,
       page: () => const DownloadView(),
       binding: DownloadBinding(),
+      transition: Transition.rightToLeftWithFade,
+      transitionDuration: AppMotion.page,
+      curve: AppMotion.emphasized,
     ),
     GetPage(
       name: _Paths.LOCAL_LIBRARY,
       page: () => const LocalLibraryView(),
       binding: LocalLibraryBinding(),
       transition: Transition.rightToLeftWithFade,
+      transitionDuration: AppMotion.page,
+      curve: AppMotion.emphasized,
     ),
     GetPage(
       name: _Paths.SEARCH,
       page: () => const SearchView(),
       binding: SearchBinding(),
+      transition: Transition.fadeIn,
+      transitionDuration: AppMotion.page,
     ),
     GetPage(
       name: _Paths.PROFILE,
       page: () => const ProfileView(),
       binding: ProfileBinding(),
+      transition: Transition.fadeIn,
+      transitionDuration: AppMotion.page,
     ),
     GetPage(
       name: _Paths.PROFILE_DETAILS,
       page: () => const ProfileDetailsView(),
       binding: ProfileBinding(),
       transition: Transition.rightToLeftWithFade,
+      transitionDuration: AppMotion.page,
+      curve: AppMotion.emphasized,
     ),
     GetPage(
       name: _Paths.HISTORY,
       page: () => const HistoryView(),
       binding: HistoryBinding(),
+      transition: Transition.rightToLeftWithFade,
+      transitionDuration: AppMotion.page,
+      curve: AppMotion.emphasized,
     ),
     GetPage(
       name: _Paths.BOOKMARK,
       page: () => const BookmarkView(),
       binding: BookmarkBinding(),
+      transition: Transition.fadeIn,
+      transitionDuration: AppMotion.page,
     ),
     GetPage(
       name: _Paths.NOTIFICATIONS,
       page: () => const NotificationsView(),
       binding: NotificationsBinding(),
+      transition: Transition.rightToLeftWithFade,
+      transitionDuration: AppMotion.page,
+      curve: AppMotion.emphasized,
     ),
   ];
 }

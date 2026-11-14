@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/navigation/app_navigation.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/modules/genre_detail/controllers/genre_detail_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
@@ -92,7 +93,7 @@ class GenreDetailView extends GetView<GenreDetailController> {
               }
               final comic = controller.comicsList[index];
               return GestureDetector(
-                onTap: () => Get.toNamed(
+                onTap: () => AppNavigation.toNamed(
                   Routes.COMIC_DETAIL,
                   arguments: comic.comicId,
                 ),

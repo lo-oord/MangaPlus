@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/navigation/app_navigation.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:image_picker/image_picker.dart';
@@ -322,7 +323,7 @@ class ProfileController extends GetxController {
     await Get.find<ChapterUpdateService>().setNovelNotificationsEnabled(value);
   }
 
-  Future<void> openAuth() async { await Get.toNamed(Routes.AUTH); await refreshAccount(); }
+  Future<void> openAuth() async { await AppNavigation.toNamed(Routes.AUTH); await refreshAccount(); }
 
   Future<void> changeAvatar() async {
     final auth = _auth;

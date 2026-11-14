@@ -13,6 +13,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:workmanager/workmanager.dart';
 
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/navigation/app_navigation.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/core/theme/theme.dart';
 import 'package:mangaplus/app/core/theme/theme_mode_preference.dart';
@@ -330,7 +331,7 @@ void main() async {
   if (!kIsWeb) {
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
       unawaited(notificationService.recordRemoteMessage(message));
-      Get.toNamed(Routes.NOTIFICATIONS);
+      AppNavigation.toNamed(Routes.NOTIFICATIONS);
     });
   }
   final initialNotification = !kIsWeb
@@ -389,7 +390,7 @@ void main() async {
         debugPrint('Unable to initialize push notifications: $error');
       });
       if (initialNotification != null) {
-        Get.toNamed(Routes.NOTIFICATIONS);
+        AppNavigation.toNamed(Routes.NOTIFICATIONS);
       }
     });
   }

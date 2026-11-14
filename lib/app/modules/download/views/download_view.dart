@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/theme/app_motion.dart';
 import 'package:mangaplus/app/core/cache/manga_cover_cache_manager.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/data/models/download_task.dart';
@@ -62,6 +63,7 @@ class DownloadView extends GetView<DownloadController> {
                       : CachedNetworkImage(
                           imageUrl: task.coverImage,
                           cacheManager: MangaCoverCacheManager.instance,
+                          fadeInDuration: AppMotion.page,
                           memCacheWidth: 174,
                           maxWidthDiskCache: 480,
                           fit: BoxFit.cover,

@@ -1,6 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/theme/app_motion.dart';
+import 'package:mangaplus/app/core/navigation/app_navigation.dart';
 import 'package:mangaplus/app/core/cache/manga_cover_cache_manager.dart';
 import 'package:mangaplus/app/core/theme/app_palette.dart';
 import 'package:mangaplus/app/core/theme/design_tokens.dart';
@@ -263,7 +265,7 @@ class _SearchComicTile extends StatelessWidget {
 
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.xs + 2),
-      onTap: () => Get.toNamed(
+      onTap: () => AppNavigation.toNamed(
         Routes.COMIC_DETAIL,
         arguments: comic.comicId,
       ),
@@ -277,6 +279,7 @@ class _SearchComicTile extends StatelessWidget {
                 child: CachedNetworkImage(
                   imageUrl: comic.image,
                   cacheManager: MangaCoverCacheManager.instance,
+                  fadeInDuration: AppMotion.page,
                   httpHeaders: MangaCoverCacheManager.requestHeadersForWorkUrl(
                     comic.comicId,
                   ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/navigation/app_navigation.dart';
 import 'package:mangaplus/app/core/cache/manga_cover_cache_manager.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/translations/content_localization.dart';
@@ -404,7 +405,7 @@ class HomeView extends GetView<HomeController> {
                       }
                       final comic = controller.genreComics[index];
                       return GestureDetector(
-                        onTap: () => Get.toNamed(
+                        onTap: () => AppNavigation.toNamed(
                           Routes.COMIC_DETAIL,
                           arguments: comic.comicId,
                         ),
@@ -596,7 +597,7 @@ class HomeView extends GetView<HomeController> {
                                 SizedBox(
                                   width: double.infinity,
                                   child: FilledButton.icon(
-                                    onPressed: () => Get.toNamed(
+                                    onPressed: () => AppNavigation.toNamed(
                                         Routes.COMIC_DETAIL,
                                         arguments: comic['comicId']),
                                     icon: const Icon(Icons.menu_book_rounded,
@@ -755,7 +756,7 @@ class KomikCardsSection extends GetView<HomeController> {
   Widget _latestCard(ComicsList comic) {
     return GestureDetector(
       key: ValueKey<String>('home-${comic.comicId}'),
-      onTap: () => Get.toNamed(
+      onTap: () => AppNavigation.toNamed(
         Routes.COMIC_DETAIL,
         arguments: comic.comicId,
       ),

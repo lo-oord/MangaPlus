@@ -1,6 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/theme/app_motion.dart';
+import 'package:mangaplus/app/core/navigation/app_navigation.dart';
 import 'package:mangaplus/app/core/cache/manga_cover_cache_manager.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/translations/content_localization.dart';
@@ -57,7 +59,7 @@ class HistoryView extends GetView<HistoryController> {
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
         onTap: () {
-          Get.toNamed(Routes.COMIC_DETAIL, arguments: history.comicId);
+          AppNavigation.toNamed(Routes.COMIC_DETAIL, arguments: history.comicId);
         },
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -70,6 +72,7 @@ class HistoryView extends GetView<HistoryController> {
                 child: CachedNetworkImage(
                   imageUrl: history.coverImage,
                   cacheManager: MangaCoverCacheManager.instance,
+                  fadeInDuration: AppMotion.page,
                   httpHeaders: MangaCoverCacheManager.requestHeadersForWorkUrl(
                     history.coverImage.isNotEmpty
                         ? history.coverImage
@@ -150,7 +153,7 @@ class HistoryView extends GetView<HistoryController> {
                       width: 110,
                       child: ElevatedButton(
                         onPressed: () {
-                          Get.toNamed(
+                          AppNavigation.toNamed(
                             Routes.CHAPTER,
                             arguments: {
                               'comicId': history.comicId,

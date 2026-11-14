@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/navigation/app_navigation.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/models/bookmark.dart';
@@ -228,7 +229,7 @@ class BookmarkView extends GetView<BookmarkController> {
                       if (controller.selectedBookmarkIds.isNotEmpty) {
                         controller.toggleSelection(bookmark.comicId);
                       } else {
-                        Get.toNamed(Routes.COMIC_DETAIL, arguments: bookmark.comicId);
+                        AppNavigation.toNamed(Routes.COMIC_DETAIL, arguments: bookmark.comicId);
                       }
                     },
                     child: Stack(
