@@ -21,7 +21,6 @@ abstract class Routes {
   static const BOOKMARK = _Paths.BOOKMARK;
   static const NOTIFICATIONS = _Paths.NOTIFICATIONS;
   static const SPLASH = _Paths.SPLASH;
-  static const ONBOARDING = _Paths.ONBOARDING;
 }
 
 abstract class _Paths {
@@ -42,5 +41,4 @@ abstract class _Paths {
   static const BOOKMARK = '/bookmark';
   static const NOTIFICATIONS = '/notifications';
   static const SPLASH = '/splash';
-  static const ONBOARDING = '/onboarding';
 }

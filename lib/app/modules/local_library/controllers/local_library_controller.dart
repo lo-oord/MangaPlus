@@ -1,8 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter/painting.dart';
 import 'package:get/get.dart';
-import 'package:mangaplus/app/core/cache/manga_cover_cache_manager.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/data/models/download_task.dart';
 import 'package:mangaplus/app/data/models/downloaded_chapter.dart';
@@ -37,12 +35,6 @@ class LocalLibraryController extends GetxController {
   final selectedComicIds = <String>{}.obs;
   final isSelectionMode = false.obs;
   final isLoading = true.obs;
-  final mangaBytes = 0.obs;
-  final novelBytes = 0.obs;
-  final chapterCount = 0.obs;
-  bool _pruning = false;
-
-  int get totalBytes => mangaBytes.value + novelBytes.value;
 
   @override
   void onInit() {
@@ -56,40 +48,16 @@ class LocalLibraryController extends GetxController {
     try {
       final raw = _storage.read<List<dynamic>>('downloadedChapters') ?? const [];
       final byComic = <String, List<DownloadedChapter>>{};
-      final validRaw = <dynamic>[];
-      var mangaTotal = 0;
-      var novelTotal = 0;
-      var chaptersTotal = 0;
       for (final item in raw.whereType<Map>()) {
         try {
           final chapter = DownloadedChapter.fromJson(Map<String, dynamic>.from(item));
           if (chapter.isNovel ? chapter.content.trim().isEmpty :
               (chapter.localImagePaths.isEmpty ||
                !chapter.localImagePaths.every((path) => File(path).existsSync()))) {
-            // Keep the record out of the fresh list: this is an orphan whose
-            // file was removed outside the app, so totals must not count it.
             continue;
           }
-          validRaw.add(item);
           byComic.putIfAbsent(chapter.comicId, () => []).add(chapter);
-          chaptersTotal++;
-          if (chapter.isNovel) {
-            novelTotal += chapter.content.length * 2;
-          } else {
-            for (final path in chapter.localImagePaths) {
-              final file = File(path);
-              if (file.existsSync()) mangaTotal += file.lengthSync();
-            }
-          }
         } catch (_) {}
-      }
-      if (validRaw.length != raw.length && !_pruning) {
-        _pruning = true;
-        try {
-          await _storage.write('downloadedChapters', validRaw);
-        } finally {
-          _pruning = false;
-        }
       }
       final result = <LocalComicGroup>[];
       for (final entry in byComic.entries) {
@@ -115,9 +83,6 @@ class LocalLibraryController extends GetxController {
       }
       result.sort((a, b) => a.title.compareTo(b.title));
       groups.assignAll(result);
-      mangaBytes.value = mangaTotal;
-      novelBytes.value = novelTotal;
-      chapterCount.value = chaptersTotal;
     } finally {
       isLoading.value = false;
     }
@@ -162,20 +127,6 @@ class LocalLibraryController extends GetxController {
     }
     raw.removeWhere((item) => item is Map && item['comicId'] == comicId);
     await _storage.write('downloadedChapters', raw);
-  }
-
-  /// Clears decoded images and the cover disk cache. Downloaded chapters are
-  /// stored under the application documents directory and are never touched.
-  Future<void> clearImageCaches() async {
-    PaintingBinding.instance.imageCache
-      ..clear()
-      ..clearLiveImages();
-    await MangaCoverCacheManager.instance.emptyCache();
-    AppFeedback.show(
-      title: 'تم المسح'.tr,
-      message: 'أُفرغت ذاكرة الصور المؤقتة. الفصول المحمّلة لم تتأثر.'.tr,
-      type: AppNoticeType.success,
-    );
   }
 
   Future<void> deleteGroup(LocalComicGroup group) async {

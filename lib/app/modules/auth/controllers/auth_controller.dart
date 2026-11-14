@@ -4,7 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:mangaplus/app/core/auth/auth_validation.dart';
 import 'package:mangaplus/app/data/models/user_profile.dart';
 import 'package:mangaplus/app/data/services/account_sync_service.dart';
 import 'package:mangaplus/app/data/services/auth_service.dart';
@@ -202,22 +201,12 @@ class AuthController extends GetxController {
       return _usernameReady();
     }
     if (registrationStep.value == 1) {
-      final emailError = AuthValidation.emailError(email.text);
-      if (emailError != null) {
-        _message('تحقق من البريد', emailError);
+      if (!GetUtils.isEmail(email.text.trim())) {
+        _message('تحقق من البريد', 'أدخل بريدًا إلكترونيًا صالحًا.');
         return false;
       }
-      final passwordError = AuthValidation.passwordError(password.text);
-      if (passwordError != null) {
-        _message('تحقق من كلمة المرور', passwordError);
-        return false;
-      }
-      final confirmError = AuthValidation.confirmError(
-        password.text,
-        confirmPassword.text,
-      );
-      if (confirmError != null) {
-        _message('تحقق من كلمة المرور', confirmError);
+      if (password.text.length < 8 || password.text != confirmPassword.text) {
+        _message('تحقق من كلمة المرور', 'استخدم 8 أحرف على الأقل وتأكد من التطابق.');
         return false;
       }
     }
@@ -419,21 +408,13 @@ class AuthController extends GetxController {
       }
       return true;
     }
-    final emailError = AuthValidation.emailError(email.text);
-    if (emailError != null) {
-      _message('تحقق من البريد', emailError);
+    if (!GetUtils.isEmail(email.text.trim())) {
+      _message('تحقق من البريد', 'أدخل بريدًا إلكترونيًا صالحًا.');
       return false;
     }
-    if (!isRegister.value && password.text.isEmpty) {
-      _message('كلمة المرور مطلوبة', 'أدخل كلمة المرور.');
+    if (password.text.length < 8) {
+      _message('كلمة المرور قصيرة', 'استخدم 8 أحرف على الأقل.');
       return false;
-    }
-    if (isRegister.value) {
-      final passwordError = AuthValidation.passwordError(password.text);
-      if (passwordError != null) {
-        _message('تحقق من كلمة المرور', passwordError);
-        return false;
-      }
     }
     if (!isRegister.value) return true;
     if (displayName.text.trim().length < 2) {
@@ -447,12 +428,8 @@ class AuthController extends GetxController {
       return false;
     }
     if (!_usernameReady()) return false;
-    final confirmError = AuthValidation.confirmError(
-      password.text,
-      confirmPassword.text,
-    );
-    if (confirmError != null) {
-      _message('كلمتا المرور غير متطابقتين', confirmError);
+    if (password.text != confirmPassword.text) {
+      _message('كلمتا المرور غير متطابقتين', 'أعد كتابة كلمة المرور نفسها.');
       return false;
     }
     if (selectedCountry.value == null || birthDate.value == null || selectedGender.value == null) {
@@ -491,8 +468,7 @@ class AuthController extends GetxController {
     if (error is AuthException) return error.message;
     if (error is FirebaseAuthException) {
       return switch (error.code) {
-        'email-already-in-use' => 'هذا البريد مسجّل بالفعل. سجّل الدخول بدلًا من إنشاء حساب جديد.',
-        'invalid-email' => 'أدخل بريدًا إلكترونيًا صالحًا.',
+        'email-already-in-use' => 'تعذر إكمال العملية. حاول مرة أخرى.',
         'invalid-credential' || 'wrong-password' || 'user-not-found' => 'بيانات الدخول غير صحيحة.',
         'network-request-failed' => 'تحقق من اتصال الإنترنت.',
         'weak-password' => 'كلمة المرور ضعيفة.',
