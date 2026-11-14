@@ -6,11 +6,13 @@ import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/theme/app_motion.dart';
 import 'package:mangaplus/app/core/reader/novel_reader_model.dart';
+import 'package:mangaplus/app/core/reader/novel_typography.dart';
 import 'package:mangaplus/app/core/reader/reader_page_geometry.dart';
 import 'package:mangaplus/app/core/utils/bidi_text.dart';
 import 'package:mangaplus/app/modules/chapter/controllers/chapter_controller.dart';
 import 'package:mangaplus/app/modules/chapter/widgets/reader_chrome.dart';
 import 'package:mangaplus/app/modules/chapter/widgets/reader_manga_page.dart';
+import 'package:mangaplus/app/modules/chapter/widgets/reader_novel_chrome.dart';
 import 'package:mangaplus/app/modules/chapter/widgets/reader_tools_sheet.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
@@ -587,6 +589,11 @@ class _ChapterViewState extends State<ChapterView>
         final content = chapter.content as String;
         final direction = _novelDirection(content);
         final palette = _novelPalette();
+        final horizontalPadding = novelReadingPadding(
+          viewportWidth: MediaQuery.sizeOf(context).width,
+          margins: c.novelMargins.value,
+          maxWidth: c.novelContentWidth.value,
+        );
         if (_lastNovelRevision != c.novelLayoutRevision.value) {
           _lastNovelRevision = c.novelLayoutRevision.value;
           _scheduleNovelAnchorRestore();
@@ -604,6 +611,12 @@ class _ChapterViewState extends State<ChapterView>
               onNotification: (notification) {
                 if (notification.depth != 0) return false;
                 final metrics = notification.metrics;
+                if (notification is ScrollStartNotification &&
+                    notification.dragDetails != null &&
+                    c.novelAutoScroll.value) {
+                  // Touching the page always takes control from auto-scroll.
+                  c.setNovelAutoScroll(false);
+                }
                 if (notification is ScrollUpdateNotification) {
                   c.updateNovelProgress(
                     metrics.pixels,
@@ -637,9 +650,9 @@ class _ChapterViewState extends State<ChapterView>
                     controller: c.scrollController,
                     cacheExtent: 900,
                     padding: EdgeInsets.fromLTRB(
-                      c.novelMargins.value,
+                      horizontalPadding,
                       MediaQuery.paddingOf(context).top + 68,
-                      c.novelMargins.value,
+                      horizontalPadding,
                       MediaQuery.paddingOf(context).bottom + 120,
                     ),
                     itemCount: paragraphs.length,
@@ -666,7 +679,8 @@ class _ChapterViewState extends State<ChapterView>
                             : c.novelParagraphSpacing.value,
                         style: TextStyle(
                           color: palette.text,
-                          fontSize: c.novelFontSize.value,
+                          fontSize: MediaQuery.textScalerOf(context)
+                              .scale(c.novelFontSize.value),
                           fontFamily: c.novelFontFamily.value == 'default'
                               ? null
                               : c.novelFontFamily.value,
@@ -675,7 +689,7 @@ class _ChapterViewState extends State<ChapterView>
                                   .clamp(0, 5)
                                   .toInt()],
                           height: c.novelLineHeight.value,
-                          letterSpacing: .05,
+                          letterSpacing: c.novelLetterSpacing.value,
                         ),
                       );
                     },
@@ -980,6 +994,71 @@ class _ChapterViewState extends State<ChapterView>
       final comicTitle = '${c.arguments['comicTitle'] ?? ''}'.trim();
       final coverReference = '${c.arguments['coverImage'] ?? ''}'.trim();
       final paged = c.readerMode.value == 'paged';
+      if (c.isNovel) {
+        return Stack(
+          children: [
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _chromeTransition(
+                context: context,
+                visible: visible,
+                fromTop: true,
+                child: NovelReaderTopBar(
+                  comicTitle: comicTitle,
+                  chapterTitle: title,
+                  pageLabel: pageLabel,
+                  progress: progress,
+                  speaking: c.novelSpeechPlaying.value,
+                  paused: c.novelSpeechPaused.value,
+                  onBack: Get.back,
+                  onTts: () => _openNovelTtsPanel(context),
+                  onBookmark: _bookmarkCurrentPosition,
+                  onTools: () => _openTools(context),
+                  onInteraction: _noteChromeInteraction,
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: _chromeTransition(
+                context: context,
+                visible: visible,
+                fromTop: false,
+                child: NovelReaderBottomBar(
+                  chapterTitle: title,
+                  pageLabel: pageLabel,
+                  progress: progress,
+                  autoScroll: c.novelAutoScroll.value,
+                  onToggleAutoScroll: () =>
+                      c.setNovelAutoScroll(!c.novelAutoScroll.value),
+                  onSeek: c.seekReaderProgress,
+                  onSeekEnd: c.persistReaderProgress,
+                  onChapters: () => _openChapterList(context),
+                  onSettings: () => _openTools(context),
+                  onPreviousChapter: c.previousChapterId == null
+                      ? null
+                      : () => c.navigateToChapter(
+                            c.previousChapterId,
+                            reverse: true,
+                            joinContinuousStream: true,
+                          ),
+                  onNextChapter: c.nextChapterId == null
+                      ? null
+                      : () => c.navigateToChapter(
+                            c.nextChapterId,
+                            joinContinuousStream: true,
+                          ),
+                  onInteraction: _noteChromeInteraction,
+                ),
+              ),
+            ),
+          ],
+        );
+      }
       return Stack(
         children: [
           Positioned(
@@ -1140,6 +1219,9 @@ class _ChapterViewState extends State<ChapterView>
 
   Future<void> _openChapterList(BuildContext context) =>
       _withChromePaused(() => showReaderChapterList(context, c));
+
+  Future<void> _openNovelTtsPanel(BuildContext context) =>
+      _withChromePaused(() => showNovelTtsPanel(context, c));
 
   Future<void> _jumpToPage(int page) async {
     final images = c.chapterData.value.chapter.images;

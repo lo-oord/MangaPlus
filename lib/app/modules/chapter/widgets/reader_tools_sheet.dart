@@ -5,7 +5,9 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/reader/novel_reader_model.dart';
 import 'package:mangaplus/app/modules/chapter/controllers/chapter_controller.dart';
 import 'package:mangaplus/app/modules/chapter/widgets/reader_chrome.dart';
+import 'package:mangaplus/app/modules/chapter/widgets/reader_novel_chrome.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
+import 'package:mangaplus/app/widgets/brand_state.dart';
 
 Future<void> openReaderTools(
   BuildContext context, {
@@ -409,6 +411,28 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
           onChanged: c.setNovelParagraphSpacing,
         ),
         _slider(
+          title: 'تباعد الأحرف',
+          value: c.novelLetterSpacing.value,
+          min: 0,
+          max: 2,
+          divisions: 10,
+          label: c.novelLetterSpacing.value.toStringAsFixed(1),
+          onChanged: c.setNovelLetterSpacing,
+        ),
+        _slider(
+          title: 'عرض نص القراءة',
+          value: c.novelContentWidth.value,
+          min: 480,
+          max: 1200,
+          divisions: 12,
+          label: '${c.novelContentWidth.value.round()} px',
+          onChanged: c.setNovelContentWidth,
+        ),
+        _hint(
+          'العرض الأقصى للنص على الشاشات الكبيرة؛ يبقى النص متمركزاً '
+          'ويحترم الهوامش على الهاتف.',
+        ),
+        _slider(
           title: 'هوامش القراءة',
           value: c.novelMargins.value,
           min: 12,
@@ -592,6 +616,11 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
           divisions: 19,
           label: '${c.novelAutoScrollSpeed.value.round()} px/s',
           onChanged: c.setNovelAutoScrollSpeed,
+        ),
+        _actionCard(
+          icon: Icons.headphones_rounded,
+          label: 'لوحة القراءة الصوتية',
+          onTap: () => showNovelTtsPanel(context, c),
         ),
         _actionCard(
           icon: c.novelSpeechPlaying.value
@@ -961,7 +990,7 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
               Expanded(
                 child: Obx(() {
                   if (c.novelSearching.value) {
-                    return const Center(child: CircularProgressIndicator());
+                    return const Center(child: MangaPlusLoader(size: 34));
                   }
                   final hits = c.novelSearchHits;
                   if (c.novelSearchQuery.value.isNotEmpty && hits.isEmpty) {

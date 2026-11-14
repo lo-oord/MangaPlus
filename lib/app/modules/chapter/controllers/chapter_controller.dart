@@ -9,6 +9,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/data/models/chapter.dart';
 import 'package:mangaplus/app/core/utils/chapter_reference_identity.dart';
 import 'package:mangaplus/app/core/utils/chapter_sequence.dart';
+import 'package:mangaplus/app/core/reader/novel_speech.dart';
 import 'package:mangaplus/app/core/reader/reader_preload_window.dart';
 import 'package:mangaplus/app/core/reader/reader_reading_preset.dart';
 import 'package:mangaplus/app/core/utils/page_load_tracker.dart';
@@ -112,6 +113,8 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
 
   final novelFontWeight = 400.obs;
   final novelMargins = 24.0.obs;
+  final novelLetterSpacing = 0.0.obs;
+  final novelContentWidth = 720.0.obs;
   final novelTextAlign = 'auto'.obs;
   final novelTextDirection = 'auto'.obs;
   final novelLayoutRevision = 0.obs;
@@ -253,8 +256,12 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   List<String> _speechChunks = [];
   int _speechChunkIndex = 0;
   bool _speechSessionActive = false;
+  List<NovelSpeechChunk> _speechChunkMeta = const <NovelSpeechChunk>[];
   final novelSpeechCurrentParagraph = (-1).obs;
   final novelSpeechCurrentWord = ''.obs;
+  final novelSpeechChunkIndex = 0.obs;
+  final novelSpeechChunkCount = 0.obs;
+  final novelSpeechSentence = ''.obs;
   final List<int> _speechChunkParagraphIndexes = <int>[];
   bool endNoticeShown = false;
   bool _isLoadingChapterNavigation = false;
@@ -1945,6 +1952,10 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
         read<num>('novel_line_height', 1.85).toDouble().clamp(1.4, 2.3);
     novelParagraphSpacing.value =
         read<num>('novel_paragraph_spacing', 18).toDouble().clamp(8.0, 36.0);
+    novelLetterSpacing.value =
+        read<num>('novel_letter_spacing', 0).toDouble().clamp(0.0, 2.0);
+    novelContentWidth.value =
+        read<num>('novel_content_width', 720).toDouble().clamp(480.0, 1200.0);
     novelSpeechRate.value =
         read<num>('novel_speech_rate', 0.42).toDouble().clamp(0.25, 0.75);
     novelSpeechLanguage.value = read<String>('novel_speech_language', 'ar-SA');
@@ -1994,6 +2005,24 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   Future<void> setNovelFontFamily(String value) async {
     novelFontFamily.value = value;
     await _storage.write(_readerSettingKey('novel_font_family'), value);
+    novelLayoutRevision.value++;
+  }
+
+  Future<void> setNovelLetterSpacing(double value) async {
+    novelLetterSpacing.value = value.clamp(0.0, 2.0).toDouble();
+    await _storage.write(
+      _readerSettingKey('novel_letter_spacing'),
+      novelLetterSpacing.value,
+    );
+    novelLayoutRevision.value++;
+  }
+
+  Future<void> setNovelContentWidth(double value) async {
+    novelContentWidth.value = value.clamp(480.0, 1200.0).toDouble();
+    await _storage.write(
+      _readerSettingKey('novel_content_width'),
+      novelContentWidth.value,
+    );
     novelLayoutRevision.value++;
   }
 
@@ -2124,8 +2153,51 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     await _startNovelSpeech();
   }
 
+  /// Moves playback one spoken sentence forward. Starts the session when idle.
+  Future<void> speakNextNovelSentence() async {
+    if (!isNovel) return;
+    if (!_speechSessionActive) {
+      await _startNovelSpeech();
+      return;
+    }
+    await _seekNovelSpeechChunk(_speechChunkIndex + 1);
+  }
+
+  /// Moves playback one spoken sentence back.
+  Future<void> speakPreviousNovelSentence() async {
+    if (!isNovel) return;
+    if (!_speechSessionActive) {
+      await _startNovelSpeech();
+      return;
+    }
+    await _seekNovelSpeechChunk(_speechChunkIndex - 1);
+  }
+
+  Future<void> _seekNovelSpeechChunk(int index) async {
+    if (_speechChunks.isEmpty) return;
+    _speechChunkIndex = index.clamp(0, _speechChunks.length - 1).toInt();
+    _speechSessionActive = true;
+    novelSpeechPlaying.value = true;
+    novelSpeechPaused.value = false;
+    try {
+      await _flutterTts.stop();
+      await _playSpeechChunk();
+    } catch (error) {
+      debugPrint('Novel TTS seek failed: $error');
+      _failNovelSpeech();
+    }
+  }
+
   Future<void> _startNovelSpeech() async {
-    _speechChunks = _splitSpeechText(chapterData.value.chapter.content);
+    _speechChunkMeta = splitNovelSpeech(chapterData.value.chapter.content);
+    _speechChunks = _speechChunkMeta
+        .map((chunk) => chunk.text)
+        .toList(growable: false);
+    _speechChunkParagraphIndexes
+      ..clear()
+      ..addAll(_speechChunkMeta.map((chunk) => chunk.paragraphIndex));
+    novelSpeechChunkCount.value = _speechChunks.length;
+    novelSpeechChunkIndex.value = 0;
     if (_speechChunks.isEmpty) return;
     _speechChunkIndex = 0;
     _speechSessionActive = true;
@@ -2146,10 +2218,12 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
       return;
     }
     try {
-      if (_speechChunkIndex < _speechChunkParagraphIndexes.length) {
+      if (_speechChunkIndex < _speechChunkMeta.length) {
         novelSpeechCurrentParagraph.value =
-            _speechChunkParagraphIndexes[_speechChunkIndex];
+            _speechChunkMeta[_speechChunkIndex].paragraphIndex;
+        novelSpeechSentence.value = _speechChunkMeta[_speechChunkIndex].text;
       }
+      novelSpeechChunkIndex.value = _speechChunkIndex;
       novelSpeechCurrentWord.value = '';
       final result = await _flutterTts.speak(_speechChunks[_speechChunkIndex]);
       if ((result is num && result != 1) || result == false || result == '0') {
@@ -2173,38 +2247,11 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     );
   }
 
-  List<String> _splitSpeechText(String value) {
-    final chunks = <String>[];
-    _speechChunkParagraphIndexes.clear();
-    final paragraphs = _splitNovelParagraphs(value);
-    for (var paragraphIndex = 0;
-        paragraphIndex < paragraphs.length;
-        paragraphIndex++) {
-      if (paragraphs[paragraphIndex] == novelChapterDividerToken) continue;
-      final buffer = StringBuffer();
-      for (final word in paragraphs[paragraphIndex].split(RegExp(r'\s+'))) {
-        if (word.isEmpty) continue;
-        final extraLength = word.length + (buffer.isEmpty ? 0 : 1);
-        if (buffer.length + extraLength > 2500 && buffer.isNotEmpty) {
-          chunks.add(buffer.toString());
-          _speechChunkParagraphIndexes.add(paragraphIndex);
-          buffer.clear();
-        }
-        if (buffer.isNotEmpty) buffer.write(' ');
-        buffer.write(word);
-      }
-      if (buffer.isNotEmpty) {
-        chunks.add(buffer.toString());
-        _speechChunkParagraphIndexes.add(paragraphIndex);
-      }
-    }
-    return chunks;
-  }
-
   void _onSpeechChunkCompleted() {
     if (!_speechSessionActive || novelSpeechPaused.value) return;
     if (_speechChunkIndex + 1 < _speechChunks.length) {
       _speechChunkIndex++;
+      novelSpeechChunkIndex.value = _speechChunkIndex;
       unawaited(_playSpeechChunk());
       return;
     }
@@ -2213,6 +2260,7 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     novelSpeechPaused.value = false;
     novelSpeechCurrentParagraph.value = -1;
     novelSpeechCurrentWord.value = '';
+    novelSpeechSentence.value = '';
   }
 
   Future<void> stopNovelSpeech() async {
@@ -2220,10 +2268,14 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     novelSpeechPlaying.value = false;
     novelSpeechPaused.value = false;
     _speechChunks = [];
+    _speechChunkMeta = const <NovelSpeechChunk>[];
     _speechChunkParagraphIndexes.clear();
     _speechChunkIndex = 0;
     novelSpeechCurrentParagraph.value = -1;
     novelSpeechCurrentWord.value = '';
+    novelSpeechSentence.value = '';
+    novelSpeechChunkIndex.value = 0;
+    novelSpeechChunkCount.value = 0;
     try {
       await _flutterTts.stop();
     } catch (_) {}
