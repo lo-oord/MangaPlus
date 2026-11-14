@@ -6,6 +6,7 @@ import 'package:mangaplus/app/core/cache/manga_cover_cache_manager.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/modules/local_library/controllers/local_library_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
+import 'package:mangaplus/app/widgets/app_dialogs.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/mangaplus_app_bar.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
@@ -163,20 +164,15 @@ class LocalLibraryView extends GetView<LocalLibraryController> {
     );
   }
 
-  void _confirmDelete(BuildContext context) {
-    Get.dialog(AlertDialog(
-      title: Text('حذف الأعمال المحددة'.tr),
-      content: Text('سيؤدي ذلك إلى حذف جميع الفصول المحلية لهذه الأعمال فقط.'.tr),
-      actions: [
-        TextButton(onPressed: Get.back, child: Text('إلغاء'.tr)),
-        FilledButton(
-          onPressed: () {
-            Get.back();
-            controller.deleteSelected();
-          },
-          child: Text('حذف'.tr),
-        ),
-      ],
-    ));
+  Future<void> _confirmDelete(BuildContext context) async {
+    final confirmed = await AppDialogs.confirm(
+      title: 'حذف الأعمال المحددة'.tr,
+      message: 'سيؤدي ذلك إلى حذف جميع الفصول المحلية لهذه الأعمال فقط.'.tr,
+      confirmLabel: 'حذف'.tr,
+      destructive: true,
+      icon: Icons.delete_outline_rounded,
+    );
+    if (!context.mounted || !confirmed) return;
+    await controller.deleteSelected();
   }
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/core/theme/app_palette.dart';
+import 'package:mangaplus/app/core/theme/design_tokens.dart';
 import 'package:mangaplus/app/modules/bookmark/views/bookmark_view.dart';
 import 'package:mangaplus/app/modules/home/views/home_view.dart';
 import 'package:mangaplus/app/modules/main/controllers/main_controller.dart';
@@ -14,51 +16,64 @@ class MainView extends GetView<MainController> {
   @override
   Widget build(BuildContext context) {
     return ThemeAwareBuilder(
-      builder: (context) => Scaffold(
-        backgroundColor: AppColors.background,
-        body: PageView(
-          controller: controller.pageController,
-          physics: const NeverScrollableScrollPhysics(),
-          // Every destination keeps its state. A tab that is not kept alive is
-          // disposed when the PageView scrolls it out, which dropped the search
-          // query, the bookmark filters and every scroll offset on each switch.
-          children: const [
-            _KeepAlivePage(child: HomeView()),
-            _KeepAlivePage(child: SearchView()),
-            _KeepAlivePage(child: BookmarkView()),
-            _KeepAlivePage(child: ProfileView()),
-          ],
-        ),
-        bottomNavigationBar: SafeArea(
-          top: false,
-          minimum: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Obx(() => _buildNavigationBar()),
-        ),
-      ),
+      builder: (context) {
+        final palette = context.palette;
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness:
+                palette.isDark ? Brightness.light : Brightness.dark,
+            systemNavigationBarColor: palette.background,
+            systemNavigationBarIconBrightness:
+                palette.isDark ? Brightness.light : Brightness.dark,
+            systemNavigationBarDividerColor: Colors.transparent,
+          ),
+          child: Scaffold(
+            backgroundColor: palette.background,
+            body: PageView(
+              controller: controller.pageController,
+              physics: const NeverScrollableScrollPhysics(),
+              // Every destination keeps its state. A tab that is not kept alive is
+              // disposed when the PageView scrolls it out, which dropped the search
+              // query, the bookmark filters and every scroll offset on each switch.
+              children: const [
+                _KeepAlivePage(child: HomeView()),
+                _KeepAlivePage(child: SearchView()),
+                _KeepAlivePage(child: BookmarkView()),
+                _KeepAlivePage(child: ProfileView()),
+              ],
+            ),
+            bottomNavigationBar: SafeArea(
+              top: false,
+              minimum: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                0,
+                AppSpacing.md,
+                AppSpacing.xs,
+              ),
+              child: Obx(() => _buildNavigationBar(context)),
+            ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildNavigationBar() {
-    const duration = Duration(milliseconds: 360);
+  Widget _buildNavigationBar(BuildContext context) {
+    final p = context.palette;
     final selectedIndex = controller.index.value.clamp(0, 3);
     return Container(
-      height: 72,
+      height: AppSizes.navBarHeight,
       padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: AppColors.divider.withValues(alpha: 0.72)),
+        color: p.card,
+        borderRadius: AppRadii.pillAll,
+        border: Border.all(color: p.border.withValues(alpha: .85)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.10),
-            blurRadius: 24,
-            spreadRadius: -3,
-            offset: const Offset(0, 7),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: Get.isDarkMode ? 0.12 : 0.035),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: p.isDark ? .22 : .05),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -68,7 +83,7 @@ class MainView extends GetView<MainController> {
           IgnorePointer(
             child: AnimatedAlign(
               alignment: Alignment(-1 + (selectedIndex * 2 / 3), 0),
-              duration: duration,
+              duration: AppDurations.slow,
               curve: Curves.easeInOutCubic,
               child: FractionallySizedBox(
                 widthFactor: 0.25,
@@ -77,11 +92,8 @@ class MainView extends GetView<MainController> {
                   padding: const EdgeInsets.all(3),
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.13),
-                      borderRadius: BorderRadius.circular(21),
-                      border: Border.all(
-                        color: AppColors.primary.withValues(alpha: 0.08),
-                      ),
+                      color: p.primary.withValues(alpha: .13),
+                      borderRadius: AppRadii.pillAll,
                     ),
                   ),
                 ),
@@ -90,29 +102,37 @@ class MainView extends GetView<MainController> {
           ),
           Row(
             children: [
-              _navItem(
-                0,
+              _NavItem(
+                itemIndex: 0,
                 activeIcon: Icons.home_rounded,
                 inactiveIcon: Icons.home_outlined,
                 label: 'home'.tr,
+                selected: selectedIndex == 0,
+                onTap: () => controller.changeIndex(0),
               ),
-              _navItem(
-                1,
+              _NavItem(
+                itemIndex: 1,
                 activeIcon: Icons.manage_search_rounded,
                 inactiveIcon: Icons.search_rounded,
                 label: 'بحث'.tr,
+                selected: selectedIndex == 1,
+                onTap: () => controller.changeIndex(1),
               ),
-              _navItem(
-                2,
+              _NavItem(
+                itemIndex: 2,
                 activeIcon: Icons.bookmarks_rounded,
                 inactiveIcon: Icons.bookmarks_outlined,
                 label: 'bookmark_title'.tr,
+                selected: selectedIndex == 2,
+                onTap: () => controller.changeIndex(2),
               ),
-              _navItem(
-                3,
+              _NavItem(
+                itemIndex: 3,
                 activeIcon: Icons.account_circle_rounded,
                 inactiveIcon: Icons.person_outline_rounded,
                 label: 'profile'.tr,
+                selected: selectedIndex == 3,
+                onTap: () => controller.changeIndex(3),
               ),
             ],
           ),
@@ -120,15 +140,31 @@ class MainView extends GetView<MainController> {
       ),
     );
   }
+}
 
-  Widget _navItem(
-    int itemIndex, {
-    required IconData activeIcon,
-    required IconData inactiveIcon,
-    required String label,
-  }) {
-    final selected = controller.index.value == itemIndex;
+/// One destination of the floating navigation bar.
+class _NavItem extends StatelessWidget {
+  const _NavItem({
+    required this.itemIndex,
+    required this.activeIcon,
+    required this.inactiveIcon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final int itemIndex;
+  final IconData activeIcon;
+  final IconData inactiveIcon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
     final icon = selected ? activeIcon : inactiveIcon;
+    final tint = selected ? p.primary : p.icon;
     return Expanded(
       child: Semantics(
         button: true,
@@ -137,31 +173,34 @@ class MainView extends GetView<MainController> {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            borderRadius: BorderRadius.circular(22),
-            splashColor: AppColors.primary.withValues(alpha: 0.08),
-            highlightColor: AppColors.primary.withValues(alpha: 0.04),
-            onTap: () => controller.changeIndex(itemIndex),
+            borderRadius: AppRadii.pillAll,
+            splashColor: p.primary.withValues(alpha: .08),
+            highlightColor: p.primary.withValues(alpha: .04),
+            onTap: onTap,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 2,
+                vertical: AppSpacing.xxs,
+              ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.max,
                 children: [
                   AnimatedScale(
                     scale: selected ? 1.08 : 1,
-                    duration: const Duration(milliseconds: 280),
-                    curve: Curves.easeOutBack,
+                    duration: AppDurations.normal,
+                    curve: Curves.easeOut,
                     child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 220),
+                      duration: AppDurations.fast,
                       switchInCurve: Curves.easeOutCubic,
                       switchOutCurve: Curves.easeInCubic,
                       transitionBuilder: (child, animation) => FadeTransition(
                         opacity: animation,
                         child: ScaleTransition(
-                          scale: Tween<double>(begin: 0.78, end: 1).animate(
+                          scale: Tween<double>(begin: .82, end: 1).animate(
                             CurvedAnimation(
                               parent: animation,
-                              curve: Curves.easeOutBack,
+                              curve: Curves.easeOut,
                             ),
                           ),
                           child: child,
@@ -169,22 +208,24 @@ class MainView extends GetView<MainController> {
                       ),
                       child: Icon(
                         icon,
-                        key: ValueKey('${itemIndex}_${selected ? 'active' : 'idle'}'),
-                        size: 23,
-                        color: selected ? AppColors.primary : AppColors.icon,
+                        key: ValueKey(
+                          '${itemIndex}_${selected ? 'active' : 'idle'}',
+                        ),
+                        size: AppSizes.iconMd,
+                        color: tint,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 240),
+                    duration: AppDurations.fast,
                     curve: Curves.easeOutCubic,
-                    style: TextStyle(
-                      color: selected ? AppColors.primary : AppColors.textSecondary,
-                      fontSize: 10.5,
-                      height: 1.1,
-                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                    ),
+                    style: Theme.of(context).textTheme.labelSmall!.copyWith(
+                          color: selected ? p.primary : p.textSecondary,
+                          fontWeight:
+                              selected ? FontWeight.w800 : FontWeight.w600,
+                          height: 1.1,
+                        ),
                     child: Text(
                       label,
                       maxLines: 1,

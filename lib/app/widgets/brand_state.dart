@@ -3,7 +3,10 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/core/theme/app_palette.dart';
+import 'package:mangaplus/app/core/theme/design_tokens.dart';
 import 'package:mangaplus/app/core/utils/bidi_text.dart';
+import 'package:mangaplus/app/widgets/app_buttons.dart';
 
 const _mangaPlusLogoAsset = 'assets/images/mangaplus_logo.png';
 
@@ -223,12 +226,14 @@ class _LoaderRingPainter extends CustomPainter {
       ).createShader(bounds);
 
     if (progress != null) {
-      canvas.drawArc(bounds, -math.pi / 2, 2 * math.pi * progress!, false, arcPaint);
+      canvas.drawArc(
+          bounds, -math.pi / 2, 2 * math.pi * progress!, false, arcPaint);
     } else {
       // Two short arcs opposite each other read as motion without a stock
       // spinner and keep the logo unobstructed.
       canvas.drawArc(bounds, rotation, math.pi * 0.42, false, arcPaint);
-      canvas.drawArc(bounds, rotation + math.pi, math.pi * 0.22, false, arcPaint);
+      canvas.drawArc(
+          bounds, rotation + math.pi, math.pi * 0.22, false, arcPaint);
     }
   }
 
@@ -385,6 +390,11 @@ class MangaPlusRetryTile extends StatelessWidget {
   }
 }
 
+/// The single empty / loading / error presentation used by every screen.
+///
+/// Screens pick a named constructor ([BrandState.loading], [BrandState.empty],
+/// [BrandState.error]) so the icon, copy hierarchy and retry affordance stay
+/// identical across Home, Search, Bookmarks, Downloads and the library.
 class BrandState extends StatelessWidget {
   const BrandState({
     super.key,
@@ -394,8 +404,49 @@ class BrandState extends StatelessWidget {
     this.icon,
     this.progress,
     this.actionLabel,
+    this.actionIcon = Icons.refresh_rounded,
     this.onAction,
+    this.compact = false,
   });
+
+  /// A neutral, non-actionable empty state (no results, nothing saved).
+  const BrandState.empty({
+    super.key,
+    required this.title,
+    this.description,
+    this.icon = Icons.auto_stories_rounded,
+    this.actionLabel,
+    this.actionIcon = Icons.refresh_rounded,
+    this.onAction,
+    this.compact = false,
+  })  : loading = false,
+        progress = null;
+
+  /// A failure state that always offers a retry.
+  const BrandState.error({
+    super.key,
+    required this.title,
+    this.description,
+    this.icon = Icons.cloud_off_rounded,
+    this.actionLabel,
+    this.actionIcon = Icons.refresh_rounded,
+    this.onAction,
+    this.compact = false,
+  })  : loading = false,
+        progress = null;
+
+  /// A waiting state using the branded loader.
+  const BrandState.loading({
+    super.key,
+    required this.title,
+    this.description,
+    this.icon,
+    this.progress,
+    this.compact = false,
+  })  : loading = true,
+        actionLabel = null,
+        actionIcon = Icons.refresh_rounded,
+        onAction = null;
 
   final String title;
   final String? description;
@@ -403,88 +454,138 @@ class BrandState extends StatelessWidget {
   final IconData? icon;
   final double? progress;
   final String? actionLabel;
+  final IconData actionIcon;
   final VoidCallback? onAction;
+
+  /// Tightens the vertical padding for states shown inside a smaller pane
+  /// (a tab body, a sheet or the bottom half of a details page).
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final p = context.palette;
+    final markSize = compact ? 52.0 : 64.0;
     return Center(
       child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 360),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                loading
-                    ? MangaPlusLoader(size: 68, progress: progress)
-                    : Stack(
-                        clipBehavior: Clip.none,
-                        alignment: Alignment.center,
-                        children: [
-                          const MangaPlusLogo(size: 68),
-                          if (icon != null)
-                            Positioned(
-                              right: -5,
-                              bottom: -3,
-                              child: Container(
-                                width: 26,
-                                height: 26,
-                                decoration: BoxDecoration(
-                                  color: theme.colorScheme.surface,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: AppColors.divider),
-                                  boxShadow: const [
-                                    BoxShadow(
-                                      color: Color(0x18000000),
-                                      blurRadius: 6,
-                                      offset: Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: Icon(
-                                  icon,
-                                  size: 15,
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                            ),
-                        ],
+        padding: EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg,
+          vertical: compact ? AppSpacing.lg : AppSpacing.xl,
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              loading
+                  ? MangaPlusLoader(size: markSize, progress: progress)
+                  : Container(
+                      width: markSize,
+                      height: markSize,
+                      decoration: BoxDecoration(
+                        color: p.primary.withValues(alpha: .10),
+                        borderRadius: AppRadii.lgAll,
                       ),
-                const SizedBox(height: 18),
+                      alignment: Alignment.center,
+                      child: Icon(
+                        icon ?? Icons.auto_stories_rounded,
+                        size: markSize * .44,
+                        color: p.primary,
+                      ),
+                    ),
+              SizedBox(height: compact ? AppSpacing.sm : AppSpacing.md),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                textDirection: bidiTextDirection(title),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: p.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (description != null) ...[
+                const SizedBox(height: AppSpacing.xs),
                 Text(
-                  title,
+                  description!,
                   textAlign: TextAlign.center,
-                  textDirection: bidiTextDirection(title),
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w700,
+                  textDirection: bidiTextDirection(description),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: p.textSecondary,
+                    height: 1.55,
                   ),
                 ),
-                if (description != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    description!,
-                    textAlign: TextAlign.center,
-                    textDirection: bidiTextDirection(description),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
-                      height: 1.5,
-                    ),
-                  ),
-                ],
-                if (actionLabel != null && onAction != null) ...[
-                  const SizedBox(height: 20),
-                  FilledButton.tonal(
-                    onPressed: onAction,
-                    child: Text(actionLabel!),
-                  ),
-                ],
               ],
-            ),
+              if (actionLabel != null && onAction != null) ...[
+                const SizedBox(height: AppSpacing.md),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 220),
+                  child: AppButton(
+                    label: actionLabel!,
+                    icon: actionIcon,
+                    variant: AppButtonVariant.outline,
+                    expand: true,
+                    onPressed: onAction,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// A slim, non-blocking notice shown when the app is showing cached content.
+///
+/// It sits inline above a list instead of replacing content, so readers keep
+/// access to what is already downloaded while the connection is gone.
+class AppOfflineBanner extends StatelessWidget {
+  const AppOfflineBanner({
+    super.key,
+    this.message,
+    this.onRetry,
+  });
+
+  final String? message;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final text = Theme.of(context).textTheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: p.warning.withValues(alpha: .12),
+        borderRadius: AppRadii.smAll,
+        border: Border.all(color: p.warning.withValues(alpha: .35)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.cloud_off_rounded, size: 18, color: p.warning),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(
+            child: Text(
+              message ?? 'لا يوجد اتصال. تُعرض المحتويات المحفوظة.'.tr,
+              style: text.bodySmall?.copyWith(color: p.textPrimary),
+            ),
+          ),
+          if (onRetry != null)
+            TextButton(
+              onPressed: onRetry,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(0, 34),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text('إعادة المحاولة'.tr),
+            ),
+        ],
       ),
     );
   }

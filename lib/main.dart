@@ -354,6 +354,12 @@ void main() async {
       fallbackLocale: const Locale('ar', 'SA'),
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       supportedLocales: const [Locale('ar', 'SA'), Locale('en', 'US')],
+      // MangaPlus keeps an LTR application shell on purpose: page order, the
+      // paged reader, sliders and progress bars are laid out left-to-right,
+      // while every Arabic (or mixed) string is laid out RTL through
+      // `bidiTextDirection`. Changing the shell direction would silently
+      // reverse reader paging, so the direction strategy is part of the design
+      // system instead of being decided per screen.
       builder: (context, child) => Directionality(
         textDirection: TextDirection.ltr,
         child: child ?? const SizedBox.shrink(),

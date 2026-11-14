@@ -5,6 +5,7 @@ import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/models/bookmark.dart';
 import 'package:mangaplus/app/modules/bookmark/controllers/bookmark_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
+import 'package:mangaplus/app/widgets/app_dialogs.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/mangaplus_app_bar.dart';
 import 'package:mangaplus/app/widgets/custom_card_normal.dart';
@@ -178,17 +179,14 @@ class BookmarkView extends GetView<BookmarkController> {
   }
 
   Future<void> _confirmDeleteSelected() async {
-    final confirmed = await Get.dialog<bool>(
-      AlertDialog(
-        title: Text('حذف المحدد'.tr),
-        content: Text('هل تريد حذف الأعمال المحددة من المفضلة؟'.tr),
-        actions: [
-          TextButton(onPressed: () => Get.back(result: false), child: Text('إلغاء'.tr)),
-          FilledButton(onPressed: () => Get.back(result: true), child: Text('حذف'.tr)),
-        ],
-      ),
+    final confirmed = await AppDialogs.confirm(
+      title: 'حذف المحدد'.tr,
+      message: 'هل تريد حذف الأعمال المحددة من المفضلة؟'.tr,
+      confirmLabel: 'حذف'.tr,
+      destructive: true,
+      icon: Icons.bookmark_remove_rounded,
     );
-    if (confirmed == true) await controller.deleteSelected();
+    if (confirmed) await controller.deleteSelected();
   }
 
   Widget _buildBookmarkGrid(BuildContext context, List<BookmarkItem> bookmarks) {

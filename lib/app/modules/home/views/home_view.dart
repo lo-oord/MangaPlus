@@ -18,115 +18,124 @@ class HomeView extends GetView<HomeController> {
 
   @override
   Widget build(BuildContext context) {
-    return ThemeAwareBuilder(builder: (context) => Scaffold(
-      backgroundColor: AppColors.background,
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: Obx(() {
-        final visible = controller.sourcePickerVisible.value;
-        return AnimatedSlide(
-          offset: visible ? Offset.zero : const Offset(0, 1.35),
-          duration: const Duration(milliseconds: 340),
-          curve: visible ? Curves.easeOutBack : Curves.easeInCubic,
-          child: AnimatedOpacity(
-            opacity: visible ? 1 : 0,
-            duration: const Duration(milliseconds: 220),
-            child: AnimatedScale(
-              scale: visible ? 1 : 0.88,
-              duration: const Duration(milliseconds: 280),
-              curve: Curves.easeOutCubic,
-              child: IgnorePointer(
-                ignoring: !visible,
-                child: Tooltip(
-                  message: 'اختيار مصدر المحتوى'.tr,
-                  child: Material(
-                    color: AppColors.primary.withValues(alpha: 0.82),
-                    elevation: 2,
-                    shadowColor: AppColors.primary.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(22),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(22),
-                      onTap: () => _showSourcePicker(context),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 13,
-                          vertical: 9,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            SourceBrandIcon(
-                              source: controller.selectedSourceId.value == 'all'
-                                  ? ''
-                                  : controller.selectedSourceName,
-                              workUrl: '',
-                              size: 20,
-                              color: Colors.white,
-                              fallback: Icons.auto_awesome_mosaic_rounded,
-                            ),
-                            const SizedBox(width: 7),
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 120),
-                              child: Text(
-                                controller.selectedSourceName.tr,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
+    return ThemeAwareBuilder(
+        builder: (context) => Scaffold(
+              backgroundColor: AppColors.background,
+              floatingActionButtonLocation:
+                  FloatingActionButtonLocation.endFloat,
+              floatingActionButton: Obx(() {
+                final visible = controller.sourcePickerVisible.value;
+                return AnimatedSlide(
+                  offset: visible ? Offset.zero : const Offset(0, 1.35),
+                  duration: const Duration(milliseconds: 340),
+                  curve: visible ? Curves.easeOutBack : Curves.easeInCubic,
+                  child: AnimatedOpacity(
+                    opacity: visible ? 1 : 0,
+                    duration: const Duration(milliseconds: 220),
+                    child: AnimatedScale(
+                      scale: visible ? 1 : 0.88,
+                      duration: const Duration(milliseconds: 280),
+                      curve: Curves.easeOutCubic,
+                      child: IgnorePointer(
+                        ignoring: !visible,
+                        child: Tooltip(
+                          message: 'اختيار مصدر المحتوى'.tr,
+                          child: Material(
+                            color: AppColors.primary.withValues(alpha: 0.82),
+                            elevation: 2,
+                            shadowColor:
+                                AppColors.primary.withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(22),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(22),
+                              onTap: () => _showSourcePicker(context),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 13,
+                                  vertical: 9,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SourceBrandIcon(
+                                      source:
+                                          controller.selectedSourceId.value ==
+                                                  'all'
+                                              ? ''
+                                              : controller.selectedSourceName,
+                                      workUrl: '',
+                                      size: 20,
+                                      color: Colors.white,
+                                      fallback:
+                                          Icons.auto_awesome_mosaic_rounded,
+                                    ),
+                                    const SizedBox(width: 7),
+                                    ConstrainedBox(
+                                      constraints:
+                                          const BoxConstraints(maxWidth: 120),
+                                      child: Text(
+                                        controller.selectedSourceName.tr,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
+                );
+              }),
+              body: NotificationListener<ScrollNotification>(
+                onNotification: controller.handleHomeScroll,
+                child: Obx(() {
+                  if (controller.showGenrePage.value) {
+                    return _buildInlineGenrePage();
+                  }
+                  if (controller.isLoading.value) {
+                    return BrandState(
+                      title: 'جارٍ تحميل المحتوى'.tr,
+                      loading: true,
+                    );
+                  }
+                  final hasContent = controller.heroComics.isNotEmpty ||
+                      controller.comicData.value.comicsList.isNotEmpty;
+                  if (!hasContent) {
+                    return BrandState(
+                      title: controller.homeLoadFailed.value
+                          ? 'تعذر تحميل المحتوى'.tr
+                          : 'لا توجد أعمال حديثة متاحة حالياً'.tr,
+                      description: controller.homeLoadFailed.value
+                          ? 'تحقق من اتصالك بالإنترنت ثم حاول مجدداً.'.tr
+                          : 'ستظهر الأعمال هنا عند توفر تحديثات جديدة.'.tr,
+                      icon: controller.homeLoadFailed.value
+                          ? Icons.cloud_off_rounded
+                          : Icons.auto_stories_rounded,
+                      actionLabel: 'إعادة المحاولة'.tr,
+                      onAction: controller.reload,
+                    );
+                  }
+                  return CustomScrollView(
+                    controller: controller.scrollController,
+                    slivers: [
+                      SliverToBoxAdapter(child: _buildHeroImage(context)),
+                      const SliverToBoxAdapter(child: SizedBox(height: 20)),
+                      const KomikCardsSection(),
+                      const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                    ],
+                  );
+                }),
               ),
-            ),
-          ),
-        );
-      }),
-      body: NotificationListener<ScrollNotification>(
-        onNotification: controller.handleHomeScroll,
-        child: Obx(() {
-        if (controller.showGenrePage.value) return _buildInlineGenrePage();
-        if (controller.isLoading.value) {
-          return BrandState(
-            title: 'جارٍ تحميل المحتوى'.tr,
-            loading: true,
-          );
-        }
-        final hasContent = controller.heroComics.isNotEmpty ||
-            controller.comicData.value.comicsList.isNotEmpty;
-        if (!hasContent) {
-          return BrandState(
-            title: controller.homeLoadFailed.value
-                ? 'تعذر تحميل المحتوى'.tr
-                : 'لا توجد أعمال حديثة متاحة حالياً'.tr,
-            description: controller.homeLoadFailed.value
-                ? 'تحقق من اتصالك بالإنترنت ثم حاول مجدداً.'.tr
-                : 'ستظهر الأعمال هنا عند توفر تحديثات جديدة.'.tr,
-            icon: controller.homeLoadFailed.value
-                ? Icons.cloud_off_rounded
-                : Icons.auto_stories_rounded,
-            actionLabel: 'إعادة المحاولة'.tr,
-            onAction: controller.reload,
-          );
-        }
-        return CustomScrollView(
-          controller: controller.scrollController,
-          slivers: [
-            SliverToBoxAdapter(child: _buildHeroImage(context)),
-            const SliverToBoxAdapter(child: SizedBox(height: 20)),
-            const KomikCardsSection(),
-            const SliverToBoxAdapter(child: SizedBox(height: 24)),
-          ],
-        );
-        }),
-      ),
-    ));
+            ));
   }
 
   void _showSourcePicker(BuildContext context) {
@@ -136,17 +145,23 @@ class HomeView extends GetView<HomeController> {
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         final sources = controller.availableSources;
-        final height = MediaQuery.sizeOf(sheetContext).height * 0.72;
         return SafeArea(
           top: false,
           child: Container(
-            height: height.clamp(360.0, 620.0).toDouble(),
+            // Size to the content and only scroll once the sheet reaches the
+            // shared maximum, instead of always occupying 72% of the screen.
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(sheetContext).height * .86,
+            ),
             decoration: BoxDecoration(
               color: AppColors.card,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-              border: Border.all(color: AppColors.divider.withValues(alpha: 0.7)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(28)),
+              border:
+                  Border.all(color: AppColors.divider.withValues(alpha: 0.7)),
             ),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 const SizedBox(height: 10),
                 Container(
@@ -168,7 +183,8 @@ class HomeView extends GetView<HomeController> {
                           color: AppColors.primary.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(15),
                         ),
-                        child: Icon(Icons.travel_explore_rounded, color: AppColors.primary),
+                        child: Icon(Icons.travel_explore_rounded,
+                            color: AppColors.primary),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -186,7 +202,8 @@ class HomeView extends GetView<HomeController> {
                             const SizedBox(height: 3),
                             Text(
                               'اختر مصدراً لعرض أحدث المحتوى وتصنيفاته'.tr,
-                              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                              style: TextStyle(
+                                  color: AppColors.textSecondary, fontSize: 12),
                             ),
                           ],
                         ),
@@ -194,9 +211,11 @@ class HomeView extends GetView<HomeController> {
                     ],
                   ),
                 ),
-                Divider(height: 1, color: AppColors.divider.withValues(alpha: 0.7)),
-                Expanded(
+                Divider(
+                    height: 1, color: AppColors.divider.withValues(alpha: 0.7)),
+                Flexible(
                   child: ListView.separated(
+                    shrinkWrap: true,
                     padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
                     itemCount: sources.length + 1,
                     separatorBuilder: (_, __) => const SizedBox(height: 5),
@@ -205,9 +224,8 @@ class HomeView extends GetView<HomeController> {
                       final source = isAll ? null : sources[index - 1];
                       final id = isAll ? 'all' : source!.id;
                       final name = isAll ? 'كل المصادر'.tr : source!.name;
-                      final kindLabel = source?.kind == 'novel'
-                          ? 'روايات'.tr
-                          : 'مانجا'.tr;
+                      final kindLabel =
+                          source?.kind == 'novel' ? 'روايات'.tr : 'مانجا'.tr;
                       final selected = controller.selectedSourceId.value == id;
                       return Material(
                         color: selected
@@ -221,7 +239,8 @@ class HomeView extends GetView<HomeController> {
                             controller.selectSource(id);
                           },
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 12),
                             child: Row(
                               children: [
                                 Container(
@@ -229,7 +248,8 @@ class HomeView extends GetView<HomeController> {
                                   height: 42,
                                   decoration: BoxDecoration(
                                     color: selected
-                                        ? AppColors.primary.withValues(alpha: 0.16)
+                                        ? AppColors.primary
+                                            .withValues(alpha: 0.16)
                                         : AppColors.searchBar,
                                     borderRadius: BorderRadius.circular(14),
                                   ),
@@ -238,7 +258,9 @@ class HomeView extends GetView<HomeController> {
                                     source: isAll ? '' : name,
                                     workUrl: '',
                                     size: 27,
-                                    color: selected ? AppColors.primary : AppColors.icon,
+                                    color: selected
+                                        ? AppColors.primary
+                                        : AppColors.icon,
                                     fallback: isAll
                                         ? Icons.auto_awesome_mosaic_rounded
                                         : Icons.language_rounded,
@@ -247,7 +269,8 @@ class HomeView extends GetView<HomeController> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
@@ -275,7 +298,8 @@ class HomeView extends GetView<HomeController> {
                                   ),
                                 ),
                                 if (selected)
-                                  Icon(Icons.check_circle_rounded, color: AppColors.primary, size: 22),
+                                  Icon(Icons.check_circle_rounded,
+                                      color: AppColors.primary, size: 22),
                               ],
                             ),
                           ),
@@ -432,151 +456,160 @@ class HomeView extends GetView<HomeController> {
                     width: double.infinity,
                     height: 404,
                     child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: CachedNetworkImage(
-                          imageUrl: comic['image']!,
-                          cacheManager: MangaCoverCacheManager.instance,
-                          memCacheWidth: (MediaQuery.sizeOf(context).width *
-                                  MediaQuery.devicePixelRatioOf(context))
-                              .round(),
-                          maxWidthDiskCache: (MediaQuery.sizeOf(context).width *
-                                  MediaQuery.devicePixelRatioOf(context) *
-                                  1.5)
-                              .round(),
-                          fadeInDuration: const Duration(milliseconds: 180),
-                          httpHeaders: const {
-                            'Referer': 'https://olympustaff.com/',
-                            'User-Agent':
-                                'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
-                          },
-                          fit: BoxFit.cover,
-                          alignment: Alignment.topCenter,
-                          imageBuilder: (context, imageProvider) => Image(
-                            image: imageProvider,
+                      children: [
+                        Positioned.fill(
+                          child: CachedNetworkImage(
+                            imageUrl: comic['image']!,
+                            cacheManager: MangaCoverCacheManager.instance,
+                            memCacheWidth: (MediaQuery.sizeOf(context).width *
+                                    MediaQuery.devicePixelRatioOf(context))
+                                .round(),
+                            maxWidthDiskCache:
+                                (MediaQuery.sizeOf(context).width *
+                                        MediaQuery.devicePixelRatioOf(context) *
+                                        1.5)
+                                    .round(),
+                            fadeInDuration: const Duration(milliseconds: 180),
+                            httpHeaders: const {
+                              'Referer': 'https://olympustaff.com/',
+                              'User-Agent':
+                                  'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+                            },
                             fit: BoxFit.cover,
                             alignment: Alignment.topCenter,
-                            filterQuality: FilterQuality.high,
-                            gaplessPlayback: true,
-                          ),
-                          placeholder: (context, url) => Container(
-                            color: AppColors.searchBar,
-                            alignment: Alignment.center,
-                            child: MangaPlusCoverState(
-                              message: 'جارٍ تحميل الغلاف'.tr,
-                              markSize: 68,
+                            imageBuilder: (context, imageProvider) => Image(
+                              image: imageProvider,
+                              fit: BoxFit.cover,
+                              alignment: Alignment.topCenter,
+                              filterQuality: FilterQuality.high,
+                              gaplessPlayback: true,
                             ),
-                          ),
-                          errorWidget: (context, url, error) => Container(
-                            color: AppColors.searchBar,
-                            alignment: Alignment.center,
-                            child: MangaPlusCoverState(
-                              message: 'تعذر تحميل الغلاف'.tr,
-                              failed: true,
-                              markSize: 68,
+                            placeholder: (context, url) => Container(
+                              color: AppColors.searchBar,
+                              alignment: Alignment.center,
+                              child: MangaPlusCoverState(
+                                message: 'جارٍ تحميل الغلاف'.tr,
+                                markSize: 68,
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              color: AppColors.searchBar,
+                              alignment: Alignment.center,
+                              child: MangaPlusCoverState(
+                                message: 'تعذر تحميل الغلاف'.tr,
+                                failed: true,
+                                markSize: 68,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      Positioned.fill(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.black.withValues(alpha: 0.28),
-                                Colors.black.withValues(alpha: 0.02),
-                                Colors.black.withValues(alpha: 0.72),
-                                Colors.black.withValues(alpha: 0.94),
-                              ],
-                              stops: const [0.0, 0.25, 0.66, 1.0],
-                            ),
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        top: 16,
-                        right: 16,
-                        child: _heroBadge(Icons.auto_awesome_rounded, 'اختيار اليوم'.tr),
-                      ),
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 18,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 22),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'الفصل@value'.trParams({
-                                  'value': (comic['subtitle'] ?? '').trim().isEmpty
-                                      ? 'غير متاح'.tr
-                                      : comic['subtitle']!,
-                                }),
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              Text(
-                                comic['title']!.tr,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.start,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 25,
-                                  height: 1.18,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              Wrap(
-                                spacing: 7,
-                                runSpacing: 7,
-                                children: [
-                                  _heroBadge(
-                                    Icons.star_rounded,
-                                    (comic['rating'] ?? '').trim().isEmpty
-                                        ? 'غير متاح'.tr
-                                        : comic['rating']!,
-                                    accent: const Color(0xfff3c45c),
-                                  ),
-                                  _heroBadge(
-                                    Icons.circle,
-                                    (comic['status'] ?? '').trim().isEmpty
-                                        ? 'غير متاح'.tr
-                                        : localizeContentStatus(comic['status']!),
-                                    dot: true,
-                                  ),
-                                  _heroBadge(
-                                    Icons.update_rounded,
-                                    (comic['releaseDate'] ?? '').trim().isEmpty
-                                        ? 'غير متاح'.tr
-                                        : comic['releaseDate']!.split('T').first,
-                                  ),
+                        Positioned.fill(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.black.withValues(alpha: 0.28),
+                                  Colors.black.withValues(alpha: 0.02),
+                                  Colors.black.withValues(alpha: 0.72),
+                                  Colors.black.withValues(alpha: 0.94),
                                 ],
+                                stops: const [0.0, 0.25, 0.66, 1.0],
                               ),
-                              const SizedBox(height: 14),
-                              SizedBox(
-                                width: double.infinity,
-                                child: FilledButton.icon(
-                                  onPressed: () => Get.toNamed(
-                                      Routes.COMIC_DETAIL,
-                                      arguments: comic['comicId']),
-                                  icon: const Icon(Icons.menu_book_rounded, size: 18),
-                                  label: Text('اقرأ الآن'.tr),
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                        Positioned(
+                          top: 16,
+                          right: 16,
+                          child: _heroBadge(
+                              Icons.auto_awesome_rounded, 'اختيار اليوم'.tr),
+                        ),
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 18,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 22),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'الفصل@value'.trParams({
+                                    'value':
+                                        (comic['subtitle'] ?? '').trim().isEmpty
+                                            ? 'غير متاح'.tr
+                                            : comic['subtitle']!,
+                                  }),
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                Text(
+                                  comic['title']!.tr,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.start,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 25,
+                                    height: 1.18,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Wrap(
+                                  spacing: 7,
+                                  runSpacing: 7,
+                                  children: [
+                                    _heroBadge(
+                                      Icons.star_rounded,
+                                      (comic['rating'] ?? '').trim().isEmpty
+                                          ? 'غير متاح'.tr
+                                          : comic['rating']!,
+                                      accent: const Color(0xfff3c45c),
+                                    ),
+                                    _heroBadge(
+                                      Icons.circle,
+                                      (comic['status'] ?? '').trim().isEmpty
+                                          ? 'غير متاح'.tr
+                                          : localizeContentStatus(
+                                              comic['status']!),
+                                      dot: true,
+                                    ),
+                                    _heroBadge(
+                                      Icons.update_rounded,
+                                      (comic['releaseDate'] ?? '')
+                                              .trim()
+                                              .isEmpty
+                                          ? 'غير متاح'.tr
+                                          : comic['releaseDate']!
+                                              .split('T')
+                                              .first,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 14),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: FilledButton.icon(
+                                    onPressed: () => Get.toNamed(
+                                        Routes.COMIC_DETAIL,
+                                        arguments: comic['comicId']),
+                                    icon: const Icon(Icons.menu_book_rounded,
+                                        size: 18),
+                                    label: Text('اقرأ الآن'.tr),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -602,7 +635,8 @@ class HomeView extends GetView<HomeController> {
     });
   }
 
-  Widget _heroBadge(IconData icon, String text, {Color accent = Colors.white, bool dot = false}) =>
+  Widget _heroBadge(IconData icon, String text,
+          {Color accent = Colors.white, bool dot = false}) =>
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
@@ -615,11 +649,14 @@ class HomeView extends GetView<HomeController> {
           children: [
             Icon(icon, size: dot ? 8 : 14, color: accent),
             const SizedBox(width: 5),
-            Text(text, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+            Text(text,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700)),
           ],
         ),
       );
-
 }
 
 class KomikCardsSection extends GetView<HomeController> {
@@ -754,7 +791,8 @@ class KomikCardsSection extends GetView<HomeController> {
             padding: const EdgeInsets.only(right: 8),
             child: ActionChip(
               backgroundColor: AppColors.searchBar,
-              side: BorderSide(color: AppColors.divider.withValues(alpha: 0.65)),
+              side:
+                  BorderSide(color: AppColors.divider.withValues(alpha: 0.65)),
               padding: const EdgeInsets.symmetric(horizontal: 12),
               label: Text(
                 genre.name,

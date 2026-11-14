@@ -15,6 +15,7 @@ import 'package:mangaplus/app/modules/home/controllers/home_controller.dart';
 import 'package:mangaplus/app/modules/main/controllers/main_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
+import 'package:mangaplus/app/widgets/app_dialogs.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
@@ -1211,22 +1212,16 @@ class _ChapterListState extends State<_ChapterList> {
     );
   }
 
-  void _confirmDeleteChapter(Chapter chapter) {
-    Get.defaultDialog(
+  Future<void> _confirmDeleteChapter(Chapter chapter) async {
+    final confirmed = await AppDialogs.confirm(
       title: 'حذف الفصل المحلي'.tr,
-      content: Text('سيتم حذف ملفات هذا الفصل من الجهاز فقط.'.tr),
-      confirm: TextButton(
-        onPressed: () {
-          Get.back();
-          widget.controller.deleteDownloadedChapter(chapter.chapterId);
-        },
-        child: Text('حذف'.tr),
-      ),
-      cancel: TextButton(
-        onPressed: Get.back,
-        child: Text('إلغاء'.tr),
-      ),
+      message: 'سيتم حذف ملفات هذا الفصل من الجهاز فقط.'.tr,
+      confirmLabel: 'حذف'.tr,
+      destructive: true,
+      icon: Icons.delete_outline_rounded,
     );
+    if (!mounted || !confirmed) return;
+    await widget.controller.deleteDownloadedChapter(chapter.chapterId);
   }
 
   void _openChapter(BuildContext context, Chapter chapter) {
