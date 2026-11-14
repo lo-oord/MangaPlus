@@ -72,6 +72,8 @@ class NotificationsView extends GetView<NotificationsController> {
                       )
                     : CachedNetworkImage(
                         imageUrl: item.imageUrl,
+                        memCacheWidth: 144,
+                        maxWidthDiskCache: 480,
                         fit: BoxFit.cover,
                         errorWidget: (_, __, ___) => Container(
                           color: AppColors.primary.withValues(alpha: .13),

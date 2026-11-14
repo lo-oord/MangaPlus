@@ -57,18 +57,20 @@ ImageProvider<Object> readerImageProvider(
   String reference, {
   Map<String, String>? headers,
   int? maxWidth,
+  int? maxHeight,
 }) {
   final localPath = localReaderImagePath(reference);
   if (localPath != null) {
     final provider = FileImage(File(localPath));
-    return maxWidth == null
+    return maxWidth == null && maxHeight == null
         ? provider
-        : ResizeImage.resizeIfNeeded(maxWidth, null, provider);
+        : ResizeImage.resizeIfNeeded(maxWidth, maxHeight, provider);
   }
   return CachedNetworkImageProvider(
     reference,
     headers: headers,
     maxWidth: maxWidth,
+    maxHeight: maxHeight,
   );
 }
 

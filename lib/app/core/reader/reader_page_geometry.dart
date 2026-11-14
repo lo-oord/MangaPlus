@@ -254,6 +254,122 @@ ReaderPageLayout resolveReaderPageLayout({
   );
 }
 
+/// Default pixel budget for one decoded reader page.
+///
+/// A decoded page costs `width * height * 4` bytes. Covers are small, but a
+/// long webtoon strip is not: at the same display width a 1:15 page needs
+/// fifteen times the height, and decoding a few of those at once is what
+/// exhausts the heap on a mid-range phone. Eight megapixels is about 32 MB per
+/// page, which keeps a handful of visible pages bounded while leaving every
+/// ordinary page untouched (a 0.68 aspect page only reaches the budget at
+/// 2332 px of decode width).
+const int kReaderDecodedPagePixelBudget = 8 * 1000 * 1000;
+
+/// Absolute height ceiling for a decoded page, in pixels.
+///
+/// This only binds on extreme strips (wider than about 1:40). It exists so a
+/// single page can never allocate an unbounded bitmap even when the pixel
+/// budget alone would allow it.
+const int kReaderMaximumDecodedPageHeight = 20000;
+
+/// Safety ceiling used only while a page's real aspect ratio is still unknown.
+///
+/// The measurement pipeline replaces it as soon as the probe lands, so it can
+/// never be the reason a page stays soft for the whole session.
+const int kReaderUnmeasuredPageMaxHeight = 8192;
+
+/// The decode box requested from an image provider for one reader page.
+///
+/// Both dimensions are optional: a null height means "preserve the aspect
+/// ratio of the decoded image", which is what a measured page wants.
+class ReaderPageDecodeSize {
+  const ReaderPageDecodeSize({this.width, this.height});
+
+  final int? width;
+  final int? height;
+
+  bool get isEmpty => width == null && height == null;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ReaderPageDecodeSize &&
+      other.width == width &&
+      other.height == height;
+
+  @override
+  int get hashCode => Object.hash(width, height);
+
+  @override
+  String toString() => 'ReaderPageDecodeSize(w: $width, h: $height)';
+}
+
+/// Decode box for one page, bounded by what the screen can actually show.
+///
+/// The width follows the existing quality setting and the device pixel ratio,
+/// exactly as before. Two ceilings are then applied, both of which preserve the
+/// aspect ratio rather than cropping anything:
+///
+///  * a pixel budget ([maxDecodedPixels]) so a very tall page cannot allocate
+///    tens of megabytes, and
+///  * an absolute height ceiling ([kReaderMaximumDecodedPageHeight]).
+///
+/// Neither ceiling changes an ordinary page: they only bind once a page is far
+/// taller than the viewport. When the aspect ratio is not known yet, a
+/// conservative height cap is used and the width is left alone, so the page is
+/// replaced by its full-quality decode as soon as it is measured.
+ReaderPageDecodeSize readerPageDecodeSize({
+  required ReaderPageSize? size,
+  required double viewportWidth,
+  required double viewportHeight,
+  required double devicePixelRatio,
+  String quality = 'medium',
+  bool natural = false,
+  int minimumWidth = 320,
+  int maximumWidth = 2400,
+  int maxDecodedPixels = kReaderDecodedPagePixelBudget,
+}) {
+  final dpr =
+      devicePixelRatio.isFinite && devicePixelRatio > 0 ? devicePixelRatio : 1.0;
+  final width =
+      viewportWidth.isFinite && viewportWidth > 0 ? viewportWidth : 1.0;
+  final height =
+      viewportHeight.isFinite && viewportHeight > 0 ? viewportHeight : 1.0;
+  final factor = quality == 'high'
+      ? 1.3
+      : quality == 'low'
+          ? 0.75
+          : 1.0;
+  final measured = size != null && size.isValid;
+
+  if (!measured) {
+    final target =
+        (width * dpr * factor).round().clamp(minimumWidth, maximumWidth);
+    final cap =
+        (height * dpr * 3).round().clamp(1024, kReaderUnmeasuredPageMaxHeight);
+    return ReaderPageDecodeSize(width: target, height: cap);
+  }
+
+  var targetWidth = width * dpr * factor;
+  if (natural) {
+    // A natural-fit page is never displayed wider than its own pixels.
+    targetWidth = math.min(targetWidth, size.width.toDouble());
+  }
+  targetWidth =
+      targetWidth.clamp(minimumWidth.toDouble(), maximumWidth.toDouble());
+
+  final aspect = size.aspectRatio;
+  // width^2 / aspect <= budget  and  width / aspect <= max height
+  final byPixels = math.sqrt(maxDecodedPixels * aspect);
+  final byHeight = kReaderMaximumDecodedPageHeight * aspect;
+  final limit = math.min(byPixels, byHeight);
+  if (limit.isFinite && limit > 0 && limit < targetWidth) {
+    targetWidth = limit;
+  }
+  if (!targetWidth.isFinite || targetWidth < 1) targetWidth = 1;
+  // A measured page keeps its aspect ratio, so no height is requested.
+  return ReaderPageDecodeSize(width: targetWidth.round());
+}
+
 /// One page position inside the vertical reader.
 class ReaderPagePosition {
   const ReaderPagePosition({

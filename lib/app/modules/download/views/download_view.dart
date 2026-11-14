@@ -62,6 +62,8 @@ class DownloadView extends GetView<DownloadController> {
                       : CachedNetworkImage(
                           imageUrl: task.coverImage,
                           cacheManager: MangaCoverCacheManager.instance,
+                          memCacheWidth: 174,
+                          maxWidthDiskCache: 480,
                           fit: BoxFit.cover,
                           placeholder: (_, __) =>
                               const MangaPlusLogo(size: 34),

@@ -22,7 +22,9 @@ class ChapterView extends StatefulWidget {
 
 class _ChapterViewState extends State<ChapterView>
     with TickerProviderStateMixin {
-  ChapterController get c => Get.find<ChapterController>();
+  // Resolved once. `Get.find` is a service-locator lookup and this accessor is
+  // read dozens of times per build and per scroll notification.
+  late final ChapterController c = Get.find<ChapterController>();
 
   ReaderPageScrollIndex _index = ReaderPageScrollIndex.empty;
   String _indexSignature = '';
@@ -33,6 +35,7 @@ class _ChapterViewState extends State<ChapterView>
   String? _indexedChapterId;
   int _lastWindowFirst = -1;
   int _lastWindowLast = -1;
+  bool _pageSyncScheduled = false;
 
   final Map<int, GlobalKey> _paragraphKeys = <int, GlobalKey>{};
   int _novelAnchor = 0;
@@ -41,10 +44,32 @@ class _ChapterViewState extends State<ChapterView>
 
   Ticker? _autoScrollTicker;
   Duration _lastTick = Duration.zero;
+  Worker? _speechWorker;
+  Worker? _autoScrollWorker;
+  bool _keyPruneScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Speech and auto-scroll are side effects, not layout. Driving them from
+    // workers keeps their state out of every build method, so a spoken word no
+    // longer rebuilds the paragraph list.
+    _speechWorker = ever<int>(
+      c.novelSpeechCurrentParagraph,
+      _onSpeechParagraphChanged,
+    );
+    _autoScrollWorker = ever<bool>(c.novelAutoScroll, (_) => _syncAutoScroll());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _syncAutoScroll();
+    });
+  }
 
   @override
   void dispose() {
+    _speechWorker?.dispose();
+    _autoScrollWorker?.dispose();
     _autoScrollTicker?.dispose();
+    _paragraphKeys.clear();
     super.dispose();
   }
 
@@ -175,6 +200,7 @@ class _ChapterViewState extends State<ChapterView>
                   retryToken: c.pageRetryToken(index),
                   viewportWidth: width,
                   viewportHeight: height,
+                  pageSize: c.pageSizeAt(index),
                   chapterDividerHeight: dividerHeight,
                   chapterDividerTitle:
                       isStart ? c.chapterDividerTitleForPage(index) : null,
@@ -233,7 +259,21 @@ class _ChapterViewState extends State<ChapterView>
     if (firstBuildForChapter) {
       _indexedChapterId = c.chapterId;
       _initialScrollSynced = false;
-      _anchorPage = c.currentPage.value.clamp(0, images.length - 1).toInt();
+      // Do not read `currentPage` here. This runs inside the body's Obx, and
+      // reading it would subscribe the entire page list to the page number, so
+      // every page change would rebuild every visible page widget. The restored
+      // position already lives in the scroll offset, so the anchor is derived
+      // from that; it is refined again in the first post-frame sync.
+      final scroll = c.scrollController;
+      _anchorPage = scroll.hasClients
+          ? _index
+              .positionAt(
+                scroll.offset,
+                scroll.position.viewportDimension,
+                fallbackIndex: _anchorPage,
+              )
+              .index
+          : _anchorPage.clamp(0, images.length - 1).toInt();
       _anchorFraction = .5;
       _lastWindowFirst = -1;
       _lastWindowLast = -1;
@@ -343,9 +383,15 @@ class _ChapterViewState extends State<ChapterView>
     final perSpread = _pagesPerSpread;
     final spreadCount = (images.length / perSpread).ceil();
     final rtl = c.readingDirection.value == 'rtl';
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) c.syncPageController();
-    });
+    // One pending callback is enough; without this guard every rebuild of the
+    // paged reader queued another full page-controller sync.
+    if (!_pageSyncScheduled) {
+      _pageSyncScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _pageSyncScheduled = false;
+        if (mounted) c.syncPageController();
+      });
+    }
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTapUp: (details) => _handlePagedTap(details, images.length, perSpread),
@@ -403,6 +449,7 @@ class _ChapterViewState extends State<ChapterView>
       retryToken: c.pageRetryToken(index),
       viewportWidth: size.width / _pagesPerSpread,
       viewportHeight: size.height,
+      pageSize: c.pageSizeAt(index),
       zoomEnabled: true,
       backgroundColor: _pageBackground(),
       onLoaded: () => c.markPageLoaded(index, pageReference: images[index]),
@@ -482,12 +529,10 @@ class _ChapterViewState extends State<ChapterView>
           _lastNovelRevision = c.novelLayoutRevision.value;
           _scheduleNovelAnchorRestore();
         }
-        _syncAutoScroll(paragraphs.length);
-        _followSpeech(paragraphs);
-        final speechParagraph = c.novelSpeechCurrentParagraph.value;
-        final speechActive =
-            c.novelSpeechPlaying.value || c.novelSpeechPaused.value;
-        final speechWord = c.novelSpeechCurrentWord.value;
+        // Speech state is deliberately not read here: it changes on every
+        // spoken word and would rebuild this whole paragraph list each time.
+        // Each paragraph observes it in its own small widget instead.
+        _scheduleKeyPrune();
         return ColoredBox(
           color: palette.background,
           child: GestureDetector(
@@ -547,38 +592,28 @@ class _ChapterViewState extends State<ChapterView>
                         );
                       }
                       final notes = c.notesForParagraph(index);
-                      final isSpeaking =
-                          speechActive && index == speechParagraph;
-                      return Padding(
+                      return _NovelParagraph(
                         key: _paragraphKeys.putIfAbsent(index, GlobalKey.new),
-                        padding: EdgeInsets.only(
-                          bottom: index == paragraphs.length - 1
-                              ? 0
-                              : c.novelParagraphSpacing.value,
-                        ),
-                        child: Text.rich(
-                          TextSpan(
-                            children: _novelSpans(
-                              paragraph: paragraph,
-                              notes: notes,
-                              speechWord: isSpeaking ? speechWord : '',
-                              speechColor: AppColors.primary,
-                            ),
-                          ),
-                          textAlign: _novelTextAlign(direction),
-                          style: TextStyle(
-                            color: palette.text,
-                            fontSize: c.novelFontSize.value,
-                            fontFamily: c.novelFontFamily.value == 'default'
-                                ? null
-                                : c.novelFontFamily.value,
-                            fontWeight: FontWeight.values[
-                                ((c.novelFontWeight.value ~/ 100) - 3)
-                                    .clamp(0, 5)
-                                    .toInt()],
-                            height: c.novelLineHeight.value,
-                            letterSpacing: .05,
-                          ),
+                        controller: c,
+                        paragraphIndex: index,
+                        paragraph: paragraph,
+                        notes: notes,
+                        textAlign: _novelTextAlign(direction),
+                        bottomPadding: index == paragraphs.length - 1
+                            ? 0
+                            : c.novelParagraphSpacing.value,
+                        style: TextStyle(
+                          color: palette.text,
+                          fontSize: c.novelFontSize.value,
+                          fontFamily: c.novelFontFamily.value == 'default'
+                              ? null
+                              : c.novelFontFamily.value,
+                          fontWeight: FontWeight.values[
+                              ((c.novelFontWeight.value ~/ 100) - 3)
+                                  .clamp(0, 5)
+                                  .toInt()],
+                          height: c.novelLineHeight.value,
+                          letterSpacing: .05,
                         ),
                       );
                     },
@@ -612,65 +647,6 @@ class _ChapterViewState extends State<ChapterView>
       default:
         return TextAlign.start;
     }
-  }
-
-  List<InlineSpan> _novelSpans({
-    required String paragraph,
-    required List<NovelNote> notes,
-    required String speechWord,
-    required Color speechColor,
-  }) {
-    final ranges = <({int start, int end, Color color, bool speech})>[];
-    for (final note in notes) {
-      final range = note.resolveRange(paragraph);
-      if (range.end <= range.start) continue;
-      ranges.add((
-        start: range.start,
-        end: range.end,
-        color: Color(novelNoteColorValue(note.color)),
-        speech: false,
-      ));
-      break;
-    }
-    final word = speechWord.trim().toLowerCase();
-    if (word.isNotEmpty) {
-      final start = paragraph.toLowerCase().indexOf(word);
-      if (start >= 0) {
-        ranges.add((
-          start: start,
-          end: start + word.length,
-          color: speechColor.withValues(alpha: .2),
-          speech: true,
-        ));
-      }
-    }
-    if (ranges.isEmpty) return [TextSpan(text: paragraph)];
-    ranges.sort((left, right) => left.start.compareTo(right.start));
-    final spans = <InlineSpan>[];
-    var cursor = 0;
-    for (final range in ranges) {
-      final start = range.start.clamp(cursor, paragraph.length);
-      final end = range.end.clamp(start, paragraph.length);
-      if (start > cursor) {
-        spans.add(TextSpan(text: paragraph.substring(cursor, start)));
-      }
-      if (end > start) {
-        spans.add(TextSpan(
-          text: paragraph.substring(start, end),
-          style: TextStyle(
-            backgroundColor:
-                range.speech ? range.color : range.color.withValues(alpha: .42),
-            fontWeight: range.speech ? FontWeight.w900 : FontWeight.w600,
-            color: range.speech ? speechColor : null,
-          ),
-        ));
-      }
-      cursor = end;
-    }
-    if (cursor < paragraph.length) {
-      spans.add(TextSpan(text: paragraph.substring(cursor)));
-    }
-    return spans;
   }
 
   Widget _novelDivider({
@@ -819,21 +795,38 @@ class _ChapterViewState extends State<ChapterView>
   int _approximateParagraphAt(double offset, double average) =>
       average <= 0 ? 0 : (offset / average).floor();
 
-  void _followSpeech(List<String> paragraphs) {
+  void _onSpeechParagraphChanged(int paragraph) {
     final active = c.novelSpeechPlaying.value || c.novelSpeechPaused.value;
-    final paragraph = c.novelSpeechCurrentParagraph.value;
-    if (!active || paragraph < 0 || paragraph >= paragraphs.length) {
+    if (!active || paragraph < 0) {
       _lastSpeechParagraph = -1;
       return;
     }
     if (paragraph == _lastSpeechParagraph) return;
     _lastSpeechParagraph = paragraph;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _jumpToParagraph(paragraph);
+      // `_jumpToParagraph` bounds-checks against the real paragraph list.
+      if (mounted && c.isNovel) _jumpToParagraph(paragraph);
     });
   }
 
-  void _syncAutoScroll(int paragraphCount) {
+  /// Drops paragraph keys far away from the reading position.
+  ///
+  /// A key is only needed to jump to a paragraph. Keeping one `GlobalKey` per
+  /// visited paragraph of a long novel retains a global element registry entry
+  /// for text the reader has already left behind.
+  void _scheduleKeyPrune() {
+    if (_keyPruneScheduled || _paragraphKeys.length <= 400) return;
+    _keyPruneScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _keyPruneScheduled = false;
+      if (!mounted) return;
+      final low = _novelAnchor - 80;
+      final high = _novelAnchor + 320;
+      _paragraphKeys.removeWhere((index, _) => index < low || index > high);
+    });
+  }
+
+  void _syncAutoScroll() {
     final enabled = c.novelAutoScroll.value;
     if (!enabled) {
       _autoScrollTicker?.stop();
@@ -1301,4 +1294,118 @@ class _ChapterViewState extends State<ChapterView>
         return (background: AppColors.background, text: AppColors.textPrimary);
     }
   }
+}
+
+/// One paragraph of the novel reader.
+///
+/// The speech state is observed here, in its own `Obx`, instead of in the list
+/// that builds the paragraphs. A spoken word therefore rebuilds a handful of
+/// text widgets rather than the scrolling list and its whole item closure.
+class _NovelParagraph extends StatelessWidget {
+  const _NovelParagraph({
+    super.key,
+    required this.controller,
+    required this.paragraphIndex,
+    required this.paragraph,
+    required this.notes,
+    required this.style,
+    required this.textAlign,
+    required this.bottomPadding,
+  });
+
+  final ChapterController controller;
+  final int paragraphIndex;
+  final String paragraph;
+  final List<NovelNote> notes;
+  final TextStyle style;
+  final TextAlign textAlign;
+  final double bottomPadding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final speaking = controller.novelSpeechPlaying.value ||
+          controller.novelSpeechPaused.value;
+      final word = speaking &&
+              controller.novelSpeechCurrentParagraph.value == paragraphIndex
+          ? controller.novelSpeechCurrentWord.value
+          : '';
+      return Padding(
+        padding: EdgeInsets.only(bottom: bottomPadding),
+        child: Text.rich(
+          TextSpan(
+            children: _novelParagraphSpans(
+              paragraph: paragraph,
+              notes: notes,
+              speechWord: word,
+              speechColor: AppColors.primary,
+            ),
+          ),
+          textAlign: textAlign,
+          style: style,
+        ),
+      );
+    });
+  }
+}
+
+/// Builds the inline spans of one paragraph: its note highlight (if any) and,
+/// while it is being read aloud, the currently spoken word.
+List<InlineSpan> _novelParagraphSpans({
+  required String paragraph,
+  required List<NovelNote> notes,
+  required String speechWord,
+  required Color speechColor,
+}) {
+  final ranges = <({int start, int end, Color color, bool speech})>[];
+  for (final note in notes) {
+    final range = note.resolveRange(paragraph);
+    if (range.end <= range.start) continue;
+    ranges.add((
+      start: range.start,
+      end: range.end,
+      color: Color(novelNoteColorValue(note.color)),
+      speech: false,
+    ));
+    break;
+  }
+  final word = speechWord.trim().toLowerCase();
+  if (word.isNotEmpty) {
+    final start = paragraph.toLowerCase().indexOf(word);
+    if (start >= 0) {
+      ranges.add((
+        start: start,
+        end: start + word.length,
+        color: speechColor.withValues(alpha: .2),
+        speech: true,
+      ));
+    }
+  }
+  if (ranges.isEmpty) return [TextSpan(text: paragraph)];
+  ranges.sort((left, right) => left.start.compareTo(right.start));
+  final spans = <InlineSpan>[];
+  var cursor = 0;
+  for (final range in ranges) {
+    final start = range.start.clamp(cursor, paragraph.length);
+    final end = range.end.clamp(start, paragraph.length);
+    if (start > cursor) {
+      spans.add(TextSpan(text: paragraph.substring(cursor, start)));
+    }
+    if (end > start) {
+      spans.add(TextSpan(
+        text: paragraph.substring(start, end),
+        style: TextStyle(
+          backgroundColor:
+              range.speech ? range.color : range.color.withValues(alpha: .42),
+          fontWeight: range.speech ? FontWeight.w900 : FontWeight.w600,
+          color: range.speech ? speechColor : null,
+        ),
+      ));
+    }
+    cursor = end;
+  }
+  if (cursor < paragraph.length) {
+    spans.add(TextSpan(text: paragraph.substring(cursor)));
+  }
+  return spans;
 }

@@ -161,7 +161,15 @@ class ComicDetailView extends GetView<ComicDetailController> {
         background: Stack(
           fit: StackFit.expand,
           children: [
-            _coverArtwork(comic.coverImage, fit: BoxFit.cover, alignment: Alignment.topCenter, logoSize: 76),
+            _coverArtwork(
+              comic.coverImage,
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+              logoSize: 76,
+              memCacheWidth: (MediaQuery.sizeOf(context).width *
+                      MediaQuery.devicePixelRatioOf(context))
+                  .round(),
+            ),
             DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -198,7 +206,12 @@ class ComicDetailView extends GetView<ComicDetailController> {
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            _coverArtwork(comic.coverImage, fit: BoxFit.cover, logoSize: 34),
+                            _coverArtwork(
+                              comic.coverImage,
+                              fit: BoxFit.cover,
+                              logoSize: 34,
+                              memCacheWidth: 336,
+                            ),
                           ],
                         ),
                       ),
@@ -355,6 +368,7 @@ class ComicDetailView extends GetView<ComicDetailController> {
     required BoxFit fit,
     Alignment alignment = Alignment.center,
     double logoSize = 42,
+    int? memCacheWidth,
   }) {
     final localFile = imagePath.startsWith('/') ? File(imagePath) : null;
     if (localFile != null && localFile.existsSync()) {
@@ -372,6 +386,8 @@ class ComicDetailView extends GetView<ComicDetailController> {
         imageUrl: imagePath,
         cacheManager: MangaCoverCacheManager.instance,
         httpHeaders: _imageHeaders(imagePath),
+        memCacheWidth: memCacheWidth,
+        maxWidthDiskCache: 1080,
         fit: fit,
         alignment: alignment,
         placeholder: (_, __) => Container(
@@ -734,6 +750,14 @@ class _ChapterList extends StatefulWidget {
 
 class _ChapterListState extends State<_ChapterList> {
   final TextEditingController _searchController = TextEditingController();
+
+  /// Derived chapter list for the current filter/search/sort inputs.
+  ///
+  /// Filtering and sorting used to run on every reactive rebuild of this
+  /// sliver, including a single selection tap, which is O(n log n) on a long
+  /// catalogue. The result is reused until one of the inputs actually changes.
+  String _visibleKey = '';
+  List<Chapter> _visibleCache = const <Chapter>[];
   final ChapterUpdateService _chapterUpdateService =
       Get.find<ChapterUpdateService>();
   bool _searchVisible = false;
@@ -750,29 +774,40 @@ class _ChapterListState extends State<_ChapterList> {
     final chapters = widget.comic.chapters;
     final isNovel = widget.comic.type.trim().toLowerCase() == 'novel';
     return Obx(() {
-      _chapterUpdateService.unreadRevision.value;
-      widget.controller.downloadRevision.value;
-      widget.controller.historyRevision.value;
+      final unreadRevision = _chapterUpdateService.unreadRevision.value;
+      final downloadRevision = widget.controller.downloadRevision.value;
+      final historyRevision = widget.controller.historyRevision.value;
       widget.controller.downloadingChapters.length;
       widget.controller.downloadTaskCount;
-      final searched = _searchController.text.trim().isEmpty
-          ? chapters
-          : widget.controller.filteredChapters.toList();
       final filter = widget.controller.chapterFilter.value;
-      final visible = searched.where((chapter) {
-        switch (filter) {
-          case 'unread':
-            return !widget.controller.isChapterRead(chapter.chapterId);
-          case 'read':
-            return widget.controller.isChapterRead(chapter.chapterId);
-          case 'downloaded':
-            return widget.controller.isChapterDownloaded(chapter.chapterId);
-          default:
-            return true;
-        }
-      }).toList(growable: false);
-      final sorted = widget.controller.sortedChapters(visible);
       final ascending = widget.controller.sortAscending.value;
+      final query = _searchController.text.trim();
+      final visibleKey = '${identityHashCode(chapters)}|${chapters.length}|'
+          '$filter|$ascending|$query|$unreadRevision|$downloadRevision|'
+          '$historyRevision';
+      List<Chapter> sorted;
+      if (visibleKey == _visibleKey) {
+        sorted = _visibleCache;
+      } else {
+        final searched = query.isEmpty
+            ? chapters
+            : widget.controller.filteredChapters.toList();
+        final visible = searched.where((chapter) {
+          switch (filter) {
+            case 'unread':
+              return !widget.controller.isChapterRead(chapter.chapterId);
+            case 'read':
+              return widget.controller.isChapterRead(chapter.chapterId);
+            case 'downloaded':
+              return widget.controller.isChapterDownloaded(chapter.chapterId);
+            default:
+              return true;
+          }
+        }).toList(growable: false);
+        sorted = widget.controller.sortedChapters(visible);
+        _visibleKey = visibleKey;
+        _visibleCache = sorted;
+      }
       return SliverMainAxisGroup(
         slivers: [
           SliverToBoxAdapter(

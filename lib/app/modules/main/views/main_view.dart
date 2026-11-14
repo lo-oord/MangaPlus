@@ -19,11 +19,14 @@ class MainView extends GetView<MainController> {
         body: PageView(
           controller: controller.pageController,
           physics: const NeverScrollableScrollPhysics(),
+          // Every destination keeps its state. A tab that is not kept alive is
+          // disposed when the PageView scrolls it out, which dropped the search
+          // query, the bookmark filters and every scroll offset on each switch.
           children: const [
             _KeepAlivePage(child: HomeView()),
-            SearchView(),
-            BookmarkView(),
-            ProfileView(),
+            _KeepAlivePage(child: SearchView()),
+            _KeepAlivePage(child: BookmarkView()),
+            _KeepAlivePage(child: ProfileView()),
           ],
         ),
         bottomNavigationBar: SafeArea(

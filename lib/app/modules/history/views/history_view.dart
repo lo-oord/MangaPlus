@@ -77,6 +77,8 @@ class HistoryView extends GetView<HistoryController> {
                   ),
                   width: 85,
                   height: 114,
+                  memCacheWidth: 255,
+                  maxWidthDiskCache: 720,
                   fit: BoxFit.cover,
                   placeholder: (context, url) => Container(
                     width: 80,

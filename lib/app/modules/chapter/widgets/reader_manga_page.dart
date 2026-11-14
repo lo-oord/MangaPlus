@@ -23,6 +23,7 @@ class ReaderMangaPage extends StatefulWidget {
     required this.retryToken,
     required this.viewportWidth,
     required this.viewportHeight,
+    this.pageSize,
     required this.onLoaded,
     required this.onFailed,
     required this.onRetry,
@@ -43,6 +44,12 @@ class ReaderMangaPage extends StatefulWidget {
   final int retryToken;
   final double viewportWidth;
   final double viewportHeight;
+
+  /// Measured pixel size of the page, when the reader already knows it.
+  ///
+  /// It lets the decode box follow the real aspect ratio so a very tall page
+  /// cannot allocate a bitmap far larger than the screen needs.
+  final ReaderPageSize? pageSize;
   final VoidCallback onLoaded;
   final VoidCallback onFailed;
   final VoidCallback onRetry;
@@ -165,16 +172,14 @@ class _ReaderMangaPageState extends State<ReaderMangaPage>
     }
   }
 
-  int? get _decodeWidth {
-    if (widget.fitValue == 'natural') return null;
-    final factor = widget.imageQuality == 'high'
-        ? 1.3
-        : widget.imageQuality == 'low'
-            ? .75
-            : 1.0;
-    final dpr = MediaQuery.devicePixelRatioOf(context);
-    return (widget.viewportWidth * dpr * factor).round().clamp(320, 2400);
-  }
+  ReaderPageDecodeSize get _decodeSize => readerPageDecodeSize(
+        size: widget.pageSize,
+        viewportWidth: widget.viewportWidth,
+        viewportHeight: widget.viewportHeight,
+        devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+        quality: widget.imageQuality,
+        natural: widget.fitValue == 'natural',
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -183,10 +188,12 @@ class _ReaderMangaPageState extends State<ReaderMangaPage>
             .clamp(1.0, kReaderMaximumPageHeight)
             .toDouble();
     final isLocal = isLocalReaderImage(widget.reference);
+    final decode = _decodeSize;
     final provider = readerImageProvider(
       widget.reference,
       headers: isLocal ? null : readerImageHeaders(widget.reference),
-      maxWidth: _decodeWidth,
+      maxWidth: decode.width,
+      maxHeight: decode.height,
     );
     final image = Image(
       key: ValueKey('${widget.reference}#${widget.retryToken}'),

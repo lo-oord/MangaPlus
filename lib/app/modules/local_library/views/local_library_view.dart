@@ -118,6 +118,8 @@ class LocalLibraryView extends GetView<LocalLibraryController> {
                           : CachedNetworkImage(
                               imageUrl: group.coverImage,
                               cacheManager: MangaCoverCacheManager.instance,
+                              memCacheWidth: 228,
+                              maxWidthDiskCache: 720,
                               fit: BoxFit.cover,
                               placeholder: (_, __) =>
                                   const MangaPlusLogo(size: 42),

@@ -4,7 +4,6 @@ import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/reader/novel_reader_model.dart';
 import 'package:mangaplus/app/core/reader/reader_image_source.dart';
-import 'package:mangaplus/app/data/models/chapter.dart';
 import 'package:mangaplus/app/modules/chapter/controllers/chapter_controller.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 

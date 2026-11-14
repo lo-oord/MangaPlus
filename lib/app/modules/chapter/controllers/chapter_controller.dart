@@ -37,6 +37,13 @@ List<String> _splitNovelParagraphs(String content) => content
     .where((paragraph) => paragraph.isNotEmpty)
     .toList(growable: false);
 
+/// Runs the in-chapter search off the UI isolate.
+///
+/// Scanning a very long chapter lowercases the whole text, which is far too
+/// much work to do on the frame that the search field was submitted.
+List<NovelSearchHit> _searchNovelInBackground(List<Object> args) =>
+    searchNovelParagraphs(args[0] as List<String>, args[1] as String);
+
 class ChapterController extends GetxController with WidgetsBindingObserver {
   static const novelChapterDividerToken = '__MANGAPLUS_NOVEL_CHAPTER_DIVIDER__';
 
@@ -117,6 +124,14 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
       );
   double _restoredScrollOffset = 0;
   double? _pendingScrollRestore;
+
+  // Reading positions are written through a short trailing debounce: a page
+  // turn used to serialise the whole position map, and a fast scroll can turn
+  // several pages per second. Pending writes are flushed on close and on
+  // lifecycle pause, so a debounced write is never lost.
+  Timer? _positionWriteTimer;
+  int? _pendingPositionPage;
+  double? _pendingPositionOffset;
   bool _continuousPrependPending = false;
   double _continuousPrependBaseExtent = 0;
   double _continuousPrependOffset = 0;
@@ -1004,7 +1019,11 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     try {
       final paragraphs = await paragraphsFor(chapterData.value.chapter.content);
       if (novelSearchQuery.value != value) return;
-      novelSearchHits.assignAll(searchNovelParagraphs(paragraphs, value));
+      final hits =
+          await compute(_searchNovelInBackground, <Object>[paragraphs, value]);
+      // A newer query may have started while the isolate was scanning.
+      if (novelSearchQuery.value != value) return;
+      novelSearchHits.assignAll(hits);
     } finally {
       novelSearching.value = false;
     }
@@ -1675,7 +1694,32 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
 
   String _readerPositionKey(String id) => '${arguments['comicId'] ?? ''}::$id';
 
+  /// Queues the position of [page] to be written shortly.
+  ///
+  /// The write itself is unchanged; only its timing is. Repeated page turns
+  /// used to rewrite the whole position map once per page, so this coalesces
+  /// them into one write. [flushReaderPosition] is called on close and on
+  /// lifecycle pause so the last position is never lost.
   Future<void> _persistReaderPosition(int page, {double? scrollOffset}) async {
+    _pendingPositionPage = page;
+    if (scrollOffset != null) _pendingPositionOffset = scrollOffset;
+    _positionWriteTimer?.cancel();
+    _positionWriteTimer = Timer(
+      const Duration(milliseconds: 700),
+      () => unawaited(flushReaderPosition()),
+    );
+  }
+
+  /// Writes any queued reading position immediately.
+  Future<void> flushReaderPosition() async {
+    _positionWriteTimer?.cancel();
+    _positionWriteTimer = null;
+    final page = _pendingPositionPage;
+    if (page == null) return;
+    final scrollOffset = _pendingPositionOffset;
+    _pendingPositionPage = null;
+    _pendingPositionOffset = null;
+
     final pageRange = _readerChapterPageRanges.firstWhereOrNull(
       (range) => range.contains(page),
     );
@@ -1688,9 +1732,18 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     final stored = _storage.read('readerPositions');
     final positions =
         stored is Map ? Map<String, dynamic>.from(stored) : <String, dynamic>{};
+    final offset = scrollOffset ?? _restoredScrollOffset;
+    final existing = positions[key];
+    // Never rewrite an identical position: scrolling within the same page
+    // would otherwise keep issuing writes that change nothing.
+    if (existing is Map &&
+        existing['page'] == chapterPage &&
+        existing['offset'] == offset) {
+      return;
+    }
     positions[key] = {
       'page': chapterPage,
-      'offset': scrollOffset ?? _restoredScrollOffset,
+      'offset': offset,
     };
     await _storage.write('readerPositions', positions);
   }
@@ -2559,6 +2612,9 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   @override
   void onClose() {
     WidgetsBinding.instance.removeObserver(this);
+    // Persist the reading position before the controllers it depends on are
+    // disposed.
+    unawaited(flushReaderPosition());
     unawaited(_enqueueReadingStats(_finishReadingStatsSession));
     unawaited(stopNovelSpeech());
     _pageLoadHideTimer?.cancel();
@@ -2744,6 +2800,9 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
+      // The process can be killed while backgrounded, so a queued position is
+      // written now instead of waiting for the debounce.
+      unawaited(flushReaderPosition());
       unawaited(_enqueueReadingStats(_finishReadingStatsSession));
     }
   }

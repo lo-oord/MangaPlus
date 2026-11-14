@@ -242,6 +242,13 @@ void _handleConnectivity(List<ConnectivityResult> results) {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Decoded reader pages, not covers, dominate image memory, and a single tall
+  // webtoon page is far larger than a thumbnail. Keep the byte budget explicit
+  // and allow more small entries so a page the reader is showing is not evicted
+  // by a screen of covers.
+  PaintingBinding.instance.imageCache
+    ..maximumSizeBytes = 96 << 20
+    ..maximumSize = 300;
   LicenseRegistry.addLicense(() async* {
     final licenseText = await rootBundle.loadString('assets/licenses/GPL-3.0.txt');
     yield LicenseEntryWithLineBreaks(
