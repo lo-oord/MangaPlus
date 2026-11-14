@@ -9,6 +9,8 @@ import 'package:get_storage/get_storage.dart';
 import 'package:mangaplus/app/data/models/chapter.dart';
 import 'package:mangaplus/app/core/utils/chapter_reference_identity.dart';
 import 'package:mangaplus/app/core/utils/chapter_sequence.dart';
+import 'package:mangaplus/app/core/reader/reader_preload_window.dart';
+import 'package:mangaplus/app/core/reader/reader_reading_preset.dart';
 import 'package:mangaplus/app/core/utils/page_load_tracker.dart';
 import 'package:mangaplus/app/core/utils/reader_boundary_guard.dart';
 import 'package:mangaplus/app/core/utils/reader_chapter_anchors.dart';
@@ -100,6 +102,13 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   final readerDoublePage = false.obs;
   final readerImageQuality = 'medium'.obs;
   final readerPreloadDistance = 6.obs;
+
+  /// Hides the reader chrome after a quiet period while reading.
+  final readerAutoHideChrome = true.obs;
+
+  /// Slow continuous scroll for manga/webtoon reading.
+  final mangaAutoScroll = false.obs;
+  final mangaAutoScrollSpeed = 28.0.obs;
 
   final novelFontWeight = 400.obs;
   final novelMargins = 24.0.obs;
@@ -813,16 +822,21 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   void onMangaWindowChanged({
     required int firstVisible,
     required int lastVisible,
+    int direction = 0,
   }) {
     if (isNovel) return;
     final images = chapterData.value.chapter.images;
     if (images.isEmpty) return;
     final first = firstVisible.clamp(0, images.length - 1).toInt();
     final last = lastVisible.clamp(first, images.length - 1).toInt();
-    _warmImageRange(
-      (first - 1).clamp(0, images.length - 1).toInt(),
-      (last + readerPreloadDistance.value).clamp(0, images.length - 1).toInt(),
+    final window = readerPreloadWindow(
+      firstVisible: first,
+      lastVisible: last,
+      total: images.length,
+      distance: readerPreloadDistance.value,
+      direction: direction,
     );
+    if (window.length > 0) _warmImageRange(window.start, window.end);
     if (last >= images.length - 3) {
       unawaited(prefetchChapter(nextChapterId));
     } else if (first <= 1) {
@@ -1919,6 +1933,10 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
     readerImageQuality.value = read<String>('image_quality', 'medium');
     readerPreloadDistance.value =
         read<num>('preload_distance', 6).toInt().clamp(2, 12);
+    readerAutoHideChrome.value = read<bool>('auto_hide_chrome', true);
+    mangaAutoScroll.value = read<bool>('manga_auto_scroll', false);
+    mangaAutoScrollSpeed.value =
+        read<num>('manga_auto_scroll_speed', 28).toDouble().clamp(8.0, 160.0);
     novelFontSize.value =
         read<num>('novel_font_size', 19).toDouble().clamp(14.0, 30.0);
     novelFontFamily.value = read<String>('novel_font_family', 'default');
@@ -2326,6 +2344,42 @@ class ChapterController extends GetxController with WidgetsBindingObserver {
   Future<void> setReaderFit(String value) async {
     readerFit.value = value;
     await _storage.write('reader_fit', value);
+  }
+
+  /// Webtoon is a reading preset, not a third rendering engine: continuous
+  /// vertical scroll, full-width pages, no gaps and no double spreads. It keeps
+  /// the exact same page list and image pipeline as the scroll mode.
+  bool get isWebtoonPreset => readerIsWebtoonPreset(
+        isNovel: isNovel,
+        mode: readerMode.value,
+        fit: readerFit.value,
+        gap: readerPageGap.value,
+        doublePage: readerDoublePage.value,
+      );
+
+  Future<void> applyWebtoonPreset() async {
+    await setReaderFit('width');
+    await setReaderPageGap(0);
+    if (readerDoublePage.value) await setReaderDoublePage(false);
+    if (readerMode.value != 'scroll') await setReaderMode('scroll');
+  }
+
+  Future<void> setMangaAutoScroll(bool value) async {
+    mangaAutoScroll.value = value;
+    await _storage.write(_readerSettingKey('manga_auto_scroll'), value);
+  }
+
+  Future<void> setMangaAutoScrollSpeed(double value) async {
+    mangaAutoScrollSpeed.value = value.clamp(8.0, 160.0).toDouble();
+    await _storage.write(
+      _readerSettingKey('manga_auto_scroll_speed'),
+      mangaAutoScrollSpeed.value,
+    );
+  }
+
+  Future<void> setReaderAutoHideChrome(bool value) async {
+    readerAutoHideChrome.value = value;
+    await _storage.write(_readerSettingKey('auto_hide_chrome'), value);
   }
 
   Future<void> setReaderMode(String value) async {

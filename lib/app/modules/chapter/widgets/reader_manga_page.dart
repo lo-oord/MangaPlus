@@ -269,20 +269,20 @@ class _ReaderMangaPageState extends State<ReaderMangaPage>
     );
   }
 
+  /// A static skeleton while a page decodes.
+  ///
+  /// The old placeholder ran a `CircularProgressIndicator` per visible page,
+  /// which meant several repeating tickers inside a scrolling list. The page
+  /// load chip above the chrome already reports progress, so the page itself
+  /// only needs a calm placeholder that costs nothing per frame.
   Widget _placeholder() {
     return ColoredBox(
       color: widget.backgroundColor,
       child: Center(
-        child: SizedBox(
-          width: 26,
-          height: 26,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation<Color>(
-              AppColors.primary.withValues(alpha: .85),
-            ),
-            backgroundColor: Colors.white.withValues(alpha: .12),
-          ),
+        child: Icon(
+          Icons.image_outlined,
+          size: 22,
+          color: Colors.white.withValues(alpha: .16),
         ),
       ),
     );

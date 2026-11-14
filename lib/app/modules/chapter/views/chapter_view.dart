@@ -9,9 +9,10 @@ import 'package:mangaplus/app/core/reader/novel_reader_model.dart';
 import 'package:mangaplus/app/core/reader/reader_page_geometry.dart';
 import 'package:mangaplus/app/core/utils/bidi_text.dart';
 import 'package:mangaplus/app/modules/chapter/controllers/chapter_controller.dart';
+import 'package:mangaplus/app/modules/chapter/widgets/reader_chrome.dart';
 import 'package:mangaplus/app/modules/chapter/widgets/reader_manga_page.dart';
 import 'package:mangaplus/app/modules/chapter/widgets/reader_tools_sheet.dart';
-import 'package:mangaplus/app/widgets/app_motion_widgets.dart';
+import 'package:mangaplus/app/widgets/app_feedback.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
@@ -38,16 +39,27 @@ class _ChapterViewState extends State<ChapterView>
   int _lastWindowFirst = -1;
   int _lastWindowLast = -1;
   bool _pageSyncScheduled = false;
+  double _lastScrollOffset = 0;
+  int _lastPagedPage = 0;
 
   final Map<int, GlobalKey> _paragraphKeys = <int, GlobalKey>{};
   int _novelAnchor = 0;
   int _lastNovelRevision = -1;
   int _lastSpeechParagraph = -1;
 
+  late final ReaderChromeAutoHide _chromeAutoHide =
+      ReaderChromeAutoHide(onHide: _autoHideChrome);
+
   Ticker? _autoScrollTicker;
   Duration _lastTick = Duration.zero;
+  Ticker? _mangaAutoScrollTicker;
+  Duration _mangaTick = Duration.zero;
   Worker? _speechWorker;
   Worker? _autoScrollWorker;
+  Worker? _chromeWorker;
+  Worker? _chromeBusyWorker;
+  Worker? _mangaAutoScrollWorker;
+  Worker? _readerModeWorker;
   bool _keyPruneScheduled = false;
 
   @override
@@ -61,8 +73,32 @@ class _ChapterViewState extends State<ChapterView>
       _onSpeechParagraphChanged,
     );
     _autoScrollWorker = ever<bool>(c.novelAutoScroll, (_) => _syncAutoScroll());
+    // Auto-hide chrome: a quiet reader should not keep toolbars on screen, but
+    // the countdown pauses for chapter switches and whenever a sheet is open.
+    _chromeWorker = ever<bool>(c.showNavigation, _onChromeVisibilityChanged);
+    _chromeBusyWorker = ever<bool>(c.isNavigating, (busy) {
+      if (busy) {
+        _chromeAutoHide.pause();
+      } else {
+        _chromeAutoHide.resume();
+        if (c.showNavigation.value && c.readerAutoHideChrome.value) {
+          _chromeAutoHide.schedule();
+        }
+      }
+    });
+    _mangaAutoScrollWorker = ever<bool>(
+      c.mangaAutoScroll,
+      (_) => _syncMangaAutoScroll(),
+    );
+    _readerModeWorker = ever<String>(
+      c.readerMode,
+      (_) => _syncMangaAutoScroll(),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _syncAutoScroll();
+      if (mounted) {
+        _syncAutoScroll();
+        _syncMangaAutoScroll();
+      }
     });
   }
 
@@ -70,6 +106,12 @@ class _ChapterViewState extends State<ChapterView>
   void dispose() {
     _speechWorker?.dispose();
     _autoScrollWorker?.dispose();
+    _chromeWorker?.dispose();
+    _chromeBusyWorker?.dispose();
+    _mangaAutoScrollWorker?.dispose();
+    _readerModeWorker?.dispose();
+    _mangaAutoScrollTicker?.dispose();
+    _chromeAutoHide.dispose();
     _autoScrollTicker?.dispose();
     _paragraphKeys.clear();
     super.dispose();
@@ -329,6 +371,12 @@ class _ChapterViewState extends State<ChapterView>
   bool _onScrollNotification(ScrollNotification notification) {
     if (notification.depth != 0) return false;
     final metrics = notification.metrics;
+    if (notification is ScrollStartNotification &&
+        notification.dragDetails != null &&
+        c.mangaAutoScroll.value) {
+      // A manual drag always wins over automatic scrolling.
+      c.setMangaAutoScroll(false);
+    }
     if (notification is ScrollUpdateNotification) {
       c.handleScroll(
         metrics,
@@ -351,6 +399,9 @@ class _ChapterViewState extends State<ChapterView>
 
   void _updateMangaPosition(ScrollMetrics metrics, {bool forceWindow = false}) {
     if (_index.pageCount == 0) return;
+    final delta = metrics.pixels - _lastScrollOffset;
+    _lastScrollOffset = metrics.pixels;
+    final direction = delta.abs() < .5 ? 0 : (delta > 0 ? 1 : -1);
     final position = _index.positionAt(
       metrics.pixels,
       metrics.viewportDimension,
@@ -372,7 +423,11 @@ class _ChapterViewState extends State<ChapterView>
     if (forceWindow || first != _lastWindowFirst || last != _lastWindowLast) {
       _lastWindowFirst = first;
       _lastWindowLast = last;
-      c.onMangaWindowChanged(firstVisible: first, lastVisible: last);
+      c.onMangaWindowChanged(
+        firstVisible: first,
+        lastVisible: last,
+        direction: direction,
+      );
     }
   }
 
@@ -406,10 +461,15 @@ class _ChapterViewState extends State<ChapterView>
           itemCount: spreadCount,
           onPageChanged: (spread) {
             final page = spread * perSpread;
+            final direction = page == _lastPagedPage
+                ? 0
+                : (page > _lastPagedPage ? 1 : -1);
+            _lastPagedPage = page;
             c.onPageChanged(page);
             c.onMangaWindowChanged(
               firstVisible: page,
               lastVisible: page + perSpread + 1,
+              direction: direction,
             );
           },
           itemBuilder: (context, spread) {
@@ -860,6 +920,44 @@ class _ChapterViewState extends State<ChapterView>
     }
   }
 
+  /// Auto-scroll for manga and webtoon modes. It drives the existing scroll
+  /// controller at a fixed pixels-per-second rate, so it never changes the page
+  /// layout and stops the moment the reader touches the screen.
+  void _syncMangaAutoScroll() {
+    final enabled = c.mangaAutoScroll.value &&
+        !c.isNovel &&
+        c.readerMode.value != 'paged';
+    if (!enabled) {
+      _mangaAutoScrollTicker?.stop();
+      _mangaTick = Duration.zero;
+      return;
+    }
+    _mangaAutoScrollTicker ??= createTicker((elapsed) {
+      final scroll = c.scrollController;
+      if (!scroll.hasClients) return;
+      if (_mangaTick == Duration.zero) {
+        _mangaTick = elapsed;
+        return;
+      }
+      final dt =
+          (elapsed - _mangaTick).inMicroseconds / Duration.microsecondsPerSecond;
+      _mangaTick = elapsed;
+      if (dt <= 0 || dt > .25) return;
+      final max = scroll.position.maxScrollExtent;
+      if (scroll.offset >= max - .5) {
+        unawaited(c.setMangaAutoScroll(false));
+        return;
+      }
+      final target =
+          (scroll.offset + c.mangaAutoScrollSpeed.value * dt).clamp(0.0, max);
+      scroll.jumpTo(target);
+    });
+    if (!_mangaAutoScrollTicker!.isActive) {
+      _mangaTick = Duration.zero;
+      _mangaAutoScrollTicker!.start();
+    }
+  }
+
   // ---------------------------------------------------------------------
   // Reader chrome
   // ---------------------------------------------------------------------
@@ -867,6 +965,7 @@ class _ChapterViewState extends State<ChapterView>
   Widget _buildChrome(BuildContext context) {
     return Obx(() {
       final visible = c.showNavigation.value;
+      c.pageLoadRevision.value;
       final progress = c.readerProgress.value.clamp(0.0, 1.0).toDouble();
       final range = c.activeReaderPageRange;
       final totalPages =
@@ -878,6 +977,9 @@ class _ChapterViewState extends State<ChapterView>
       final pageLabel = c.isNovel || totalPages <= 0
           ? '${(progress * 100).round()}%'
           : '${localPage + 1} / $totalPages';
+      final comicTitle = '${c.arguments['comicTitle'] ?? ''}'.trim();
+      final coverReference = '${c.arguments['coverImage'] ?? ''}'.trim();
+      final paged = c.readerMode.value == 'paged';
       return Stack(
         children: [
           Positioned(
@@ -888,7 +990,18 @@ class _ChapterViewState extends State<ChapterView>
               context: context,
               visible: visible,
               fromTop: true,
-              child: _topBar(title, pageLabel),
+              child: ReaderTopBar(
+                comicTitle: comicTitle,
+                chapterTitle: title,
+                coverReference: coverReference,
+                pageLabel: pageLabel,
+                progress: progress,
+                hasBookmark: c.readerBookmarks.isNotEmpty,
+                onBack: Get.back,
+                onBookmark: _bookmarkCurrentPosition,
+                onTools: () => _openTools(context),
+                onInteraction: _noteChromeInteraction,
+              ),
             ),
           ),
           Positioned(
@@ -899,7 +1012,40 @@ class _ChapterViewState extends State<ChapterView>
               context: context,
               visible: visible,
               fromTop: false,
-              child: _bottomBar(progress, title, pageLabel),
+              child: ReaderBottomBar(
+                chapterTitle: title,
+                pageLabel: pageLabel,
+                progress: progress,
+                failedPages: c.failedPageCount,
+                onRetryFailedPages: _retryFailedPages,
+                onSeek: c.seekReaderProgress,
+                onSeekEnd: c.persistReaderProgress,
+                onPages: () => _openPageNavigator(context),
+                onChapters: () => _openChapterList(context),
+                onPreviousChapter: c.previousChapterId == null
+                    ? null
+                    : () => c.navigateToChapter(
+                          c.previousChapterId,
+                          reverse: true,
+                          joinContinuousStream: true,
+                        ),
+                onNextChapter: c.nextChapterId == null
+                    ? null
+                    : () => c.navigateToChapter(
+                          c.nextChapterId,
+                          joinContinuousStream: true,
+                        ),
+                onToggleMode: c.isNovel
+                    ? null
+                    : () => c.setReaderMode(paged ? 'scroll' : 'paged'),
+                modeIcon: c.isNovel
+                    ? Icons.format_list_bulleted_rounded
+                    : (paged
+                        ? Icons.view_stream_rounded
+                        : Icons.menu_book_rounded),
+                modeTooltip: c.isNovel ? 'أدوات الرواية' : 'تبديل وضع القراءة',
+                onInteraction: _noteChromeInteraction,
+              ),
             ),
           ),
         ],
@@ -932,245 +1078,68 @@ class _ChapterViewState extends State<ChapterView>
     );
   }
 
-  Widget _topBar(String title, String pageLabel) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.black.withValues(alpha: .86),
-            Colors.black.withValues(alpha: .45),
-            Colors.transparent,
-          ],
-        ),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(6, 4, 8, 18),
-          child: Row(
-            children: [
-              _chromeIcon(
-                Icons.arrow_back_rounded,
-                'رجوع',
-                () => Get.back(),
-              ),
-              const SizedBox(width: 2),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      pageLabel,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: .66),
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _chromeIcon(
-                c.readerFullscreen.value
-                    ? Icons.fullscreen_exit_rounded
-                    : Icons.fullscreen_rounded,
-                'ملء الشاشة',
-                () => c.setReaderFullscreen(!c.readerFullscreen.value),
-              ),
-              _chromeIcon(
-                Icons.tune_rounded,
-                'أدوات القارئ',
-                () => _openTools(context),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  void _onChromeVisibilityChanged(bool visible) {
+    if (!visible) {
+      _chromeAutoHide.cancel();
+      return;
+    }
+    if (c.readerAutoHideChrome.value) _chromeAutoHide.schedule();
   }
 
-  Widget _bottomBar(double progress, String title, String pageLabel) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xff181b20).withValues(alpha: .97),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-        border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: .08)),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: .35),
-            blurRadius: 20,
-            offset: const Offset(0, -6),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        minimum: const EdgeInsets.fromLTRB(10, 8, 10, 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(3),
-              child: LinearProgressIndicator(
-                value: progress,
-                minHeight: 3,
-                backgroundColor: Colors.white.withValues(alpha: .1),
-                color: AppColors.primary,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                Text(
-                  pageLabel,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: .62),
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(
-              height: 34,
-              child: SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  trackHeight: 2,
-                  activeTrackColor: AppColors.primary,
-                  inactiveTrackColor: Colors.white.withValues(alpha: .16),
-                  thumbColor: AppColors.primary,
-                  overlayColor: AppColors.primary.withValues(alpha: .12),
-                  thumbShape:
-                      const RoundSliderThumbShape(enabledThumbRadius: 6),
-                  overlayShape:
-                      const RoundSliderOverlayShape(overlayRadius: 14),
-                ),
-                child: Slider(
-                  value: progress,
-                  onChanged: c.seekReaderProgress,
-                  onChangeEnd: (_) => c.persistReaderProgress(),
-                ),
-              ),
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _chromeIcon(
-                  Icons.grid_view_rounded,
-                  'الصفحات',
-                  () => _openTools(context),
-                ),
-                _chromeIcon(
-                  Icons.chevron_left_rounded,
-                  'الفصل السابق',
-                  c.previousChapterId == null
-                      ? null
-                      : () => c.navigateToChapter(
-                            c.previousChapterId,
-                            reverse: true,
-                            joinContinuousStream: true,
-                          ),
-                ),
-                _chromeIcon(
-                  c.isNovel
-                      ? Icons.format_list_bulleted_rounded
-                      : (c.readerMode.value == 'paged'
-                          ? Icons.view_stream_rounded
-                          : Icons.menu_book_rounded),
-                  c.isNovel ? 'أدوات' : 'تبديل وضع القراءة',
-                  c.isNovel
-                      ? () => _openTools(context)
-                      : () => c.setReaderMode(
-                            c.readerMode.value == 'paged' ? 'scroll' : 'paged',
-                          ),
-                ),
-                _chromeIcon(
-                  c.isNovel
-                      ? (c.novelSpeechPlaying.value
-                          ? Icons.pause_rounded
-                          : Icons.volume_up_rounded)
-                      : Icons.chevron_right_rounded,
-                  c.isNovel ? 'القراءة الصوتية' : 'الفصل التالي',
-                  c.isNovel
-                      ? c.toggleNovelSpeech
-                      : (c.nextChapterId == null
-                          ? null
-                          : () => c.navigateToChapter(
-                                c.nextChapterId,
-                                joinContinuousStream: true,
-                              )),
-                ),
-                _chromeIcon(
-                  c.isNovel
-                      ? Icons.bookmarks_outlined
-                      : Icons.format_list_numbered_rounded,
-                  c.isNovel ? 'العلامات والملاحظات' : 'قائمة الفصول',
-                  () => _openTools(context),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
+  void _noteChromeInteraction() {
+    if (c.showNavigation.value) _chromeAutoHide.schedule();
   }
 
-  Widget _chromeIcon(IconData icon, String tooltip, VoidCallback? onTap) {
-    // Press feedback only: the reader controls must react on touch-down and
-    // must never animate the page itself.
-    return PressableScale(
-      enabled: onTap != null,
-      scale: .94,
-      child: IconButton(
-        tooltip: tooltip,
-        onPressed: onTap,
-        icon: Icon(icon, size: 21),
-        color: onTap == null
-            ? Colors.white.withValues(alpha: .26)
-            : Colors.white.withValues(alpha: .9),
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints.tightFor(width: 42, height: 38),
-        visualDensity: VisualDensity.compact,
-      ),
-    );
+  void _autoHideChrome() {
+    if (!mounted || !c.readerAutoHideChrome.value) return;
+    if (c.isNavigating.value) {
+      _chromeAutoHide.schedule();
+      return;
+    }
+    if (c.showNavigation.value) c.toggleNavigationVisibility();
   }
 
-  Future<void> _openTools(BuildContext context) async {
-    await openReaderTools(
-      context,
-      onJumpToPage: _jumpToPage,
-      onJumpToParagraph: _jumpToParagraph,
-      currentNovelParagraph: () => _novelAnchor,
-    );
+  Future<void> _bookmarkCurrentPosition() async {
+    await c.saveReaderBookmark();
+    AppFeedback.show(title: 'العلامات', message: 'تم حفظ موضع القراءة.');
+    _noteChromeInteraction();
   }
+
+  void _retryFailedPages() {
+    final images = c.chapterData.value.chapter.images;
+    for (var index = 0; index < images.length; index++) {
+      if (c.isPageFailed(index)) {
+        c.retryPage(index, pageReference: images[index]);
+      }
+    }
+  }
+
+  /// Runs [open] with the auto-hide countdown paused, then restarts it.
+  Future<void> _withChromePaused(Future<void> Function() open) async {
+    _chromeAutoHide.pause();
+    try {
+      await open();
+    } finally {
+      _chromeAutoHide.resume();
+      _noteChromeInteraction();
+    }
+  }
+
+  Future<void> _openTools(BuildContext context) => _withChromePaused(
+        () => openReaderTools(
+          context,
+          onJumpToPage: _jumpToPage,
+          onJumpToParagraph: _jumpToParagraph,
+          currentNovelParagraph: () => _novelAnchor,
+        ),
+      );
+
+  Future<void> _openPageNavigator(BuildContext context) => _withChromePaused(
+        () => showReaderPageNavigator(context, c, onJumpToPage: _jumpToPage),
+      );
+
+  Future<void> _openChapterList(BuildContext context) =>
+      _withChromePaused(() => showReaderChapterList(context, c));
 
   Future<void> _jumpToPage(int page) async {
     final images = c.chapterData.value.chapter.images;
@@ -1225,17 +1194,7 @@ class _ChapterViewState extends State<ChapterView>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  SizedBox(
-                    width: 11,
-                    height: 11,
-                    child: CircularProgressIndicator(
-                      value: progress,
-                      strokeWidth: 1.6,
-                      backgroundColor: Colors.white.withValues(alpha: .2),
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(AppColors.primary),
-                    ),
-                  ),
+                  MangaPlusLoader(size: 13, progress: progress),
                   const SizedBox(width: 6),
                   Text(
                     '$percent%',

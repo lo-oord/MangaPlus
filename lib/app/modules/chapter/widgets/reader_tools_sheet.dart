@@ -3,8 +3,8 @@ import 'package:flutter/painting.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/reader/novel_reader_model.dart';
-import 'package:mangaplus/app/core/reader/reader_image_source.dart';
 import 'package:mangaplus/app/modules/chapter/controllers/chapter_controller.dart';
+import 'package:mangaplus/app/modules/chapter/widgets/reader_chrome.dart';
 import 'package:mangaplus/app/widgets/app_feedback.dart';
 
 Future<void> openReaderTools(
@@ -162,10 +162,22 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
         _hint('قارئ الروايات يعرض النص في وضع تمرير مستمر مع تنسيق مستقل.')
       else ...[
         _choices([
-          _chip('تمرير مستمر', c.readerMode.value == 'scroll',
+          _chip('تمرير مستمر', c.readerMode.value == 'scroll' && !c.isWebtoonPreset,
               () => c.setReaderMode('scroll')),
           _chip('صفحة بصفحة', c.readerMode.value == 'paged',
               () => c.setReaderMode('paged')),
+          _chip('ويبتون', c.isWebtoonPreset, c.applyWebtoonPreset),
+        ]),
+        _hint(
+          'وضع الويبتون: تمرير عمودي متصل بعرض الشاشة وبدون فواصل، مناسب '
+          'للفصول الطويلة. يستخدم نفس محرك الصور والذاكرة.',
+        ),
+        _section('اتجاه القراءة', Icons.swap_horiz_rounded),
+        _choices([
+          _chip('من اليمين لليسار', c.readingDirection.value == 'rtl',
+              () => c.setReadingDirection('rtl')),
+          _chip('من اليسار لليمين', c.readingDirection.value == 'ltr',
+              () => c.setReadingDirection('ltr')),
         ]),
         _section('ملاءمة الصفحات', Icons.aspect_ratio_rounded),
         _choices([
@@ -199,6 +211,32 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
         subtitle: 'تحميل الفصل المجاور مسبقاً عند الاقتراب من النهاية',
         value: c.continuousNavigation.value,
         onChanged: c.setContinuousNavigation,
+      ),
+      _section('التفاعل', Icons.touch_app_rounded),
+      if (!c.isNovel && c.readerMode.value != 'paged') ...[
+        _section('التمرير التلقائي', Icons.play_circle_outline_rounded),
+        _switchTile(
+          title: 'تمرير تلقائي',
+          subtitle: 'يتحرك الفصل ببطء حتى تلمس الشاشة أو تنتهي الصفحات',
+          value: c.mangaAutoScroll.value,
+          onChanged: c.setMangaAutoScroll,
+        ),
+        if (c.mangaAutoScroll.value)
+          _slider(
+            title: 'سرعة التمرير',
+            value: c.mangaAutoScrollSpeed.value,
+            min: 8,
+            max: 160,
+            divisions: 19,
+            label: '${c.mangaAutoScrollSpeed.value.round()} px/s',
+            onChanged: c.setMangaAutoScrollSpeed,
+          ),
+      ],
+      _switchTile(
+        title: 'إخفاء الأدوات تلقائياً',
+        subtitle: 'يختفي شريط القارئ بعد فترة قصيرة من عدم التفاعل',
+        value: c.readerAutoHideChrome.value,
+        onChanged: c.setReaderAutoHideChrome,
       ),
       _switchTile(
         title: 'إظهار اسم الفصل بين الفصول',
@@ -583,141 +621,8 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
   // Sub-sheets
   // ---------------------------------------------------------------------
 
-  Future<void> _openPageGrid(BuildContext context) async {
-    final pages = c.chapterData.value.chapter.images;
-    if (pages.isEmpty) return;
-    await Get.bottomSheet(
-      SafeArea(
-        child: SizedBox(
-          height: MediaQuery.sizeOf(context).height * .82,
-          child: Column(
-            children: [
-              const SizedBox(height: 10),
-              Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.divider,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'الصفحات',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 19,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    Text('${pages.length}',
-                        style: TextStyle(color: AppColors.textSecondary)),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Obx(
-                  () => GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 18),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 4,
-                      mainAxisSpacing: 6,
-                      crossAxisSpacing: 6,
-                      childAspectRatio: .62,
-                    ),
-                    itemCount: pages.length,
-                    itemBuilder: (context, index) {
-                      final current = index == c.currentPage.value;
-                      return InkWell(
-                        borderRadius: BorderRadius.circular(10),
-                        onTap: () {
-                          Get.back();
-                          widget.onJumpToPage(index);
-                        },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: current
-                                  ? AppColors.primary
-                                  : AppColors.divider,
-                              width: current ? 2 : 1,
-                            ),
-                            color: AppColors.searchBar,
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              Image(
-                                image: readerImageProvider(
-                                  pages[index],
-                                  headers: isLocalReaderImage(pages[index])
-                                      ? null
-                                      : readerImageHeaders(pages[index]),
-                                  maxWidth: 140,
-                                ),
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Center(
-                                  child: Icon(Icons.broken_image_outlined,
-                                      size: 20),
-                                ),
-                                loadingBuilder: (_, child, progress) =>
-                                    progress == null
-                                        ? child
-                                        : const Center(
-                                            child: SizedBox(
-                                              width: 14,
-                                              height: 14,
-                                              child: CircularProgressIndicator(
-                                                  strokeWidth: 1.5),
-                                            ),
-                                          ),
-                              ),
-                              PositionedDirectional(
-                                bottom: 2,
-                                start: 2,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 5, vertical: 1),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: .6),
-                                    borderRadius: BorderRadius.circular(5),
-                                  ),
-                                  child: Text(
-                                    '${index + 1}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 9.5,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      backgroundColor: AppColors.card,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-      ),
-    );
-  }
+  Future<void> _openPageGrid(BuildContext context) =>
+      showReaderPageNavigator(context, c, onJumpToPage: widget.onJumpToPage);
 
   Future<void> _openPagePicker() async {
     final controller =
@@ -751,105 +656,8 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
     await widget.onJumpToPage(index);
   }
 
-  Future<void> _openChapterList(BuildContext context) async {
-    await c.ensureChapterNavigation();
-    final chapters = c.availableChapters;
-    if (chapters.isEmpty) {
-      AppFeedback.show(title: 'الفصول', message: 'لا توجد قائمة فصول متاحة');
-      return;
-    }
-    await Get.bottomSheet(
-      SafeArea(
-        child: SizedBox(
-          height: MediaQuery.sizeOf(context).height * .8,
-          child: Column(
-            children: [
-              const SizedBox(height: 10),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 10, 18, 6),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'الفصول',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 19,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    Text('${chapters.length}',
-                        style: TextStyle(color: AppColors.textSecondary)),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Obx(
-                  () => ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 18),
-                    itemCount: chapters.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 4),
-                    itemBuilder: (context, index) {
-                      final item = chapters[index];
-                      final current = c.isCurrentChapter(item);
-                      final read = c.isChapterRead(item.chapterId);
-                      return ListTile(
-                        dense: true,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        tileColor: current
-                            ? AppColors.primary.withValues(alpha: .13)
-                            : AppColors.searchBar,
-                        leading: Icon(
-                          current
-                              ? Icons.play_circle_fill_rounded
-                              : Icons.menu_book_rounded,
-                          color: current ? AppColors.primary : AppColors.icon,
-                          size: 21,
-                        ),
-                        title: Text(
-                          item.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 13,
-                            fontWeight:
-                                current ? FontWeight.w800 : FontWeight.w500,
-                          ),
-                        ),
-                        trailing: read
-                            ? Text('مقروء'.tr,
-                                style: TextStyle(
-                                  color: AppColors.primary,
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w700,
-                                ))
-                            : null,
-                        onTap: current
-                            ? null
-                            : () {
-                                Get.back();
-                                c.navigateToChapter(item.chapterId);
-                              },
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      backgroundColor: AppColors.card,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-      ),
-    );
-  }
+  Future<void> _openChapterList(BuildContext context) =>
+      showReaderChapterList(context, c);
 
   Future<void> _openBookmarks(BuildContext context) async {
     await Get.bottomSheet(
