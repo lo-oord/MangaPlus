@@ -8,6 +8,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/core/settings/reading_preferences.dart';
 import 'package:mangaplus/app/core/theme/theme_mode_preference.dart';
 import 'package:mangaplus/app/data/models/user_profile.dart';
 import 'package:mangaplus/app/data/services/account_sync_service.dart';
@@ -88,7 +89,11 @@ DateTime _parseLocalDate(dynamic value) {
 class ProfileController extends GetxController {
   final GetStorage _storage = GetStorage();
   final RxString selectedLanguage = 'ar_SA'.obs;
-  final RxBool isDarkMode = true.obs;
+  /// Persisted appearance preference; [ThemeMode.system] follows the OS.
+  final Rx<ThemeMode> themeMode = ThemeMode.dark.obs;
+
+  /// Snapshot for the settings row; the storage keys stay the source of truth.
+  final RxString readingMode = ReadingPreferences.mode.obs;
   final Rxn<UserProfile> accountProfile = Rxn<UserProfile>();
   final RxBool accountLoading = false.obs;
   final RxBool savingAccount = false.obs;
@@ -111,8 +116,9 @@ class ProfileController extends GetxController {
   @override
   void onInit() {
     selectedLanguage.value = _storage.read<String>('language') ?? 'ar_SA';
-    final savedTheme = ThemeModePreference.fromStorage(_storage.read<String>('themeMode'));
-    isDarkMode.value = savedTheme == ThemeMode.dark;
+    themeMode.value =
+        ThemeModePreference.fromStorage(_storage.read<String>('themeMode'));
+    readingMode.value = ReadingPreferences.mode;
     _auth = Get.isRegistered<AuthService>() ? Get.find<AuthService>() : null;
     final chapterService = Get.find<ChapterUpdateService>();
     favoritesNotificationsEnabled.value = chapterService.backgroundEnabled;
@@ -279,12 +285,13 @@ class ProfileController extends GetxController {
         );
         await _storage.write('language', language);
       }
-      if ((theme == 'dark' || theme == 'light') &&
+      if ((theme == 'dark' || theme == 'light' || theme == 'system') &&
           _themeRevision == themeRevisionAtStart) {
-        isDarkMode.value = theme == 'dark';
-        Get.changeThemeMode(theme == 'dark' ? ThemeMode.dark : ThemeMode.light);
-        AppColors.refreshTheme(theme == 'dark');
-        await _storage.write('themeMode', theme);
+        final mode = ThemeModePreference.fromStorage(theme as String);
+        themeMode.value = mode;
+        Get.changeThemeMode(mode);
+        AppColors.refreshTheme(_resolvedDark(mode));
+        await _storage.write('themeMode', ThemeModePreference.toStorage(mode));
       }
     } catch (_) {
       // Profile display must not depend on optional remote settings.
@@ -460,28 +467,81 @@ class ProfileController extends GetxController {
     Get.updateLocale(languageCode == 'en_US' ? const Locale('en', 'US') : const Locale('ar', 'SA'));
     await _storage.write('language', languageCode);
     try {
-      await _auth?.saveSettings(language: languageCode, themeMode: isDarkMode.value ? 'dark' : 'light');
+      await _auth?.saveSettings(
+        language: languageCode,
+        themeMode: ThemeModePreference.toStorage(themeMode.value),
+      );
     } catch (error) {
-      _message('تعذر حفظ الإعداد'.tr, error.toString());
+      // Local persistence already succeeded; remote sync is best effort and
+      // must not show a failure snackbar for an unverified/offline account.
+      debugPrint('Remote settings sync skipped: $error');
     }
     try { await NotificationPresentation.updateLanguage(languageCode); } catch (_) {}
   }
 
-  Future<void> changeTheme(bool darkMode) async {
+  /// Kept for older callers that only expose a dark/light switch.
+  Future<void> changeTheme(bool darkMode) =>
+      setThemeMode(darkMode ? ThemeMode.dark : ThemeMode.light);
+
+  Future<void> setThemeMode(ThemeMode mode) async {
     _themeRevision++;
-    final mode = darkMode ? ThemeMode.dark : ThemeMode.light;
-    isDarkMode.value = darkMode;
+    themeMode.value = mode;
     Get.changeThemeMode(mode);
-    AppColors.refreshTheme(darkMode);
+    AppColors.refreshTheme(_resolvedDark(mode));
     try {
       await _storage.write('themeMode', ThemeModePreference.toStorage(mode));
     } catch (error) {
       _message('تعذر حفظ الإعداد'.tr, error.toString());
     }
     try {
-      await _auth?.saveSettings(language: selectedLanguage.value, themeMode: darkMode ? 'dark' : 'light');
+      await _auth?.saveSettings(
+        language: selectedLanguage.value,
+        themeMode: ThemeModePreference.toStorage(mode),
+      );
     } catch (error) {
-      _message('تعذر حفظ الإعداد'.tr, error.toString());
+      debugPrint('Remote settings sync skipped: $error');
+    }
+  }
+
+  bool _resolvedDark(ThemeMode mode) => switch (mode) {
+        ThemeMode.dark => true,
+        ThemeMode.light => false,
+        ThemeMode.system => WidgetsBinding
+                .instance.platformDispatcher.platformBrightness ==
+            Brightness.dark,
+      };
+
+  void reloadReadingPreferences() {
+    readingMode.value = ReadingPreferences.mode;
+  }
+
+  bool get isEmailVerified => accountProfile.value?.emailVerified == true;
+
+  Future<void> refreshVerification() async {
+    try {
+      await _auth?.currentUser?.reload();
+      await refreshAccount();
+      if (isEmailVerified) {
+        _message('تم التحقق'.tr, 'تم توثيق بريدك الإلكتروني.'.tr);
+      } else {
+        _message(
+          'لم يتم التحقق بعد'.tr,
+          'افتح رسالة التحقق ثم أعد المحاولة.'.tr,
+        );
+      }
+    } catch (error) {
+      _message('تعذر التحقق'.tr, error.toString());
+    }
+  }
+
+  Future<void> resendVerificationEmail() async {
+    final user = _auth?.currentUser;
+    if (user == null || user.isAnonymous || user.emailVerified) return;
+    try {
+      await user.sendEmailVerification();
+      _message('تم الإرسال'.tr, 'تحقق من بريدك الإلكتروني.'.tr);
+    } catch (error) {
+      _message('تعذر الإرسال'.tr, error.toString());
     }
   }
 

@@ -25,6 +25,7 @@ import '../modules/main/bindings/main_binding.dart';
 import '../modules/main/views/main_view.dart';
 import '../modules/notifications/bindings/notifications_binding.dart';
 import '../modules/notifications/views/notifications_view.dart';
+import '../modules/onboarding/views/onboarding_view.dart';
 import '../modules/profile/bindings/profile_binding.dart';
 import '../modules/profile/views/profile_view.dart';
 import '../modules/profile/views/profile_details_view.dart';
@@ -57,6 +58,12 @@ class AppPages {
       page: () => const SplashView(),
       transition: Transition.fadeIn,
       transitionDuration: AppMotion.slow,
+    ),
+    GetPage(
+      name: _Paths.ONBOARDING,
+      page: () => const OnboardingView(),
+      transition: Transition.fadeIn,
+      transitionDuration: AppMotion.page,
     ),
     GetPage(
       name: _Paths.HOME,

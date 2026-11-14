@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:mangaplus/app/core/auth/auth_validation.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/modules/auth/controllers/auth_controller.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
@@ -131,7 +132,7 @@ class AuthView extends GetView<AuthController> {
 
   Widget _registrationStepFields(int step) => switch (step) {
         0 => Column(children: [_field(controller.displayName, 'الاسم الظاهر', Icons.badge_outlined), const SizedBox(height: 13), _usernameField()]),
-        1 => Column(children: [_field(controller.email, 'البريد الإلكتروني', Icons.email_outlined, keyboard: TextInputType.emailAddress), const SizedBox(height: 13), _passwordField(controller.password, 'كلمة المرور', controller.obscurePassword), const SizedBox(height: 13), _passwordField(controller.confirmPassword, 'تأكيد كلمة المرور', controller.obscureConfirmPassword)]),
+        1 => Column(children: [_field(controller.email, 'البريد الإلكتروني', Icons.email_outlined, keyboard: TextInputType.emailAddress), const SizedBox(height: 13), _passwordField(controller.password, 'كلمة المرور', controller.obscurePassword, showStrength: true), const SizedBox(height: 13), _passwordField(controller.confirmPassword, 'تأكيد كلمة المرور', controller.obscureConfirmPassword)]),
         _ => Column(children: [_countryField(), const SizedBox(height: 13), _genderField(), const SizedBox(height: 13), _birthDateField()]),
       };
 
@@ -220,14 +221,64 @@ class AuthView extends GetView<AuthController> {
         ]);
       });
 
-  Widget _passwordField(TextEditingController textController, String label, RxBool obscure) => Obx(() => TextField(
-        controller: textController,
-        obscureText: obscure.value,
-        textDirection: TextDirection.ltr,
-        decoration: _decoration(label, Icons.lock_outline_rounded).copyWith(
-          suffixIcon: IconButton(onPressed: obscure.toggle, icon: Icon(obscure.value ? Icons.visibility_outlined : Icons.visibility_off_outlined)),
-        ),
-      ));
+  Widget _passwordField(
+    TextEditingController textController,
+    String label,
+    RxBool obscure, {
+    bool showStrength = false,
+  }) =>
+      Obx(() => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: textController,
+                obscureText: obscure.value,
+                textDirection: TextDirection.ltr,
+                decoration: _decoration(label, Icons.lock_outline_rounded).copyWith(
+                  suffixIcon: IconButton(onPressed: obscure.toggle, icon: Icon(obscure.value ? Icons.visibility_outlined : Icons.visibility_off_outlined)),
+                ),
+              ),
+              if (showStrength)
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: textController,
+                  builder: (context, value, _) {
+                    final strength = AuthValidation.passwordStrength(value.text);
+                    final color = switch (strength) {
+                      0 => Colors.redAccent,
+                      1 => Colors.orange,
+                      _ => Colors.green,
+                    };
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 7, left: 12, right: 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: (strength + 1) / 3,
+                                minHeight: 4,
+                                backgroundColor: AppColors.divider,
+                                color: color,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'قوة كلمة المرور: ${AuthValidation.strengthLabel(strength)}',
+                            style: TextStyle(
+                              color: color,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+            ],
+          ));
 
   Widget _countryField() => DropdownButtonFormField<ArabCountry>(
         value: controller.selectedCountry.value,

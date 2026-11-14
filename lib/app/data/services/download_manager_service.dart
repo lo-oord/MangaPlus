@@ -191,6 +191,22 @@ class DownloadManagerService extends GetxService {
     await _persist();
   }
 
+  /// Removes completed task records without touching any downloaded file.
+  ///
+  /// The offline library is the owner of those files; clearing the history must
+  /// never make a saved chapter unreadable.
+  Future<int> removeCompletedTasks() async {
+    final removed = tasks
+        .where((task) => task.status == DownloadTaskStatus.completed)
+        .length;
+    if (removed == 0) return 0;
+    tasks.removeWhere(
+      (task) => task.status == DownloadTaskStatus.completed,
+    );
+    await _persist();
+    return removed;
+  }
+
   DownloadTask? _task(String id) {
     final index = tasks.indexWhere((task) => task.id == id);
     return index < 0 ? null : tasks[index];

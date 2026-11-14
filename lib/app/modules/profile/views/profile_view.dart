@@ -4,11 +4,17 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/navigation/app_navigation.dart';
+import 'package:mangaplus/app/core/settings/reading_preferences.dart';
+import 'package:mangaplus/app/core/theme/app_motion.dart';
 import 'package:mangaplus/app/core/theme/app_palette.dart';
 import 'package:mangaplus/app/core/theme/design_tokens.dart';
 import 'package:mangaplus/app/data/models/user_profile.dart';
 import 'package:mangaplus/app/modules/profile/controllers/profile_controller.dart';
 import 'package:mangaplus/app/modules/profile/views/reading_stats_panel.dart';
+import 'package:mangaplus/app/modules/profile/views/settings_about_view.dart';
+import 'package:mangaplus/app/modules/profile/views/settings_appearance_view.dart';
+import 'package:mangaplus/app/modules/profile/views/settings_notifications_view.dart';
+import 'package:mangaplus/app/modules/profile/views/settings_reading_view.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/app_buttons.dart';
 import 'package:mangaplus/app/widgets/app_dialogs.dart';
@@ -19,9 +25,10 @@ import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
 /// Settings hub.
 ///
-/// The layout is built from the shared [AppSection] / [AppSettingsTile] pair, so
-/// row heights, icon containers, dividers and section rhythm match every other
-/// grouped screen in the app.
+/// Rows use the shared [AppSection] / [AppSettingsTile] pair so heights, icon
+/// containers, dividers and section rhythm match every grouped screen. Only
+/// settings that change real behaviour are listed here; each entry either opens
+/// a dedicated page or navigates to the library it controls.
 class ProfileView extends GetView<ProfileController> {
   const ProfileView({super.key});
 
@@ -36,35 +43,58 @@ class ProfileView extends GetView<ProfileController> {
               children: [
                 _ProfileHeader(
                   controller: controller,
-                  onOpenDetails: () => AppNavigation.toNamed(Routes.PROFILE_DETAILS),
+                  onOpenDetails: () =>
+                      AppNavigation.toNamed(Routes.PROFILE_DETAILS),
                   onEditName: _editDisplayName,
                 ),
+                if (controller.accountProfile.value != null &&
+                    !controller.accountProfile.value!.isGuest &&
+                    !controller.accountProfile.value!.emailVerified) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  _VerifyBanner(
+                    controller: controller,
+                    onResend: controller.resendVerificationEmail,
+                    onRefresh: controller.refreshVerification,
+                  ),
+                ],
                 const SizedBox(height: AppSpacing.md),
                 const ReadingStatsPanel(),
                 const SizedBox(height: AppSpacing.section),
                 AppSection(
-                  title: 'التفضيلات'.tr,
+                  title: 'المظهر واللغة'.tr,
                   children: [
-                    _languageTile(context),
                     AppSettingsTile(
-                      icon: controller.isDarkMode.value
-                          ? Icons.dark_mode_rounded
-                          : Icons.light_mode_rounded,
+                      icon: Icons.palette_outlined,
                       title: 'المظهر'.tr,
-                      subtitle:
-                          controller.isDarkMode.value ? 'داكن'.tr : 'فاتح'.tr,
-                      switchValue: controller.isDarkMode.value,
-                      onSwitchChanged: controller.changeTheme,
+                      value: _themeLabel,
+                      onTap: () => _open(const SettingsAppearanceView()),
+                    ),
+                    _languageTile(context),
+                  ],
+                ),
+                AppSection(
+                  title: 'القراءة'.tr,
+                  children: [
+                    AppSettingsTile(
+                      icon: Icons.auto_stories_outlined,
+                      title: 'إعدادات القراءة الافتراضية'.tr,
+                      value: ReadingPreferences.modeLabel(controller.readingMode.value),
+                      onTap: () => _open(const SettingsReadingView()),
                     ),
                   ],
                 ),
                 AppSection(
-                  title: 'مكتبتي'.tr,
+                  title: 'المكتبة'.tr,
                   children: [
                     AppSettingsTile(
                       icon: Icons.notifications_none_rounded,
                       title: 'الإشعارات'.tr,
-                      onTap: () => AppNavigation.toNamed(Routes.NOTIFICATIONS),
+                      onTap: () => _open(const SettingsNotificationsView()),
+                    ),
+                    AppSettingsTile(
+                      icon: Icons.bookmark_border_rounded,
+                      title: 'المفضلة'.tr,
+                      onTap: () => AppNavigation.toNamed(Routes.BOOKMARK),
                     ),
                     AppSettingsTile(
                       icon: Icons.history_rounded,
@@ -84,39 +114,13 @@ class ProfileView extends GetView<ProfileController> {
                   ],
                 ),
                 AppSection(
-                  title: 'الإشعارات'.tr,
-                  subtitle: 'تنبيهات الفصول الجديدة'.tr,
-                  children: [
-                    AppSettingsTile(
-                      icon: Icons.favorite_border_rounded,
-                      title: 'إشعارات المفضلات'.tr,
-                      subtitle: 'تنبيه عند توفر فصل جديد في أعمالك المحفوظة'.tr,
-                      switchValue:
-                          controller.favoritesNotificationsEnabled.value,
-                      onSwitchChanged: controller.setFavoritesNotifications,
-                    ),
-                    AppSettingsTile(
-                      icon: Icons.menu_book_rounded,
-                      title: 'إشعارات المانجا'.tr,
-                      switchValue: controller.mangaNotificationsEnabled.value,
-                      onSwitchChanged: controller.setMangaNotifications,
-                    ),
-                    AppSettingsTile(
-                      icon: Icons.auto_stories_rounded,
-                      title: 'إشعارات الروايات'.tr,
-                      switchValue: controller.novelNotificationsEnabled.value,
-                      onSwitchChanged: controller.setNovelNotifications,
-                    ),
-                  ],
-                ),
-                AppSection(
-                  title: 'حول التطبيق'.tr,
+                  title: 'حول'.tr,
                   children: [
                     AppSettingsTile(
                       icon: Icons.info_outline_rounded,
-                      title: 'حول التطبيق'.tr,
-                      value: 'الإصدار 1.1',
-                      onTap: () => _showAboutDialog(context),
+                      title: 'حول التطبيق والتراخيص'.tr,
+                      value: '${'الإصدار'.tr} $kAppVersion',
+                      onTap: () => _open(const SettingsAboutView()),
                     ),
                   ],
                 ),
@@ -125,6 +129,22 @@ class ProfileView extends GetView<ProfileController> {
           ),
         ),
       );
+
+  String get _themeLabel => switch (controller.themeMode.value) {
+        ThemeMode.light => 'فاتح'.tr,
+        ThemeMode.dark => 'داكن'.tr,
+        ThemeMode.system => 'حسب النظام'.tr,
+      };
+
+  Future<void> _open(Widget page) async {
+    await Get.to(
+      () => page,
+      transition: Transition.rightToLeftWithFade,
+      duration: AppMotion.page,
+      curve: AppMotion.emphasized,
+    );
+    controller.reloadReadingPreferences();
+  }
 
   Widget _languageTile(BuildContext context) => PopupMenuButton<String>(
         tooltip: 'اللغة'.tr,
@@ -196,37 +216,65 @@ class ProfileView extends GetView<ProfileController> {
     if (result == true) await controller.updateDisplayName(name.text);
     name.dispose();
   }
+}
 
-  void _showAboutDialog(BuildContext context) => AppDialogs.show<void>(
-        title: 'حول التطبيق'.tr,
-        icon: Icons.info_outline_rounded,
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+/// Shown only while a registered account still has an unverified email.
+class _VerifyBanner extends StatelessWidget {
+  const _VerifyBanner({
+    required this.controller,
+    required this.onResend,
+    required this.onRefresh,
+  });
+
+  final ProfileController controller;
+  final Future<void> Function() onResend;
+  final Future<void> Function() onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: p.warning.withValues(alpha: .10),
+        borderRadius: AppRadii.mdAll,
+        border: Border.all(color: p.warning.withValues(alpha: .45)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.mark_email_unread_outlined, color: p.warning),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const MangaPlusLogo(size: 40),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Text(
-                    'app_name'.tr,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
+                Text(
+                  'بريدك غير موثق'.tr,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                Text(
+                  'أكّد بريدك لتفعيل مزامنة القراءة.'.tr,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: p.textSecondary,
+                      ),
                 ),
               ],
             ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              '${'قارئ مانجا ومانهوا'.tr}\n${'الإصدار'.tr}: 1.1',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: context.palette.textSecondary,
-                    height: 1.7,
-                  ),
-            ),
-          ],
-        ),
-      );
+          ),
+          TextButton(
+            onPressed: controller.savingAccount.value ? null : onResend,
+            child: Text('إرسال'.tr),
+          ),
+          TextButton(
+            onPressed: controller.savingAccount.value ? null : onRefresh,
+            child: Text('تحققت'.tr),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Account summary at the top of Settings.

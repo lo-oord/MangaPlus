@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
+import 'package:mangaplus/app/core/settings/onboarding_service.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 
 class SplashView extends StatefulWidget {
@@ -65,9 +66,25 @@ class _SplashViewState extends State<SplashView>
     );
 
     _controller.forward();
-    Timer(const Duration(milliseconds: 800), () {
-      if (mounted) Get.offAllNamed(Routes.MAIN);
-    });
+    unawaited(_bootstrap());
+  }
+
+  /// The animation is a minimum display time, not a fixed delay: as soon as the
+  /// brand entrance has played, the first destination is chosen from persisted
+  /// state. Firebase, storage and the download manager were already prepared
+  /// before `runApp`, so there is no artificial wait here.
+  Future<void> _bootstrap() async {
+    final startedAt = DateTime.now();
+    final onboardingComplete = OnboardingService.isComplete;
+    const minimumDisplay = Duration(milliseconds: 650);
+    final elapsed = DateTime.now().difference(startedAt);
+    if (elapsed < minimumDisplay) {
+      await Future<void>.delayed(minimumDisplay - elapsed);
+    }
+    if (!mounted) return;
+    Get.offAllNamed(
+      onboardingComplete ? Routes.MAIN : Routes.ONBOARDING,
+    );
   }
 
   @override
