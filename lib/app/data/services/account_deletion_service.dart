@@ -60,16 +60,16 @@ class AccountDeletionService {
   /// for the profile and username deletes that share the same connection.
   static const int _batchLimit = 400;
 
-  /// Single documents inside `userProfiles/{uid}/private`.
-  static const List<String> _privateDocuments = <String>['library'];
-
-  /// Collections inside `userProfiles/{uid}/private`.
-  static const List<String> _privateCollections = <String>[
+  /// Documents inside the `userProfiles/{uid}/private` collection. Reading
+  /// statistics live here too, with a `sessions` subcollection.
+  static const List<String> _privateDocuments = <String>[
+    'library',
     'favorites',
     'readingProgress',
     'readingHistory',
     'customLists',
     'notifications',
+    'readingStats',
   ];
 
   /// True when a previous deletion stopped before finishing.
@@ -131,18 +131,27 @@ class AccountDeletionService {
     // failure. Guests and verified accounts are always cleaned.
     if (!isVerified) return;
 
-    // `private` is a document; its subcollections are the collections the
-    // rules allow the account owner to read and write.
+    // `private` is a collection under the profile document (see the sync
+    // service, which writes `private/library`); each entry below is a document
+    // that may carry its own subcollections.
     final private = _firestore
         .collection('userProfiles')
         .doc(uid)
-        .doc('private');
+        .collection('private');
 
     for (final name in _privateDocuments) {
-      await private.doc(name).delete();
-    }
-    for (final name in _privateCollections) {
-      await _deleteCollection(private.collection(name));
+      final document = private.doc(name);
+      // Deleting a document does not touch its subcollections, so every
+      // subcollection is listed and emptied first.
+      try {
+        final subcollections = await document.listCollections();
+        for (final collection in subcollections) {
+          await _deleteCollection(collection);
+        }
+      } catch (_) {
+        // A document that does not exist has no subcollections to walk.
+      }
+      await document.delete();
     }
 
     // Reading statistics: every session first, then the preferences document.
