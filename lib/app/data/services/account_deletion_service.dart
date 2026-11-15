@@ -87,7 +87,8 @@ class AccountDeletionService {
       throw const AccountDeletionException('لا يوجد حساب مسجل الدخول.');
     }
     final uid = user.uid;
-    final isVerified = user.emailVerified && !user.isAnonymous;
+    final isAnonymous = user.isAnonymous;
+    final isVerifiedEmail = user.emailVerified && !isAnonymous;
 
     onStage(AccountDeletionStage.preparing);
     await _storage.write(_pendingKey, uid);
@@ -96,7 +97,11 @@ class AccountDeletionService {
     final username = '${profile['username'] ?? ''}'.trim();
 
     onStage(AccountDeletionStage.data);
-    await _deletePrivateData(uid, isVerified: isVerified);
+    await _deletePrivateData(
+      uid,
+      isAnonymous: isAnonymous,
+      isVerifiedEmail: isVerifiedEmail,
+    );
 
     onStage(AccountDeletionStage.profile);
     await _deleteProfile(uid);
@@ -124,12 +129,16 @@ class AccountDeletionService {
     }
   }
 
-  Future<void> _deletePrivateData(String uid, {required bool isVerified}) async {
+  Future<void> _deletePrivateData(
+    String uid, {
+    required bool isAnonymous,
+    required bool isVerifiedEmail,
+  }) async {
     // An unverified e-mail account can never have written to `private/*` or to
-    // `private/readingStats` (the rules deny the write too), so those reads are
-    // skipped instead of producing a permission error that is not a real
-    // failure. Guests and verified accounts are always cleaned.
-    if (!isVerified) return;
+    // `private/readingStats` (the rules deny writes), so these operations are
+    // skipped instead of producing a spurious permission error. Anonymous guests
+    // and verified accounts are cleaned according to what the rules allow.
+    if (!isAnonymous && !isVerifiedEmail) return;
 
     // `private` is a collection under the profile document (see the sync
     // service, which writes `private/library`); each entry below is a document
@@ -140,13 +149,17 @@ class AccountDeletionService {
         .collection('private');
 
     for (final name in _privateDocuments) {
+      if (name == 'readingStats') continue;
       await private.doc(name).delete();
     }
 
     // Reading statistics: every session first, then the preferences document.
-    final stats = private.doc('readingStats');
-    await _deleteCollection(stats.collection('sessions'));
-    await stats.delete();
+    // Only verified e-mail accounts can own this data.
+    if (isVerifiedEmail) {
+      final stats = private.doc('readingStats');
+      await _deleteCollection(stats.collection('sessions'));
+      await stats.delete();
+    }
   }
 
   /// Deletes every document of a collection in bounded batches. Deleting the

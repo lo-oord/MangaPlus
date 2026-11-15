@@ -41,17 +41,22 @@ service cloud.firestore {
         ]) &&
         data.syncEnabled is bool &&
         data.dailyGoalMinutes is int &&
-        data.dailyGoalMinutes >= 5 && data.dailyGoalMinutes <= 720 &&
+        data.dailyGoalMinutes >= 5 &&
+        data.dailyGoalMinutes <= 720 &&
         data.weeklyGoalMinutes is int &&
-        data.weeklyGoalMinutes >= 30 && data.weeklyGoalMinutes <= 10080 &&
+        data.weeklyGoalMinutes >= 30 &&
+        data.weeklyGoalMinutes <= 10080 &&
         (!data.keys().hasAny(['weeklyGoalChapters']) ||
           (data.weeklyGoalChapters is int &&
-           data.weeklyGoalChapters >= 0 && data.weeklyGoalChapters <= 1000)) &&
+           data.weeklyGoalChapters >= 0 &&
+           data.weeklyGoalChapters <= 1000)) &&
         (!data.keys().hasAny(['minimumActiveDayMinutes']) ||
           (data.minimumActiveDayMinutes is int &&
-           data.minimumActiveDayMinutes >= 1 && data.minimumActiveDayMinutes <= 120)) &&
+           data.minimumActiveDayMinutes >= 1 &&
+           data.minimumActiveDayMinutes <= 120)) &&
         data.weeklySummaryEnabled is bool &&
-        data.schemaVersion is int && data.schemaVersion == 1 &&
+        data.schemaVersion is int &&
+        data.schemaVersion == 1 &&
         data.updatedAt is timestamp;
     }
 
@@ -92,27 +97,53 @@ service cloud.firestore {
           'chapterCompletedDay',
           'updatedAt'
         ]) &&
-        data.sessionId is string && data.sessionId == sessionId &&
-        sessionId.size() > 0 && sessionId.size() <= 128 &&
-        data.comicId is string && data.comicId.size() > 0 && data.comicId.size() <= 2048 &&
-        data.sourceId is string && data.sourceId.size() > 0 && data.sourceId.size() <= 128 &&
-        data.title is string && data.title.size() <= 200 &&
-        (!data.keys().hasAny(['coverImage']) ||
-          (data.coverImage is string && data.coverImage.size() <= 2048 &&
-           (data.coverImage == '' || data.coverImage.matches('^https?://.+')))) &&
+        data.sessionId is string &&
+        data.sessionId == sessionId &&
+        sessionId.size() > 0 &&
+        sessionId.size() <= 128 &&
+        data.comicId is string &&
+        data.comicId.size() > 0 &&
+        data.comicId.size() <= 2048 &&
+        data.sourceId is string &&
+        data.sourceId.size() > 0 &&
+        data.sourceId.size() <= 128 &&
+        data.title is string &&
+        data.title.size() <= 200 &&
+        (
+          !data.keys().hasAny(['coverImage']) ||
+          (
+            data.coverImage is string &&
+            data.coverImage.size() <= 2048 &&
+            (
+              data.coverImage == '' ||
+              data.coverImage.matches('^https?://.+')
+            )
+          )
+        ) &&
         data.type is string &&
         data.type in ['manga', 'manhwa', 'manhua', 'novel', 'other'] &&
-        data.chapterId is string && data.chapterId.size() <= 2048 &&
-        data.chapterTitle is string && data.chapterTitle.size() <= 250 &&
-        data.startedAt is timestamp && data.endedAt is timestamp &&
+        data.chapterId is string &&
+        data.chapterId.size() <= 2048 &&
+        data.chapterTitle is string &&
+        data.chapterTitle.size() <= 250 &&
+        data.startedAt is timestamp &&
+        data.endedAt is timestamp &&
         data.durationSeconds is int &&
-        data.durationSeconds >= 0 && data.durationSeconds <= 86400 &&
-        data.dailySeconds is map && data.dailySeconds.keys().size() <= 31 &&
-        data.progress is number && data.progress >= 0 && data.progress <= 1 &&
+        data.durationSeconds >= 0 &&
+        data.durationSeconds <= 86400 &&
+        data.dailySeconds is map &&
+        data.dailySeconds.keys().size() <= 31 &&
+        data.progress is number &&
+        data.progress >= 0 &&
+        data.progress <= 1 &&
         data.chapterCompleted is bool &&
-        (data.chapterCompletedDay == null ||
-          (data.chapterCompletedDay is string &&
-           data.chapterCompletedDay.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'))) &&
+        (
+          data.chapterCompletedDay == null ||
+          (
+            data.chapterCompletedDay is string &&
+            data.chapterCompletedDay.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          )
+        ) &&
         data.updatedAt is timestamp;
     }
 
@@ -143,7 +174,12 @@ service cloud.firestore {
         && request.resource.data.get('isVerified', null) == resource.data.get('isVerified', null)
         && request.resource.data.get('isOfficialDeveloper', null) == resource.data.get('isOfficialDeveloper', null)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'displayName', 'bio', 'photoUrl', 'photoData', 'syncFavorites', 'settings'
+          'displayName',
+          'bio',
+          'photoUrl',
+          'photoData',
+          'syncFavorites',
+          'settings'
         ])
         && (!request.resource.data.keys().hasAll(['displayName'])
           || (request.resource.data.displayName is string
@@ -162,12 +198,15 @@ service cloud.firestore {
           || request.resource.data.syncFavorites is bool)
         && (!request.resource.data.keys().hasAll(['settings'])
           || (request.resource.data.settings is map
-            && request.resource.data.settings.keys().hasOnly(['language', 'themeMode'])
+            && request.resource.data.settings.keys().hasOnly([
+              'language',
+              'themeMode'
+            ])
             && request.resource.data.settings.language in ['ar_SA', 'en_US']
             && request.resource.data.settings.themeMode in ['dark', 'light']));
 
-      // حذف الحساب من التطبيق مسموح لصاحبه فقط؛ الخدمة الرئيسية تحذف كل
-      // البيانات نهائيًا عبر واجهة الحذف الموثقة في Firebase.
+      // حذف الحساب نهائيًا من التطبيق متاح لصاحب الحساب فقط؛ يحذف العميل كل
+      // بياناته المرتبطة ثم يحذف مستخدم المصادقة بعد إعادة التحقق.
       allow delete: if signedInAs(uid);
 
       match /private/library {
@@ -213,7 +252,7 @@ service cloud.firestore {
     }
 
     match /usernames/{username} {
-      // فحص توفر الاسم مسموح، وقراءة المجموعة كاملة ممنوعة.
+      // فحص توفر اسم المستخدم مسموح، وقراءة المجموعة كاملة ممنوعة.
       allow get: if true;
       allow list: if false;
 
@@ -235,7 +274,8 @@ service cloud.firestore {
         && resource.data.uid == request.auth.uid;
     }
 
-    // إعلانات محور التطبيق للعرض داخل صندوق الإشعارات. الكتابة محصورة بخادم الإدارة.
+    // إعلانات التطبيق للعرض داخل صفحة الإشعارات.
+    // الكتابة محصورة بخادم الإدارة.
     match /appNotifications/{notificationId} {
       allow read: if true;
       allow write: if false;
