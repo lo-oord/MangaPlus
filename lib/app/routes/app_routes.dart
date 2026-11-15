@@ -14,7 +14,11 @@ abstract class Routes {
   static const MAIN = _Paths.MAIN;
   static const SEARCH = _Paths.SEARCH;
   static const PROFILE = _Paths.PROFILE;
-  static const PROFILE_DETAILS = _Paths.PROFILE_DETAILS;
+  static const PROFILE_EDIT = _Paths.PROFILE_EDIT;
+  static const ACCOUNT_SETTINGS = _Paths.ACCOUNT_SETTINGS;
+  static const CHANGE_PASSWORD = _Paths.CHANGE_PASSWORD;
+  static const DELETE_ACCOUNT = _Paths.DELETE_ACCOUNT;
+  static const READING_STATS = _Paths.READING_STATS;
   static const HISTORY = _Paths.HISTORY;
   static const DOWNLOAD = _Paths.DOWNLOAD;
   static const LOCAL_LIBRARY = _Paths.LOCAL_LIBRARY;
@@ -34,7 +38,11 @@ abstract class _Paths {
   static const MAIN = '/main';
   static const SEARCH = '/search';
   static const PROFILE = '/profile';
-  static const PROFILE_DETAILS = '/profile-details';
+  static const PROFILE_EDIT = '/profile-edit';
+  static const ACCOUNT_SETTINGS = '/account-settings';
+  static const CHANGE_PASSWORD = '/change-password';
+  static const DELETE_ACCOUNT = '/delete-account';
+  static const READING_STATS = '/reading-stats';
   static const HISTORY = '/history';
   static const DOWNLOAD = '/download';
   static const LOCAL_LIBRARY = '/local-library';

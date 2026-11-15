@@ -26,8 +26,12 @@ import '../modules/main/views/main_view.dart';
 import '../modules/notifications/bindings/notifications_binding.dart';
 import '../modules/notifications/views/notifications_view.dart';
 import '../modules/profile/bindings/profile_binding.dart';
+import '../modules/profile/views/account_settings_view.dart';
+import '../modules/profile/views/change_password_view.dart';
+import '../modules/profile/views/delete_account_view.dart';
+import '../modules/profile/views/profile_edit_view.dart';
 import '../modules/profile/views/profile_view.dart';
-import '../modules/profile/views/profile_details_view.dart';
+import '../modules/profile/views/reading_stats_view.dart';
 import '../modules/search/bindings/search_binding.dart';
 import '../modules/search/views/search_view.dart';
 import '../modules/splash/views/splash_view.dart';
@@ -135,9 +139,41 @@ class AppPages {
       transitionDuration: AppMotion.page,
     ),
     GetPage(
-      name: _Paths.PROFILE_DETAILS,
-      page: () => const ProfileDetailsView(),
+      name: _Paths.READING_STATS,
+      page: () => const ReadingStatsView(),
+      binding: ReadingStatsBinding(),
+      transition: Transition.rightToLeftWithFade,
+      transitionDuration: AppMotion.page,
+      curve: AppMotion.emphasized,
+    ),
+    GetPage(
+      name: _Paths.PROFILE_EDIT,
+      page: () => const ProfileEditView(),
       binding: ProfileBinding(),
+      transition: Transition.rightToLeftWithFade,
+      transitionDuration: AppMotion.page,
+      curve: AppMotion.emphasized,
+    ),
+    GetPage(
+      name: _Paths.ACCOUNT_SETTINGS,
+      page: () => const AccountSettingsView(),
+      binding: AccountSettingsBinding(),
+      transition: Transition.rightToLeftWithFade,
+      transitionDuration: AppMotion.page,
+      curve: AppMotion.emphasized,
+    ),
+    GetPage(
+      name: _Paths.CHANGE_PASSWORD,
+      page: () => const ChangePasswordView(),
+      binding: AccountSecurityBinding(),
+      transition: Transition.rightToLeftWithFade,
+      transitionDuration: AppMotion.page,
+      curve: AppMotion.emphasized,
+    ),
+    GetPage(
+      name: _Paths.DELETE_ACCOUNT,
+      page: () => const DeleteAccountView(),
+      binding: AccountSecurityBinding(),
       transition: Transition.rightToLeftWithFade,
       transitionDuration: AppMotion.page,
       curve: AppMotion.emphasized,

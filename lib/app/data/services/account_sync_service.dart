@@ -108,7 +108,19 @@ class AccountSyncService {
     }
     await _storage.write('reading_history', mergedHistory);
     await _storage.write('readChapters', mergedReadChapters);
+    await _storage.write(
+      _lastSyncKey(user.uid),
+      DateTime.now().toIso8601String(),
+    );
   }
+
+  /// Timestamp of the last successful sync for [uid], or null when this device
+  /// has never completed one. Used by the settings screen to show real state
+  /// instead of an optimistic label.
+  DateTime? lastSyncAt(String uid) =>
+      DateTime.tryParse('${_storage.read(_lastSyncKey(uid))}');
+
+  static String _lastSyncKey(String uid) => 'last_sync_at_$uid';
 
   Future<void> removeBookmark(String comicId) async {
     final ref = _libraryRef;

@@ -87,6 +87,7 @@ class UserProfile {
       };
 
   UserProfile copyWith({
+    String? email,
     String? displayName,
     String? username,
     String? bio,
@@ -97,7 +98,7 @@ class UserProfile {
     bool? syncFavorites,
   }) => UserProfile(
         uid: uid,
-        email: email,
+        email: email ?? this.email,
         displayName: displayName ?? this.displayName,
         username: username ?? this.username,
         countryCode: countryCode,

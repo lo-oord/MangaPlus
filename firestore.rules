@@ -166,8 +166,9 @@ service cloud.firestore {
             && request.resource.data.settings.language in ['ar_SA', 'en_US']
             && request.resource.data.settings.themeMode in ['dark', 'light']));
 
-      // حذف الحساب من التطبيق غير متاح من خلال العميل.
-      allow delete: if false;
+      // حذف الحساب من التطبيق مسموح لصاحبه فقط؛ الخدمة الرئيسية تحذف كل
+      // البيانات نهائيًا عبر واجهة الحذف الموثقة في Firebase.
+      allow delete: if signedInAs(uid);
 
       match /private/library {
         allow read, write: if verifiedOrAnonymous(uid);
@@ -199,7 +200,7 @@ service cloud.firestore {
         allow list: if false;
         allow create, update: if verifiedAccountOwner(uid)
           && validReadingStatsPreferences(request.resource.data);
-        allow delete: if false;
+        allow delete: if verifiedAccountOwner(uid);
 
         // كل جلسة مستقلة؛ يمكن حذفها عند تأكيد إعادة ضبط الإحصاءات.
         match /sessions/{sessionId} {

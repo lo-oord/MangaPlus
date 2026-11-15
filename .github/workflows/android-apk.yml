@@ -53,6 +53,25 @@ jobs:
             lib/app/data/services/comic_service.dart \
             lib/app/data/services/chapter_update_service.dart \
             lib/app/modules/profile/controllers/profile_controller.dart \
+            lib/app/modules/profile/controllers/account_security_controller.dart \
+            lib/app/modules/profile/controllers/reader_preferences_controller.dart \
+            lib/app/modules/profile/controllers/storage_usage_controller.dart \
+            lib/app/modules/profile/controllers/reading_stats_controller.dart \
+            lib/app/modules/profile/views/profile_view.dart \
+            lib/app/modules/profile/views/reading_stats_view.dart \
+            lib/app/modules/profile/views/reading_stats_panel.dart \
+            lib/app/modules/profile/views/profile_edit_view.dart \
+            lib/app/modules/profile/views/change_password_view.dart \
+            lib/app/modules/profile/views/account_settings_view.dart \
+            lib/app/modules/profile/views/delete_account_view.dart \
+            lib/app/modules/profile/widgets/profile_identity_card.dart \
+            lib/app/modules/profile/widgets/profile_quick_actions.dart \
+            lib/app/modules/profile/widgets/profile_stats_strip.dart \
+            lib/app/data/services/account_deletion_service.dart \
+            lib/app/core/utils/app_permission_status.dart \
+            lib/app/data/services/auth_service.dart \
+            lib/app/data/services/account_sync_service.dart \
+            lib/app/modules/profile/controllers/profile_controller.dart \
             lib/app/modules/chapter/controllers/chapter_controller.dart \
             lib/app/modules/chapter/views/chapter_view.dart \
             lib/app/core/utils/reader_progress.dart \
@@ -69,7 +88,8 @@ jobs:
             test/mangadar_source_test.dart \
             test/dilar_source_test.dart \
             test/seanovel_source_test.dart \
-            test/reader_progress_test.dart
+            test/reader_progress_test.dart \
+            test/profile_preferences_test.dart
 
       - name: Run tests
         run: flutter test --no-pub

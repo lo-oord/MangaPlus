@@ -7,8 +7,11 @@ import 'package:mangaplus/app/modules/download/controllers/download_controller.d
 import 'package:mangaplus/app/modules/genre/controllers/genre_controller.dart';
 import 'package:mangaplus/app/modules/history/controllers/history_controller.dart';
 import 'package:mangaplus/app/modules/home/controllers/home_controller.dart';
+import 'package:mangaplus/app/modules/profile/controllers/account_security_controller.dart';
 import 'package:mangaplus/app/modules/profile/controllers/profile_controller.dart';
+import 'package:mangaplus/app/modules/profile/controllers/reader_preferences_controller.dart';
 import 'package:mangaplus/app/modules/profile/controllers/reading_stats_controller.dart';
+import 'package:mangaplus/app/modules/profile/controllers/storage_usage_controller.dart';
 import 'package:mangaplus/app/modules/search/controllers/search_controller.dart';
 
 import '../controllers/main_controller.dart';
@@ -23,13 +26,21 @@ class MainBinding extends Bindings {
     if (!Get.isRegistered<ReadingStatsService>()) {
       Get.put<ReadingStatsService>(ReadingStatsService(), permanent: true);
     }
+    if (!Get.isRegistered<ReaderPreferencesController>()) {
+      Get.lazyPut<ReaderPreferencesController>(() => ReaderPreferencesController());
+    }
+    if (!Get.isRegistered<StorageUsageController>()) {
+      Get.lazyPut<StorageUsageController>(() => StorageUsageController());
+    }
+    if (!Get.isRegistered<AccountSecurityController>()) {
+      Get.lazyPut<AccountSecurityController>(() => AccountSecurityController());
+    }
     Get.lazyPut<MainController>(() => MainController());
     Get.lazyPut<HomeController>(() => HomeController());
     Get.lazyPut<GenreController>(() => GenreController());
     Get.lazyPut<ProfileController>(() => ProfileController());
     Get.lazyPut<ReadingStatsController>(() => ReadingStatsController());
-    Get.lazyPut<HistoryController>(() => HistoryController());
-    Get.lazyPut<DownloadController>(() => DownloadController());
+    Get.lazyPut<HistoryController>(() => HistoryController());    Get.lazyPut<DownloadController>(() => DownloadController());
     Get.lazyPut<SearchController>(() => SearchController());
     Get.lazyPut<BookmarkController>(() => BookmarkController());
   }

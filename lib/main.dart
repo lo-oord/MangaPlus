@@ -15,6 +15,7 @@ import 'package:workmanager/workmanager.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/navigation/app_navigation.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/theme/theme.dart';
 import 'package:mangaplus/app/core/theme/theme_mode_preference.dart';
 import 'package:mangaplus/app/data/services/notification_presentation.dart';
@@ -361,10 +362,17 @@ void main() async {
       // `bidiTextDirection`. Changing the shell direction would silently
       // reverse reader paging, so the direction strategy is part of the design
       // system instead of being decided per screen.
-      builder: (context, child) => Directionality(
-        textDirection: TextDirection.ltr,
-        child: child ?? const SizedBox.shrink(),
-      ),
+      builder: (context, child) {
+        // Keep the static AppColors facade aligned with the theme Flutter
+        // resolved for the whole app, including ThemeMode.system.
+        AppColors.syncBrightness(
+          Theme.of(context).brightness == Brightness.dark,
+        );
+        return Directionality(
+          textDirection: TextDirection.ltr,
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       initialRoute: Routes.SPLASH,
       getPages: AppPages.routes,
     ),

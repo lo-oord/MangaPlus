@@ -9,14 +9,21 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/theme/theme_mode_preference.dart';
+import 'package:mangaplus/app/core/utils/app_permission_status.dart';
 import 'package:mangaplus/app/data/models/user_profile.dart';
 import 'package:mangaplus/app/data/services/account_sync_service.dart';
+import 'package:mangaplus/app/data/services/app_notification_service.dart';
 import 'package:mangaplus/app/data/services/bookmark_state_service.dart';
 import 'package:mangaplus/app/data/services/auth_service.dart';
 import 'package:mangaplus/app/data/services/notification_presentation.dart';
 import 'package:mangaplus/app/data/services/chapter_update_service.dart';
 import 'package:mangaplus/app/modules/history/controllers/history_controller.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+/// Outcome of the last library sync attempt, surfaced verbatim in settings.
+enum AccountSyncState { idle, syncing, failed }
+
 
 /// Sole local copy of the last known signed-in profile.
 ///
@@ -88,7 +95,7 @@ DateTime _parseLocalDate(dynamic value) {
 class ProfileController extends GetxController {
   final GetStorage _storage = GetStorage();
   final RxString selectedLanguage = 'ar_SA'.obs;
-  final RxBool isDarkMode = true.obs;
+  final Rx<ThemeMode> themeMode = ThemeMode.dark.obs;
   final Rxn<UserProfile> accountProfile = Rxn<UserProfile>();
   final RxBool accountLoading = false.obs;
   final RxBool savingAccount = false.obs;
@@ -96,6 +103,11 @@ class ProfileController extends GetxController {
   final RxBool mangaNotificationsEnabled = true.obs;
   final RxBool novelNotificationsEnabled = true.obs;
   final RxBool recentOfflineAuthAction = false.obs;
+  final Rx<AccountSyncState> syncState = AccountSyncState.idle.obs;
+  final Rxn<DateTime> lastSyncAt = Rxn<DateTime>();
+  final Rx<AppPermissionStatus> notificationPermission =
+      AppPermissionStatus.unknown.obs;
+  final RxInt unreadNotifications = 0.obs;
   int _themeRevision = 0;
   late final AuthService? _auth;
   StreamSubscription<User?>? _authStateSubscription;
@@ -108,11 +120,15 @@ class ProfileController extends GetxController {
         user.providerData.any((provider) => provider.providerId == 'password');
   }
 
+  /// True when the signed-in account is a guest, which cannot use account-level
+  /// actions such as sync, e-mail management or permanent deletion.
+  bool get isGuestAccount => accountProfile.value?.isGuest ?? false;
+
   @override
   void onInit() {
     selectedLanguage.value = _storage.read<String>('language') ?? 'ar_SA';
-    final savedTheme = ThemeModePreference.fromStorage(_storage.read<String>('themeMode'));
-    isDarkMode.value = savedTheme == ThemeMode.dark;
+    themeMode.value =
+        ThemeModePreference.fromStorage(_storage.read<String>('themeMode'));
     _auth = Get.isRegistered<AuthService>() ? Get.find<AuthService>() : null;
     final chapterService = Get.find<ChapterUpdateService>();
     favoritesNotificationsEnabled.value = chapterService.backgroundEnabled;
@@ -125,14 +141,11 @@ class ProfileController extends GetxController {
     );
 
     final currentUser = _auth?.currentUser;
-    if (currentUser == null) {
-      accountProfile.value = null;
-      accountLoading.value = false;
-    } else if (currentUser.isAnonymous) {
-      unawaited(_loadAccount());
-    } else {
-      unawaited(_loadAccount());
-    }
+    unawaited(_loadAccount());
+
+    unawaited(_loadSyncStatus());
+    unawaited(refreshNotificationPermission());
+    unawaited(refreshUnreadNotifications());
 
     _authStateSubscription = _auth?.authStateChanges.listen(_onAuthStateChanged);
     super.onInit();
@@ -143,6 +156,9 @@ class ProfileController extends GetxController {
       _clearCachedAuthState();
       accountProfile.value = null;
       accountLoading.value = false;
+      unreadNotifications.value = 0;
+      lastSyncAt.value = null;
+      syncState.value = AccountSyncState.idle;
       return;
     }
 
@@ -279,12 +295,17 @@ class ProfileController extends GetxController {
         );
         await _storage.write('language', language);
       }
+      // A device that explicitly chose `system` keeps that choice; the remote
+      // document only ever stores a resolved `dark`/`light` value.
+      final localTheme = _storage.read<String>('themeMode');
       if ((theme == 'dark' || theme == 'light') &&
+          localTheme != ThemeModePreference.system &&
           _themeRevision == themeRevisionAtStart) {
-        isDarkMode.value = theme == 'dark';
-        Get.changeThemeMode(theme == 'dark' ? ThemeMode.dark : ThemeMode.light);
+        final mode = theme == 'dark' ? ThemeMode.dark : ThemeMode.light;
+        themeMode.value = mode;
+        Get.changeThemeMode(mode);
         AppColors.refreshTheme(theme == 'dark');
-        await _storage.write('themeMode', theme);
+        await _storage.write('themeMode', ThemeModePreference.toStorage(mode));
       }
     } catch (_) {
       // Profile display must not depend on optional remote settings.
@@ -295,6 +316,7 @@ class ProfileController extends GetxController {
       await AccountSyncService()
           .syncLocalData()
           .timeout(const Duration(seconds: 15));
+      await _loadSyncStatus();
     } catch (_) {
       // Keep account rendering independent from background library sync.
     }
@@ -357,33 +379,62 @@ class ProfileController extends GetxController {
     }
   }
 
-  Future<void> updateDisplayName(String value) async {
+  Future<bool> updateDisplayName(String value) async {
     final auth = _auth;
-    if (auth == null) return;
+    if (auth == null) return false;
     savingAccount.value = true;
     try {
       final updated = await auth.updateDisplayName(value);
       accountProfile.value = updated;
       unawaited(_saveLocalAccount(updated));
       _message('تم حفظ التغييرات'.tr, 'تم تحديث الاسم الظاهر'.tr);
+      return true;
     } catch (error) {
-      _message('تعذر حفظ الإعداد'.tr, error.toString());
+      _message('تعذر حفظ الإعداد'.tr, _authError(error));
+      return false;
     } finally {
       savingAccount.value = false;
     }
   }
 
-  Future<void> updateBio(String value) async {
+  Future<bool> updateBio(String value) async {
     final auth = _auth;
-    if (auth == null) return;
+    if (auth == null) return false;
     savingAccount.value = true;
     try {
       final updated = await auth.updateBio(value);
       accountProfile.value = updated;
       unawaited(_saveLocalAccount(updated));
       _message('تم حفظ التغييرات'.tr, 'تم تحديث النبذة'.tr);
+      return true;
     } catch (error) {
-      _message('تعذر حفظ الإعداد'.tr, error.toString());
+      _message('تعذر حفظ الإعداد'.tr, _authError(error));
+      return false;
+    } finally {
+      savingAccount.value = false;
+    }
+  }
+
+
+  /// Saves the editable profile fields in one call so the screen shows a single
+  /// success or failure state instead of one per field.
+  Future<bool> saveProfile({
+    required String displayName,
+    required String bio,
+  }) async {
+    final auth = _auth;
+    if (auth == null) return false;
+    savingAccount.value = true;
+    try {
+      await auth.updateDisplayName(displayName);
+      final updated = await auth.updateBio(bio);
+      accountProfile.value = updated;
+      unawaited(_saveLocalAccount(updated));
+      _message('تم حفظ التغييرات'.tr, 'تم تحديث بيانات ملفك الشخصي'.tr);
+      return true;
+    } catch (error) {
+      _message('تعذر حفظ التعديلات'.tr, _authError(error));
+      return false;
     } finally {
       savingAccount.value = false;
     }
@@ -450,6 +501,9 @@ class ProfileController extends GetxController {
         }
       }
       accountProfile.value = null;
+      unreadNotifications.value = 0;
+      lastSyncAt.value = null;
+      syncState.value = AccountSyncState.idle;
     }
     catch (error) { _message('تعذر تسجيل الخروج'.tr, error.toString()); }
   }
@@ -460,28 +514,131 @@ class ProfileController extends GetxController {
     Get.updateLocale(languageCode == 'en_US' ? const Locale('en', 'US') : const Locale('ar', 'SA'));
     await _storage.write('language', languageCode);
     try {
-      await _auth?.saveSettings(language: languageCode, themeMode: isDarkMode.value ? 'dark' : 'light');
+      await _auth?.saveSettings(
+        language: languageCode,
+        themeMode: ThemeModePreference.toRemote(
+          themeMode.value,
+          systemIsDark: _systemIsDark,
+        ),
+      );
     } catch (error) {
       _message('تعذر حفظ الإعداد'.tr, error.toString());
     }
     try { await NotificationPresentation.updateLanguage(languageCode); } catch (_) {}
   }
 
-  Future<void> changeTheme(bool darkMode) async {
+  bool get _systemIsDark =>
+      WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+      Brightness.dark;
+
+  /// Applies the chosen theme immediately and persists it.
+  ///
+  /// `system` is stored locally only; the remote settings document still accepts
+  /// `dark`/`light`, so it receives the brightness currently in use.
+  Future<void> changeThemeMode(ThemeMode mode) async {
     _themeRevision++;
-    final mode = darkMode ? ThemeMode.dark : ThemeMode.light;
-    isDarkMode.value = darkMode;
+    themeMode.value = mode;
     Get.changeThemeMode(mode);
-    AppColors.refreshTheme(darkMode);
+    final resolvedDark = switch (mode) {
+      ThemeMode.light => false,
+      ThemeMode.dark => true,
+      ThemeMode.system => _systemIsDark,
+    };
+    AppColors.refreshTheme(resolvedDark);
     try {
       await _storage.write('themeMode', ThemeModePreference.toStorage(mode));
     } catch (error) {
       _message('تعذر حفظ الإعداد'.tr, error.toString());
     }
     try {
-      await _auth?.saveSettings(language: selectedLanguage.value, themeMode: darkMode ? 'dark' : 'light');
+      await _auth?.saveSettings(
+        language: selectedLanguage.value,
+        themeMode: ThemeModePreference.toRemote(mode, systemIsDark: _systemIsDark),
+      );
     } catch (error) {
       _message('تعذر حفظ الإعداد'.tr, error.toString());
+    }
+  }
+
+  /// Loads the last successful sync time from local storage.
+  Future<void> _loadSyncStatus() async {
+    final uid = _auth?.currentUser?.uid;
+    if (uid == null) {
+      lastSyncAt.value = null;
+      return;
+    }
+    lastSyncAt.value = AccountSyncService().lastSyncAt(uid);
+  }
+
+  /// Runs a real library sync and reports the outcome instead of assuming it
+  /// worked.
+  Future<void> syncNow() async {
+    final user = _auth?.currentUser;
+    if (user == null) {
+      _message('تعذرت المزامنة'.tr, 'سجّل الدخول لمزامنة بياناتك'.tr);
+      return;
+    }
+    if (user.isAnonymous) {
+      _message('تعذرت المزامنة'.tr, 'وضع الضيف يحفظ بياناتك على هذا الجهاز فقط'.tr);
+      return;
+    }
+    if (syncState.value == AccountSyncState.syncing) return;
+    syncState.value = AccountSyncState.syncing;
+    try {
+      await AccountSyncService()
+          .syncLocalData(force: true)
+          .timeout(const Duration(seconds: 20));
+      lastSyncAt.value = AccountSyncService().lastSyncAt(user.uid) ?? DateTime.now();
+      syncState.value = AccountSyncState.idle;
+      _message('تمت المزامنة'.tr, 'تم تحديث بياناتك من الحساب'.tr);
+    } catch (error) {
+      syncState.value = AccountSyncState.failed;
+      _message('تعذرت المزامنة'.tr, 'تحقق من اتصالك بالإنترنت وحاول مجددًا'.tr);
+    }
+  }
+
+  /// Reads the current notification permission so the UI can show the truth.
+  Future<void> refreshNotificationPermission() async {
+    try {
+      final status = await Permission.notification.status;
+      notificationPermission.value =
+          AppPermissionStatus.fromPermissionStatus(status);
+    } catch (_) {
+      notificationPermission.value = AppPermissionStatus.unknown;
+    }
+  }
+
+  /// Asks for the notification permission; Android only shows the dialog once,
+  /// after which the user has to be sent to the system settings.
+  Future<void> requestNotificationPermission() async {
+    try {
+      final status = await Permission.notification.request();
+      notificationPermission.value =
+          AppPermissionStatus.fromPermissionStatus(status);
+      if (notificationPermission.value.mustOpenSettings) {
+        await openAppSettings();
+      }
+    } catch (_) {
+      await refreshNotificationPermission();
+    }
+  }
+
+  Future<void> openNotificationSettings() async {
+    try {
+      await openAppSettings();
+    } finally {
+      await refreshNotificationPermission();
+    }
+  }
+
+  /// Counts the unread inbox entries so the header badge reflects real state.
+  Future<void> refreshUnreadNotifications() async {
+    if (!Get.isRegistered<AppNotificationService>()) return;
+    try {
+      final items = await Get.find<AppNotificationService>().loadNotifications();
+      unreadNotifications.value = items.where((item) => !item.isRead).length;
+    } catch (_) {
+      // Offline or unavailable inbox: keep the previous count.
     }
   }
 

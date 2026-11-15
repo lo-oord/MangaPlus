@@ -1,14 +1,14 @@
-import 'dart:convert';
-
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/navigation/app_navigation.dart';
 import 'package:mangaplus/app/core/theme/app_palette.dart';
 import 'package:mangaplus/app/core/theme/design_tokens.dart';
-import 'package:mangaplus/app/data/models/user_profile.dart';
 import 'package:mangaplus/app/modules/profile/controllers/profile_controller.dart';
+import 'package:mangaplus/app/modules/profile/controllers/reader_preferences_controller.dart';
+import 'package:mangaplus/app/modules/profile/controllers/storage_usage_controller.dart';
 import 'package:mangaplus/app/modules/profile/views/reading_stats_panel.dart';
+import 'package:mangaplus/app/modules/profile/widgets/profile_identity_card.dart';
+import 'package:mangaplus/app/modules/profile/widgets/profile_quick_actions.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/widgets/app_buttons.dart';
 import 'package:mangaplus/app/widgets/app_dialogs.dart';
@@ -17,11 +17,12 @@ import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/mangaplus_app_bar.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
 
-/// Settings hub.
+/// The unified profile and settings screen.
 ///
-/// The layout is built from the shared [AppSection] / [AppSettingsTile] pair, so
-/// row heights, icon containers, dividers and section rhythm match every other
-/// grouped screen in the app.
+/// One screen covers the whole user journey: the account card, a compact
+/// reading summary, quick actions, then the real account, appearance, reader,
+/// library, notification and support sections. Every tile opens an existing
+/// destination or writes a value the app already reads.
 class ProfileView extends GetView<ProfileController> {
   const ProfileView({super.key});
 
@@ -34,52 +35,173 @@ class ProfileView extends GetView<ProfileController> {
             () => ListView(
               padding: AppSpacing.pageInsets,
               children: [
-                _ProfileHeader(
+                ProfileIdentityCard(
                   controller: controller,
-                  onOpenDetails: () => AppNavigation.toNamed(Routes.PROFILE_DETAILS),
-                  onEditName: _editDisplayName,
+                  onEdit: () => AppNavigation.toNamed(Routes.PROFILE_EDIT),
+                  onOpenAuth: () => AppNavigation.toNamed(Routes.AUTH),
+                  onManageAccount: () =>
+                      AppNavigation.toNamed(Routes.ACCOUNT_SETTINGS),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 const ReadingStatsPanel(),
                 const SizedBox(height: AppSpacing.section),
                 AppSection(
-                  title: 'التفضيلات'.tr,
+                  title: 'إجراءات سريعة'.tr,
                   children: [
-                    _languageTile(context),
+                    Obx(() => ProfileQuickActions(controller: controller)),
+                  ],
+                ),
+                AppSection(
+                  title: 'الحساب'.tr,
+                  subtitle: 'مدير الحساب والأمان'.tr,
+                  children: [
                     AppSettingsTile(
-                      icon: controller.isDarkMode.value
-                          ? Icons.dark_mode_rounded
-                          : Icons.light_mode_rounded,
-                      title: 'المظهر'.tr,
-                      subtitle:
-                          controller.isDarkMode.value ? 'داكن'.tr : 'فاتح'.tr,
-                      switchValue: controller.isDarkMode.value,
-                      onSwitchChanged: controller.changeTheme,
+                      icon: Icons.manage_accounts_outlined,
+                      title: 'إدارة الحساب'.tr,
+                      subtitle: 'البريد، كلمة المرور، حذف الحساب'.tr,
+                      onTap: () =>
+                          AppNavigation.toNamed(Routes.ACCOUNT_SETTINGS),
                     ),
                   ],
                 ),
                 AppSection(
-                  title: 'مكتبتي'.tr,
+                  title: 'المظهر'.tr,
                   children: [
-                    AppSettingsTile(
-                      icon: Icons.notifications_none_rounded,
-                      title: 'الإشعارات'.tr,
-                      onTap: () => AppNavigation.toNamed(Routes.NOTIFICATIONS),
+                    _languageTile(context),
+                    Obx(
+                      () => AppSettingsTile(
+                        icon: Icons.dark_mode_rounded,
+                        title: 'المظهر'.tr,
+                        subtitle: _themeSubtitle(),
+                        switchValue:
+                            controller.themeMode.value == ThemeMode.dark,
+                        onSwitchChanged: (enabled) => controller
+                            .changeThemeMode(
+                              enabled ? ThemeMode.dark : ThemeMode.light,
+                            ),
+                      ),
                     ),
-                    AppSettingsTile(
-                      icon: Icons.history_rounded,
-                      title: 'سجل القراءة'.tr,
-                      onTap: () => AppNavigation.toNamed(Routes.HISTORY),
+                  ],
+                ),
+                AppSection(
+                  title: 'القارئ'.tr,
+                  subtitle: 'تُحفظ الإعدادات على هذا الجهاز'.tr,
+                  children: [
+                    _readerTile(
+                      context,
+                      icon: Icons.pinch_zoom_out_rounded,
+                      title: 'شكل العرض'.tr,
+                      value: Get.find<ReaderPreferencesController>().fit.value,
+                      options: const {
+                        'width': 'حسب العرض',
+                        'height': 'حسب الارتفاع',
+                        'screen': 'حسب الشاشة',
+                        'natural': 'طبيعي',
+                      },
+                      onSelect: Get.find<ReaderPreferencesController>().setFit,
                     ),
-                    AppSettingsTile(
-                      icon: Icons.download_outlined,
-                      title: 'التحميلات'.tr,
-                      onTap: () => AppNavigation.toNamed(Routes.DOWNLOAD),
+                    _readerTile(
+                      context,
+                      icon: Icons.read_more_rounded,
+                      title: 'وضع القراءة'.tr,
+                      value:
+                          Get.find<ReaderPreferencesController>().readingMode.value,
+                      options: const {
+                        'scroll': 'تمرير',
+                        'paged': 'صفحات',
+                      },
+                      onSelect:
+                          Get.find<ReaderPreferencesController>().setReadingMode,
                     ),
-                    AppSettingsTile(
-                      icon: Icons.storage_rounded,
-                      title: 'التخزين المحلي'.tr,
-                      onTap: () => AppNavigation.toNamed(Routes.LOCAL_LIBRARY),
+                    _readerTile(
+                      context,
+                      icon: Icons.swap_horiz_rounded,
+                      title: 'اتجاه الصفحات'.tr,
+                      value:
+                          Get.find<ReaderPreferencesController>().direction.value,
+                      options: const {
+                        'rtl': 'من اليمين إلى اليسار',
+                        'ltr': 'من اليسار إلى اليمين',
+                      },
+                      onSelect:
+                          Get.find<ReaderPreferencesController>().setDirection,
+                    ),
+                    _readerTile(
+                      context,
+                      icon: Icons.contrast_rounded,
+                      title: 'خلفية الصفحات'.tr,
+                      value:
+                          Get.find<ReaderPreferencesController>().background.value,
+                      options: const {
+                        'black': 'أسود',
+                        'white': 'أبيض',
+                        'gray': 'رمادي',
+                        'app': 'تطبيقي',
+                      },
+                      onSelect:
+                          Get.find<ReaderPreferencesController>().setBackground,
+                    ),
+                    _readerTile(
+                      context,
+                      icon: Icons.image_rounded,
+                      title: 'جودة الصور'.tr,
+                      value: Get.find<ReaderPreferencesController>().imageQuality
+                          .value,
+                      options: const {
+                        'low': 'منخفضة',
+                        'medium': 'متوسطة',
+                        'high': 'عالية',
+                      },
+                      onSelect: Get.find<ReaderPreferencesController>().setImageQuality,
+                    ),
+                    _readerTile(
+                      context,
+                      icon: Icons.screen_rotation_rounded,
+                      title: 'اتجاه الشاشة'.tr,
+                      value: Get.find<ReaderPreferencesController>().orientation
+                          .value,
+                      options: const {
+                        'auto': 'تلقائي',
+                        'portrait': 'عمودي',
+                        'landscape': 'أفقي',
+                      },
+                      onSelect: Get.find<ReaderPreferencesController>().setOrientation,
+                    ),
+                  ],
+                ),
+                AppSection(
+                  title: 'المكتبة والتزامن'.tr,
+                  subtitle: 'حالة مزامنة البيانات'.tr,
+                  children: [
+                    Obx(
+                      () => AppSettingsTile(
+                        icon: Icons.cloud_sync_rounded,
+                        title: 'حالة المزامنة'.tr,
+                        value: _syncValue(controller.syncState.value),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: () => controller.syncNow(),
+                      ),
+                    ),
+                    Obx(
+                      () => AppSettingsTile(
+                        icon: Icons.history_rounded,
+                        title: 'آخر مزامنة'.tr,
+                        value: controller.lastSyncAt.value == null
+                            ? 'لا متزامنة بعد'.tr
+                            : _formatSyncTime(controller.lastSyncAt.value!),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: () => controller.syncNow(),
+                      ),
+                    ),
+                    Obx(
+                      () => AppSettingsTile(
+                        icon: Icons.favorite_border_rounded,
+                        title: 'مزامنة المفضلة'.tr,
+                        subtitle:
+                            'مزامنة المفضلة وسجل القراءة مع حسابك'.tr,
+                        switchValue: controller.favoritesNotificationsEnabled.value,
+                        onSwitchChanged: controller.setFavoritesSync,
+                      ),
                     ),
                   ],
                 ),
@@ -87,38 +209,62 @@ class ProfileView extends GetView<ProfileController> {
                   title: 'الإشعارات'.tr,
                   subtitle: 'تنبيهات الفصول الجديدة'.tr,
                   children: [
-                    AppSettingsTile(
-                      icon: Icons.favorite_border_rounded,
-                      title: 'إشعارات المفضلات'.tr,
-                      subtitle: 'تنبيه عند توفر فصل جديد في أعمالك المحفوظة'.tr,
-                      switchValue:
-                          controller.favoritesNotificationsEnabled.value,
-                      onSwitchChanged: controller.setFavoritesNotifications,
+                    Obx(
+                      () => AppSettingsTile(
+                        icon: Icons.menu_book_rounded,
+                        title: 'إشعارات المانجا'.tr,
+                        switchValue: controller.mangaNotificationsEnabled.value,
+                        onSwitchChanged: controller.setMangaNotifications,
+                      ),
                     ),
-                    AppSettingsTile(
-                      icon: Icons.menu_book_rounded,
-                      title: 'إشعارات المانجا'.tr,
-                      switchValue: controller.mangaNotificationsEnabled.value,
-                      onSwitchChanged: controller.setMangaNotifications,
+                    Obx(
+                      () => AppSettingsTile(
+                        icon: Icons.auto_stories_rounded,
+                        title: 'إشعارات الروايات'.tr,
+                        switchValue: controller.novelNotificationsEnabled.value,
+                        onSwitchChanged: controller.setNovelNotifications,
+                      ),
                     ),
-                    AppSettingsTile(
-                      icon: Icons.auto_stories_rounded,
-                      title: 'إشعارات الروايات'.tr,
-                      switchValue: controller.novelNotificationsEnabled.value,
-                      onSwitchChanged: controller.setNovelNotifications,
+                    Obx(
+                      () => AppSettingsTile(
+                        icon: Icons.favorite_border_rounded,
+                        title: 'إشعارات المفضلات'.tr,
+                        subtitle: 'تنبيه عند توفر فصل جديد في أعمالك المحفوظة'.tr,
+                        switchValue: controller.favoritesNotificationsEnabled.value,
+                        onSwitchChanged: controller.setFavoritesNotifications,
+                      ),
                     ),
                   ],
                 ),
                 AppSection(
-                  title: 'حول التطبيق'.tr,
+                  title: 'التحميلات والتخزين'.tr,
+                  children: [
+                    _storageSection(context),
+                    AppSettingsTile(
+                      icon: Icons.storage_rounded,
+                      title: 'إدارة التنزيلات'.tr,
+                      subtitle: 'شاشة التحميلات والمكتبة المحلية'.tr,
+                      onTap: () => AppNavigation.toNamed(Routes.LOCAL_LIBRARY),
+                    ),
+                  ],
+                ),
+                AppSection(
+                  title: 'الدعم'.tr,
                   children: [
                     AppSettingsTile(
                       icon: Icons.info_outline_rounded,
                       title: 'حول التطبيق'.tr,
-                      value: 'الإصدار 1.1',
+                      value: 'الإصدار 1.1'.tr,
                       onTap: () => _showAboutDialog(context),
                     ),
                   ],
+                ),
+                AppButton(
+                  label: 'تسجيل الخروج'.tr,
+                  icon: Icons.logout_rounded,
+                  variant: AppButtonVariant.outline,
+                  expand: true,
+                  onPressed: () => controller.signOut(),
                 ),
               ],
             ),
@@ -126,78 +272,185 @@ class ProfileView extends GetView<ProfileController> {
         ),
       );
 
-  Widget _languageTile(BuildContext context) => PopupMenuButton<String>(
-        tooltip: 'اللغة'.tr,
-        onSelected: controller.changeLanguage,
-        itemBuilder: (_) => [
-          PopupMenuItem(value: 'ar_SA', child: Text('العربية'.tr)),
-          PopupMenuItem(value: 'en_US', child: Text('الإنجليزية'.tr)),
-        ],
-        child: AppSettingsTile(
-          icon: Icons.language_rounded,
-          title: 'اللغة'.tr,
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
+  String _themeSubtitle() {
+    switch (controller.themeMode.value) {
+      case ThemeMode.light:
+        return 'فاتح'.tr;
+      case ThemeMode.dark:
+        return 'داكن'.tr;
+      case ThemeMode.system:
+        return 'تلقائي (حسب الجهاز)'.tr;
+    }
+  }
+
+  String _syncValue(AccountSyncState state) {
+    switch (state) {
+      case AccountSyncState.idle:
+        return 'متزامن'.tr;
+      case AccountSyncState.syncing:
+        return 'جارٍ المزامنة'.tr;
+      case AccountSyncState.failed:
+        return 'فشلت المزامنة'.tr;
+    }
+  }
+
+  String _formatSyncTime(DateTime value) {
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return '${value.year}/$month/$day $hour:$minute';
+  }
+
+  Widget _storageSection(BuildContext context) {
+    final storage = Get.find<StorageUsageController>();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                controller.selectedLanguage.value == 'ar_SA'
-                    ? 'العربية'.tr
-                    : 'الإنجليزية'.tr,
-                style: Theme.of(context).textTheme.bodySmall,
+              Row(
+                children: [
+                  Icon(Icons.storage_rounded, color: context.palette.primary),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: Text(
+                      'استهلاك التخزين'.tr,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: AppSpacing.xxs),
-              Icon(
-                Icons.expand_more_rounded,
-                size: AppSizes.icon,
-                color: context.palette.icon,
+              const SizedBox(height: AppSpacing.sm),
+              Obx(
+                () => Text(
+                  'تنزيلات: ${storage.downloadedCount.value} • '
+                  'ذاكرة صور: ${storage.cacheSizeLabel} • '
+                  'ملفات مؤقتة: ${storage.incompleteSizeLabel}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'الملفات المؤقتة تبقى فقط بعد تعذّر التحميل، والتنزيلات تبقى ما تمت فعليًا.'.tr,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: context.palette.textSecondary, height: 1.6),
               ),
             ],
           ),
         ),
-      );
-
-  Future<void> _editDisplayName(String current) async {
-    final name = TextEditingController(text: current);
-    final result = await AppDialogs.show<bool>(
-      title: 'الاسم الظاهر'.tr,
-      icon: Icons.edit_outlined,
-      content: TextField(
-        controller: name,
-        autofocus: true,
-        maxLength: 40,
-        textInputAction: TextInputAction.done,
-        decoration: InputDecoration(
-          labelText: 'الاسم الظاهر'.tr,
-          hintText: 'اكتب اسمًا يظهر للآخرين'.tr,
-        ),
-        onSubmitted: (_) {
-          if (name.text.trim().isNotEmpty) Get.back<bool>(result: true);
-        },
-      ),
-      actions: [
-        AppButton(
-          label: 'إلغاء'.tr,
-          variant: AppButtonVariant.ghost,
-          compact: true,
-          onPressed: () => Get.back<bool>(result: false),
-        ),
-        AppButton(
-          label: 'حفظ'.tr,
-          compact: true,
-          onPressed: () {
-            final value = name.text.trim();
-            if (value.isNotEmpty && value.length <= 40) {
-              Get.back<bool>(result: true);
-            }
-          },
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            Expanded(
+              child: AppButton(
+                label: 'مسح ذاكرة الصور'.tr,
+                variant: AppButtonVariant.outline,
+                compact: true,
+                onPressed: () => storage.clearImageCache(),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: AppButton(
+                label: 'مسح الملفات المؤقتة'.tr,
+                variant: AppButtonVariant.outline,
+                compact: true,
+                onPressed: () => storage.clearTemporaryFiles(),
+              ),
+            ),
+          ],
         ),
       ],
     );
-    if (result == true) await controller.updateDisplayName(name.text);
-    name.dispose();
   }
 
-  void _showAboutDialog(BuildContext context) => AppDialogs.show<void>(
+  Widget _readerTile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String value,
+    required Map<String, String> options,
+    required Future<void> Function(String) onSelect,
+  }) {
+    return AppSettingsTile(
+      icon: icon,
+      title: title,
+      value: options[value] ?? value,
+      onTap: () => _openReaderChoice(
+        title: title,
+        value: value,
+        options: options,
+        onSelect: onSelect,
+      ),
+    );
+  }
+
+  Future<String?> _openReaderChoice({
+    required String title,
+    required String value,
+    required Map<String, String> options,
+    required Future<void> Function(String) onSelect,
+  }) async {
+    final selected = await AppDialogs.show<String>(
+      title: title,
+      icon: Icons.settings_adjustable_rounded,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final entry in options.entries)
+            AppSettingsTile(
+              icon: Icons.circle_outline_rounded,
+              title: entry.value,
+              value: entry.key,
+              onTap: () => Get.back<String>(result: entry.key),
+            ),
+        ],
+      ),
+    );
+    if (selected == null) return null;
+    await onSelect(selected);
+    return selected;
+  }
+
+  Widget _languageTile(BuildContext context) {
+    final controller = Get.find<ProfileController>();
+    return PopupMenuButton<String>(
+      tooltip: 'اللغة'.tr,
+      onSelected: controller.changeLanguage,
+      itemBuilder: (_) => [
+        PopupMenuItem(value: 'ar_SA', child: Text('العربية'.tr)),
+        PopupMenuItem(value: 'en_US', child: Text('الإنجليزية'.tr)),
+      ],
+      child: AppSettingsTile(
+        icon: Icons.language_rounded,
+        title: 'اللغة'.tr,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              controller.selectedLanguage.value == 'ar_SA'
+                  ? 'العربية'.tr
+                  : 'الإنجليزية'.tr,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(width: AppSpacing.xxs),
+            const Icon(Icons.expand_more_rounded),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showAboutDialog(BuildContext context) => AppDialogs.show<void>(
         title: 'حول التطبيق'.tr,
         icon: Icons.info_outline_rounded,
         content: Column(
@@ -218,270 +471,11 @@ class ProfileView extends GetView<ProfileController> {
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              '${'قارئ مانجا ومانهوا'.tr}\n${'الإصدار'.tr}: 1.1',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: context.palette.textSecondary,
-                    height: 1.7,
-                  ),
-            ),
-          ],
-        ),
-      );
-}
-
-/// Account summary at the top of Settings.
-class _ProfileHeader extends StatelessWidget {
-  const _ProfileHeader({
-    required this.controller,
-    required this.onOpenDetails,
-    required this.onEditName,
-  });
-
-  final ProfileController controller;
-  final VoidCallback onOpenDetails;
-  final ValueChanged<String> onEditName;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = context.palette;
-    if (controller.accountLoading.value) {
-      return const AppCard(
-        padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
-        child: Center(child: MangaPlusLoader(size: 42)),
-      );
-    }
-    final account = controller.accountProfile.value;
-    if (account == null || account.isGuest) {
-      final guestName = account?.displayName.trim() ?? '';
-      return AppCard(
-        onTap: onOpenDetails,
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 32,
-              backgroundColor: p.surfaceVariant,
-              backgroundImage:
-                  account == null ? null : _avatarProvider(account),
-              child: account == null ||
-                      (account.photoData.isEmpty && account.photoUrl.isEmpty)
-                  ? Icon(
-                      Icons.person_outline_rounded,
-                      size: 32,
-                      color: p.icon,
-                    )
-                  : null,
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    guestName.isEmpty ? 'حسابك في MangaPlus'.tr : guestName,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: AppSpacing.xxs),
-                  Text(
-                    'سجّل الدخول لمزامنة القراءة والمفضلة'.tr,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  AppButton(
-                    label: 'تسجيل الدخول'.tr,
-                    icon: Icons.login_rounded,
-                    compact: true,
-                    onPressed: controller.openAuth,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return AppCard(
-      onTap: onOpenDetails,
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(account.isVerified ? 3 : 0),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: account.isVerified
-                  ? Border.all(color: const Color(0xffD4A72C), width: 2.5)
-                  : null,
-            ),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                CircleAvatar(
-                  radius: 36,
-                  backgroundColor: p.surfaceVariant,
-                  backgroundImage: _avatarProvider(account),
-                  child: account.photoData.isEmpty && account.photoUrl.isEmpty
-                      ? Icon(Icons.person_rounded, size: 36, color: p.icon)
-                      : null,
-                ),
-                PositionedDirectional(
-                  bottom: -2,
-                  end: -2,
-                  child: IconButton(
-                    tooltip: 'تغيير الصورة'.tr,
-                    onPressed: controller.savingAccount.value
-                        ? null
-                        : controller.changeAvatar,
-                    icon: const Icon(Icons.camera_alt_rounded, size: 15),
-                    style: IconButton.styleFrom(
-                      minimumSize: const Size(30, 30),
-                      fixedSize: const Size(30, 30),
-                      padding: EdgeInsets.zero,
-                      foregroundColor: p.onPrimary,
-                      backgroundColor: p.primary,
-                      shape: const CircleBorder(),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        '@${account.username}',
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: p.textSecondary,
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                    ),
-                    if (account.isVerified) ...[
-                      const SizedBox(width: AppSpacing.xxs),
-                      const _VerifiedBadge(),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.xxs),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        account.displayName,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontSize: 19,
-                            ),
-                      ),
-                    ),
-                    AppIconButton(
-                      icon: Icons.edit_outlined,
-                      size: 18,
-                      dense: true,
-                      tooltip: 'تعديل الاسم الظاهر'.tr,
-                      onPressed: controller.savingAccount.value
-                          ? null
-                          : () => onEditName(account.displayName),
-                    ),
-                  ],
-                ),
-                if (account.isOfficialDeveloper) ...[
-                  const SizedBox(height: AppSpacing.xxs),
-                  const _OfficialBadge(),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  ImageProvider? _avatarProvider(UserProfile account) {
-    if (account.photoData.isNotEmpty) {
-      try {
-        return MemoryImage(base64Decode(account.photoData));
-      } catch (_) {
-        // بيانات الصورة القديمة أو غير الصالحة لا تمنع عرض رابط صورة احتياطي.
-      }
-    }
-    return account.photoUrl.isEmpty
-        ? null
-        : CachedNetworkImageProvider(account.photoUrl);
-  }
-}
-
-class _VerifiedBadge extends StatelessWidget {
-  const _VerifiedBadge();
-
-  static const Color _gold = Color(0xffD4A72C);
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: _gold.withValues(alpha: .13),
-          borderRadius: AppRadii.pillAll,
-          border: Border.all(color: _gold.withValues(alpha: .45)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.verified_rounded, size: 12, color: _gold),
-            const SizedBox(width: 3),
-            Text(
-              'موثق'.tr,
-              style: const TextStyle(
-                color: _gold,
-                fontSize: 10,
-                height: 1.1,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-      );
-}
-
-class _OfficialBadge extends StatelessWidget {
-  const _OfficialBadge();
-
-  static const Color _gold = Color(0xffD4A72C);
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: _gold.withValues(alpha: .10),
-          borderRadius: AppRadii.xsAll,
-          border: Border.all(color: _gold.withValues(alpha: .42)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.shield_rounded, size: 12, color: _gold),
-            const SizedBox(width: 4),
-            Flexible(
-              child: Text(
-                'حساب رسمي للمطور'.tr,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: _gold,
-                  fontSize: 10,
-                  height: 1.1,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              '${'قارئ مانجا ومانهوا'.tr}\n${'الإصدار'.tr}: 1.1,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: context.palette.textSecondary, height: 1.7),
             ),
           ],
         ),

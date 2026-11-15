@@ -36,7 +36,15 @@ class AuthService {
     final profile = UserProfile.fromFirestore(doc);
     final user = _auth.currentUser;
     if (user?.uid == uid && user?.isAnonymous == false) {
-      return profile.copyWith(emailVerified: user!.emailVerified);
+      // Firebase Auth is the source of truth for the address: a change sent
+      // with `verifyBeforeUpdateEmail` only lands there after the user confirms
+      // the new address, and the profile document cannot be edited to a value
+      // the token does not own.
+      final authEmail = user?.email;
+      return profile.copyWith(
+        email: (authEmail == null || authEmail.isEmpty) ? null : authEmail,
+        emailVerified: user!.emailVerified,
+      );
     }
     return profile;
   }
@@ -292,6 +300,81 @@ class AuthService {
     final credential = EmailAuthProvider.credential(email: email, password: currentPassword);
     await user.reauthenticateWithCredential(credential);
     await user.updatePassword(newPassword);
+  }
+
+  /// True when the account can confirm its identity with the local password.
+  bool get canReauthenticateWithPassword {
+    final user = currentUser;
+    if (user == null || user.isAnonymous) return false;
+    return user.providerData.any((provider) => provider.providerId == 'password');
+  }
+
+  /// True when the account signed in with Google and must confirm again with it.
+  bool get canReauthenticateWithGoogle {
+    final user = currentUser;
+    if (user == null || user.isAnonymous) return false;
+    return user.providerData.any((provider) => provider.providerId == 'google.com');
+  }
+
+  /// Confirms the current password, which Firebase requires before sensitive
+  /// operations such as changing the password, the address or deleting the user.
+  Future<void> reauthenticateWithPassword(String password) async {
+    final user = currentUser;
+    final email = user?.email;
+    if (user == null || email == null || user.isAnonymous) {
+      throw const AuthException('هذا الحساب لا يدعم التحقق بكلمة المرور.');
+    }
+    final credential = EmailAuthProvider.credential(email: email, password: password);
+    await user.reauthenticateWithCredential(credential);
+  }
+
+  /// Confirms a Google sign-in, the only way a Google account can reauthenticate.
+  Future<void> reauthenticateWithGoogle() async {
+    final user = currentUser;
+    if (user == null) {
+      throw const AuthException('لا يوجد حساب مسجل الدخول.');
+    }
+    final account = await _googleSignIn.signIn();
+    if (account == null) {
+      throw const AuthException('تم إلغاء التحقق من الهوية.');
+    }
+    final authentication = await account.authentication;
+    final credential = GoogleAuthProvider.credential(
+      accessToken: authentication.accessToken,
+      idToken: authentication.idToken,
+    );
+    await user.reauthenticateWithCredential(credential);
+  }
+
+  /// Sends a confirmation link to [newEmail]. The address only changes after the
+  /// user opens that link, so a typo cannot lock the account out; the app reads
+  /// the live address from Auth afterwards.
+  Future<void> requestEmailChange({
+    required String newEmail,
+    required String password,
+  }) async {
+    final user = currentUser;
+    final email = user?.email;
+    if (user == null || email == null || user.isAnonymous) {
+      throw const AuthException('هذا الحساب لا يدعم تغيير البريد الإلكتروني.');
+    }
+    final value = newEmail.trim();
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value)) {
+      throw const AuthException('أدخل بريدًا إلكترونيًا صالحًا.');
+    }
+    if (value.toLowerCase() == email.toLowerCase()) {
+      throw const AuthException('هذا هو البريد الإلكتروني الحالي بالفعل.');
+    }
+    await reauthenticateWithPassword(password);
+    await user.verifyBeforeUpdateEmail(value, _emailActionSettings());
+  }
+
+  /// Deletes the Firebase Authentication user. The caller must have
+  /// reauthenticated first, and must have removed the Firestore data already.
+  Future<void> deleteAuthUser() async {
+    final user = currentUser;
+    if (user == null) return;
+    await user.delete();
   }
 
   Future<UserProfile> _reserveUsernameAndCreateProfile({

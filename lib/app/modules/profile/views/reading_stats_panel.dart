@@ -15,7 +15,11 @@ import 'package:mangaplus/app/widgets/app_motion_widgets.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 
 class ReadingStatsPanel extends StatefulWidget {
-  const ReadingStatsPanel({super.key});
+  const ReadingStatsPanel({super.key, this.initiallyExpanded = false});
+
+  /// The profile hub keeps the dashboard collapsed; the dedicated statistics
+  /// page opens it straight away.
+  final bool initiallyExpanded;
 
   @override
   State<ReadingStatsPanel> createState() => _ReadingStatsPanelState();
@@ -32,6 +36,7 @@ class _ReadingStatsPanelState extends State<ReadingStatsPanel> {
       // panel and a settings group open with exactly the same motion.
       return AppExpandable(
         title: 'إحصاءات القراءة'.tr,
+        initiallyExpanded: widget.initiallyExpanded,
         subtitle: report.totalSeconds == 0 && report.completedChapters == 0
             ? 'ابدأ القراءة لبناء إحصاءاتك'.tr
             : '${_duration(report.totalSeconds)} • ${report.completedChapters} ${'فصل مكتمل'.tr}',

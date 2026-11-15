@@ -23,6 +23,17 @@ class AppColors {
     _themeRevision.value++;
   }
 
+  /// Aligns the palette facade with the brightness Flutter actually resolved.
+  ///
+  /// Called while the widget tree is building (the app root builder and
+  /// [ThemeAwareBuilder]), which is the only place that knows whether
+  /// [ThemeMode.system] currently resolves to dark. Listeners are intentionally
+  /// not notified: a notification during build is illegal, and the subtree that
+  /// calls this is already rebuilding.
+  static void syncBrightness(bool darkMode) {
+    _darkModeOverride = darkMode;
+  }
+
   static AppPalette get palette => _isDark ? AppPalette.dark : AppPalette.light;
 
   static AppPalette of(BuildContext context) => AppPalette.of(context);
