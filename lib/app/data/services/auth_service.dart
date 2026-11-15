@@ -209,6 +209,17 @@ class AuthService {
     return profile.copyWith(emailVerified: _auth.currentUser?.emailVerified == true);
   }
 
+  /// Reloads the current Firebase Auth user so token claims (e.g. email
+  /// verification) reflect changes made outside the app.
+  Future<void> reloadCurrentUser() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    await user.reload();
+    if (_auth.currentUser?.emailVerified == true) {
+      await _auth.currentUser!.getIdToken(true);
+    }
+  }
+
   Future<void> signOut() async {
     // End the Firebase session first so a slow Google SDK cannot leave the
     // user signed in to the app. Google provider cleanup is best-effort.

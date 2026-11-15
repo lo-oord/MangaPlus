@@ -21,6 +21,7 @@ class AccountSecurityController extends GetxController {
   final RxString lastError = ''.obs;
   final RxBool hasPendingDeletion = false.obs;
   final RxInt resendCooldown = 0.obs;
+  final RxInt statusRevision = 0.obs;
 
   Timer? _cooldownTimer;
 
@@ -45,6 +46,17 @@ class AccountSecurityController extends GetxController {
 
   String? get currentEmail => _auth.currentUser?.email;
   bool get emailVerified => _auth.currentUser?.emailVerified ?? false;
+
+  /// Reloads the Firebase user so verification state reflects a link the user
+  /// may have opened outside the app.
+  Future<void> refreshStatus() async {
+    try {
+      await _auth.reloadCurrentUser();
+    } catch (_) {
+      // Best-effort refresh; UI keeps showing the last known state.
+    }
+    statusRevision.value++;
+  }
 
   /// Sends the confirmation link for the current address.
   Future<bool> resendVerification() async {

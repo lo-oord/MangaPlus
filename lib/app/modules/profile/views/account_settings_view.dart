@@ -75,6 +75,7 @@ class AccountSettingsView extends StatelessWidget {
             );
           }
 
+          security.statusRevision.value;
           final email = security.currentEmail ?? account.email;
           final verified = security.emailVerified;
           final cooldown = security.resendCooldown.value;
@@ -132,6 +133,15 @@ class AccountSettingsView extends StatelessWidget {
                       onTap: (security.busy.value || cooldown > 0)
                           ? null
                           : () => _resend(security),
+                    ),
+                  if (!verified)
+                    AppSettingsTile(
+                      icon: Icons.refresh_rounded,
+                      title: 'تحديث حالة التحقق'.tr,
+                      subtitle: 'اضغط بعد تأكيد بريدك من الرسالة'.tr,
+                      onTap: security.busy.value
+                          ? null
+                          : () => _refreshVerification(security, profile),
                     ),
                   AppSettingsTile(
                     icon: Icons.edit_outlined,
@@ -203,6 +213,22 @@ class AccountSettingsView extends StatelessWidget {
           ? 'افتح بريدك وأكّد العنوان لإكمال التوثيق.'.tr
           : security.lastError.value,
       type: ok ? AppNoticeType.success : AppNoticeType.error,
+    );
+  }
+
+  Future<void> _refreshVerification(
+    AccountSecurityController security,
+    ProfileController profile,
+  ) async {
+    await security.refreshStatus();
+    await profile.refreshAccount();
+    final verified = security.emailVerified;
+    AppFeedback.show(
+      title: verified ? 'تم توثيق البريد'.tr : 'لم يُوثَّق البريد بعد'.tr,
+      message: verified
+          ? 'تم تحديث حالة التحقق بنجاح.'.tr
+          : 'إذا أكدت البريد من الرسالة، جرّب التحديث مرة أخرى بعد لحظات.'.tr,
+      type: verified ? AppNoticeType.success : AppNoticeType.info,
     );
   }
 

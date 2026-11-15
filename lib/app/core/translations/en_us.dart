@@ -741,4 +741,10 @@ const Map<String, String> enUS = {
   'وضع الضيف: بياناتك محفوظة على هذا الجهاز فقط': 'Guest mode: your data is stored on this device only',
   'يمكنك الإرسال مجددًا بعد': 'You can send again after',
   'ثانية': 'seconds',
+  'تحديث حالة التحقق': 'Refresh verification status',
+  'اضغط بعد تأكيد بريدك من الرسالة': 'Tap after confirming your email from the message',
+  'تم توثيق البريد': 'Email verified',
+  'لم يُوثَّق البريد بعد': 'Email not verified yet',
+  'تم تحديث حالة التحقق بنجاح': 'Verification status updated successfully',
+  'إذا أكدت البريد من الرسالة، جرّب التحديث مرة أخرى بعد لحظات': 'If you confirmed the email from the message, try refreshing again in a moment',
 };
