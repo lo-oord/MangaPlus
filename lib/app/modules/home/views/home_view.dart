@@ -7,8 +7,10 @@ import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/translations/content_localization.dart';
 import 'package:mangaplus/app/data/models/comic.dart';
 import 'package:mangaplus/app/modules/home/controllers/home_controller.dart';
+import 'package:mangaplus/app/modules/home/views/home_skeleton.dart';
 import 'package:mangaplus/app/routes/app_pages.dart';
 import 'package:mangaplus/app/data/sources/source_brand.dart';
+import 'package:mangaplus/app/widgets/app_skeleton.dart';
 import 'package:mangaplus/app/widgets/custom_card_normal.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 import 'package:mangaplus/app/widgets/theme_aware_builder.dart';
@@ -103,10 +105,7 @@ class HomeView extends GetView<HomeController> {
                     return _buildInlineGenrePage();
                   }
                   if (controller.isLoading.value) {
-                    return BrandState(
-                      title: 'جارٍ تحميل المحتوى'.tr,
-                      loading: true,
-                    );
+                    return const HomeSkeleton();
                   }
                   final hasContent = controller.heroComics.isNotEmpty ||
                       controller.comicData.value.comicsList.isNotEmpty;
@@ -349,10 +348,7 @@ class HomeView extends GetView<HomeController> {
             Expanded(
               child: Obx(() {
                 if (controller.isGenreLoading.value) {
-                  return BrandState(
-                    title: 'جارٍ تحميل التصنيف'.tr,
-                    loading: true,
-                  );
+                  return const ComicGridSkeleton();
                 }
                 if (controller.genreHasError.value &&
                     controller.genreComics.isEmpty) {
@@ -434,7 +430,7 @@ class HomeView extends GetView<HomeController> {
   Widget _buildHeroImage(BuildContext context) {
     return Obx(() {
       if (controller.isLoading.value) {
-        return BrandState(title: 'جارٍ تحميل المحتوى'.tr, loading: true);
+        return const HomeHeroSkeleton();
       }
       if (controller.heroComics.isEmpty) return const SizedBox.shrink();
       return Column(
@@ -730,8 +726,8 @@ class KomikCardsSection extends GetView<HomeController> {
           if (controller.isLoadingMore.value)
             const SliverToBoxAdapter(
               child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 20),
-                child: Center(child: MangaPlusLoader(size: 42)),
+                padding: EdgeInsets.fromLTRB(20, 0, 20, 14),
+                child: AppSkeleton(child: ComicCardsRowSkeleton()),
               ),
             ),
           if (controller.loadMoreError.value)
@@ -844,7 +840,13 @@ class _InlinePaginationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (loading) return const Center(child: MangaPlusLoader(size: 42));
+    if (loading) {
+      return LayoutBuilder(
+        builder: (context, constraints) => AppSkeleton(
+          child: ComicCardSkeleton(width: constraints.maxWidth),
+        ),
+      );
+    }
     return Container(
       decoration: BoxDecoration(
         color: AppColors.searchBar,
