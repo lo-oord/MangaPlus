@@ -76,6 +76,8 @@ jobs:
 
       - name: Build APKs
         run: |
+          set -euo pipefail
+
           flutter build apk --release --target-platform android-arm64
           cp build/app/outputs/flutter-apk/app-release.apk MangaPlus-arm64-v8a.apk
 
@@ -102,14 +104,27 @@ jobs:
             echo "Verified: $apk"
           done
 
-      - name: Upload APK artifacts
+      - name: Upload ARM64 APK
         uses: actions/upload-artifact@v4
         with:
-          name: MangaPlus-android-release-1.1.0
-          path: |
-            MangaPlus-arm64-v8a.apk
-            MangaPlus-armeabi-v7a.apk
-            MangaPlus-universal.apk
+          name: MangaPlus-arm64-v8a
+          path: MangaPlus-arm64-v8a.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload ARM32 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MangaPlus-armeabi-v7a
+          path: MangaPlus-armeabi-v7a.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Universal APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MangaPlus-universal
+          path: MangaPlus-universal.apk
           if-no-files-found: error
           retention-days: 14
 
