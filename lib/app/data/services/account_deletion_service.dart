@@ -140,18 +140,7 @@ class AccountDeletionService {
         .collection('private');
 
     for (final name in _privateDocuments) {
-      final document = private.doc(name);
-      // Deleting a document does not touch its subcollections, so every
-      // subcollection is listed and emptied first.
-      try {
-        final subcollections = await document.listCollections();
-        for (final collection in subcollections) {
-          await _deleteCollection(collection);
-        }
-      } catch (_) {
-        // A document that does not exist has no subcollections to walk.
-      }
-      await document.delete();
+      await private.doc(name).delete();
     }
 
     // Reading statistics: every session first, then the preferences document.
