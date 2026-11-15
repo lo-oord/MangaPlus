@@ -52,6 +52,31 @@ class _ChapterViewState extends State<ChapterView>
   late final ReaderChromeAutoHide _chromeAutoHide =
       ReaderChromeAutoHide(onHide: _autoHideChrome);
 
+  Offset? _novelPointerStart;
+  DateTime? _novelPointerTime;
+
+  /// SelectionArea wins the gesture arena for taps, so tapping the novel text
+  /// never reached the chrome toggle. Raw pointer events still arrive here and
+  /// a short, stationary tap is treated as a chrome toggle.
+  void _onNovelPointerDown(PointerDownEvent event) {
+    _novelPointerStart = event.position;
+    _novelPointerTime = DateTime.now();
+  }
+
+  void _onNovelPointerUp(PointerUpEvent event) {
+    final start = _novelPointerStart;
+    final at = _novelPointerTime;
+    _novelPointerStart = null;
+    _novelPointerTime = null;
+    if (start == null || at == null) return;
+    if ((event.position - start).distance > 14) return;
+    if (DateTime.now().difference(at) > const Duration(milliseconds: 350)) {
+      return;
+    }
+    c.toggleNavigationVisibility();
+    _noteChromeInteraction();
+  }
+
   Ticker? _autoScrollTicker;
   Duration _lastTick = Duration.zero;
   Ticker? _mangaAutoScrollTicker;
@@ -604,9 +629,11 @@ class _ChapterViewState extends State<ChapterView>
         _scheduleKeyPrune();
         return ColoredBox(
           color: palette.background,
-          child: GestureDetector(
+          child: Listener(
             behavior: HitTestBehavior.translucent,
-            onTap: c.toggleNavigationVisibility,
+            onPointerDown: _onNovelPointerDown,
+            onPointerUp: _onNovelPointerUp,
+            onPointerCancel: (_) => _novelPointerStart = null,
             child: NotificationListener<ScrollNotification>(
               onNotification: (notification) {
                 if (notification.depth != 0) return false;
@@ -1010,10 +1037,7 @@ class _ChapterViewState extends State<ChapterView>
                   chapterTitle: title,
                   pageLabel: pageLabel,
                   progress: progress,
-                  speaking: c.novelSpeechPlaying.value,
-                  paused: c.novelSpeechPaused.value,
                   onBack: Get.back,
-                  onTts: () => _openNovelTtsPanel(context),
                   onBookmark: _bookmarkCurrentPosition,
                   onTools: () => _openTools(context),
                   onInteraction: _noteChromeInteraction,
@@ -1032,9 +1056,8 @@ class _ChapterViewState extends State<ChapterView>
                   chapterTitle: title,
                   pageLabel: pageLabel,
                   progress: progress,
-                  autoScroll: c.novelAutoScroll.value,
-                  onToggleAutoScroll: () =>
-                      c.setNovelAutoScroll(!c.novelAutoScroll.value),
+                  listening: c.novelSpeechPlaying.value,
+                  onListen: () => _openNovelTtsPanel(context),
                   onSeek: c.seekReaderProgress,
                   onSeekEnd: c.persistReaderProgress,
                   onChapters: () => _openChapterList(context),

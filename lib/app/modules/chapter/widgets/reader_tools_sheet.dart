@@ -43,8 +43,10 @@ class _ReaderToolsSheet extends StatefulWidget {
 
 class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 5, vsync: this);
   ChapterController get c => Get.find<ChapterController>();
+  late final bool _isNovel = c.isNovel;
+  late final TabController _tabs =
+      TabController(length: _isNovel ? 3 : 5, vsync: this);
 
   @override
   void dispose() {
@@ -125,25 +127,37 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
                 fontWeight: FontWeight.w800,
                 fontSize: 12.5,
               ),
-              tabs: const [
-                Tab(text: 'العرض'),
-                Tab(text: 'التنقل'),
-                Tab(text: 'المظهر'),
-                Tab(text: 'الأداء'),
-                Tab(text: 'المزيد'),
-              ],
+              tabs: _isNovel
+                  ? const [
+                      Tab(text: 'المظهر'),
+                      Tab(text: 'التنقل'),
+                      Tab(text: 'المزيد'),
+                    ]
+                  : const [
+                      Tab(text: 'العرض'),
+                      Tab(text: 'التنقل'),
+                      Tab(text: 'المظهر'),
+                      Tab(text: 'الأداء'),
+                      Tab(text: 'المزيد'),
+                    ],
             ),
             Expanded(
               child: Obx(
                 () => TabBarView(
                   controller: _tabs,
-                  children: [
-                    _displayTab(),
-                    _navigationTab(),
-                    _appearanceTab(),
-                    _performanceTab(),
-                    _moreTab(),
-                  ],
+                  children: _isNovel
+                      ? [
+                          _appearanceTab(),
+                          _novelNavigationTab(),
+                          _moreTab(),
+                        ]
+                      : [
+                          _displayTab(),
+                          _navigationTab(),
+                          _appearanceTab(),
+                          _performanceTab(),
+                          _moreTab(),
+                        ],
                 ),
               ),
             ),
@@ -505,6 +519,62 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
     ]);
   }
 
+  /// Novel navigation deliberately has no page grid, page picker or image
+  /// controls: those belong to the manga reader. It lists what a text reader
+  /// actually uses.
+  Widget _novelNavigationTab() {
+    return _tabList([
+      _section('الفصول', Icons.layers_rounded),
+      Row(
+        children: [
+          Expanded(
+            child: _actionCard(
+              icon: Icons.chevron_right_rounded,
+              label: 'الفصل التالي',
+              enabled: c.nextChapterId != null,
+              onTap: () => _goChapter(c.nextChapterId, reverse: false),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _actionCard(
+              icon: Icons.chevron_left_rounded,
+              label: 'الفصل السابق',
+              enabled: c.previousChapterId != null,
+              onTap: () => _goChapter(c.previousChapterId, reverse: true),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      _actionCard(
+        icon: Icons.format_list_numbered_rounded,
+        label: 'قائمة الفصول الكاملة',
+        onTap: () => _openChapterList(context),
+      ),
+      _section('العلامات المرجعية', Icons.bookmarks_outlined),
+      _actionCard(
+        icon: Icons.bookmark_add_outlined,
+        label: 'حفظ موضع القراءة الحالي',
+        onTap: () async {
+          await c.saveReaderBookmark();
+          AppFeedback.show(title: 'العلامات', message: 'تم حفظ الموضع.');
+        },
+      ),
+      _actionCard(
+        icon: Icons.bookmarks_rounded,
+        label: 'عرض العلامات (${c.readerBookmarks.length})',
+        onTap: () => _openBookmarks(context),
+      ),
+      _section('البحث', Icons.search_rounded),
+      _actionCard(
+        icon: Icons.search_rounded,
+        label: 'البحث داخل الفصل',
+        onTap: () => _openNovelSearch(context),
+      ),
+    ]);
+  }
+
   Widget _performanceTab() {
     final failed = c.failedPageCount;
     return _tabList([
@@ -570,20 +640,22 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
 
   Widget _moreTab() {
     return _tabList([
-      _section('العلامات المرجعية', Icons.bookmarks_outlined),
-      _actionCard(
-        icon: Icons.bookmark_add_outlined,
-        label: 'حفظ موضع القراءة الحالي',
-        onTap: () async {
-          await c.saveReaderBookmark();
-          AppFeedback.show(title: 'العلامات', message: 'تم حفظ الموضع.');
-        },
-      ),
-      _actionCard(
-        icon: Icons.bookmarks_rounded,
-        label: 'عرض العلامات (${c.readerBookmarks.length})',
-        onTap: () => _openBookmarks(context),
-      ),
+      if (!c.isNovel) ...[
+        _section('العلامات المرجعية', Icons.bookmarks_outlined),
+        _actionCard(
+          icon: Icons.bookmark_add_outlined,
+          label: 'حفظ موضع القراءة الحالي',
+          onTap: () async {
+            await c.saveReaderBookmark();
+            AppFeedback.show(title: 'العلامات', message: 'تم حفظ الموضع.');
+          },
+        ),
+        _actionCard(
+          icon: Icons.bookmarks_rounded,
+          label: 'عرض العلامات (${c.readerBookmarks.length})',
+          onTap: () => _openBookmarks(context),
+        ),
+      ],
       if (c.isNovel) ...[
         _section('الملاحظات والتظليل', Icons.edit_note_rounded),
         _actionCard(

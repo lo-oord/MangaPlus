@@ -17,11 +17,8 @@ class NovelReaderTopBar extends StatelessWidget {
     required this.pageLabel,
     required this.progress,
     required this.onBack,
-    required this.onTts,
     required this.onBookmark,
     required this.onTools,
-    this.speaking = false,
-    this.paused = false,
     this.onInteraction,
   });
 
@@ -30,11 +27,8 @@ class NovelReaderTopBar extends StatelessWidget {
   final String pageLabel;
   final double progress;
   final VoidCallback onBack;
-  final VoidCallback onTts;
   final VoidCallback onBookmark;
   final VoidCallback onTools;
-  final bool speaking;
-  final bool paused;
   final VoidCallback? onInteraction;
 
   @override
@@ -112,16 +106,6 @@ class NovelReaderTopBar extends StatelessWidget {
                   ),
                 ),
                 _NovelIcon(
-                  icon: speaking
-                      ? Icons.pause_circle_filled_rounded
-                      : paused
-                          ? Icons.play_circle_fill_rounded
-                          : Icons.volume_up_rounded,
-                  tooltip: speaking ? 'إيقاف القراءة الصوتية مؤقتاً' : 'القراءة الصوتية',
-                  onTap: onTts,
-                  tint: speaking || paused ? AppColors.primary : null,
-                ),
-                _NovelIcon(
                   icon: Icons.bookmark_add_outlined,
                   tooltip: 'حفظ موضع القراءة',
                   onTap: onBookmark,
@@ -150,8 +134,8 @@ class NovelReaderBottomBar extends StatelessWidget {
     required this.onSeekEnd,
     required this.onChapters,
     required this.onSettings,
-    required this.autoScroll,
-    required this.onToggleAutoScroll,
+    required this.onListen,
+    this.listening = false,
     this.chapterTitle,
     this.onPreviousChapter,
     this.onNextChapter,
@@ -164,8 +148,8 @@ class NovelReaderBottomBar extends StatelessWidget {
   final VoidCallback onSeekEnd;
   final VoidCallback onChapters;
   final VoidCallback onSettings;
-  final bool autoScroll;
-  final VoidCallback onToggleAutoScroll;
+  final VoidCallback onListen;
+  final bool listening;
   final String? chapterTitle;
   final VoidCallback? onPreviousChapter;
   final VoidCallback? onNextChapter;
@@ -265,12 +249,12 @@ class NovelReaderBottomBar extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   _NovelIcon(
-                    icon: autoScroll
-                        ? Icons.pause_rounded
-                        : Icons.play_arrow_rounded,
-                    tooltip: autoScroll ? 'إيقاف التمرير التلقائي' : 'التمرير التلقائي',
-                    onTap: onToggleAutoScroll,
-                    tint: autoScroll ? AppColors.primary : null,
+                    icon: listening
+                        ? Icons.graphic_eq_rounded
+                        : Icons.headphones_rounded,
+                    tooltip: 'الاستماع للفصل',
+                    onTap: onListen,
+                    tint: listening ? AppColors.primary : null,
                   ),
                   _NovelIcon(
                     icon: Icons.chevron_left_rounded,

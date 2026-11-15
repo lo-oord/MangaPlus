@@ -104,7 +104,7 @@ void main() {
   });
 
   group('NovelReaderTopBar', () {
-    testWidgets('shows identity, progress and TTS state', (tester) async {
+    testWidgets('shows identity and progress', (tester) async {
       await tester.pumpWidget(
         _host(
           NovelReaderTopBar(
@@ -113,7 +113,6 @@ void main() {
             pageLabel: '12%',
             progress: .04,
             onBack: () {},
-            onTts: () {},
             onBookmark: () {},
             onTools: () {},
           ),
@@ -124,12 +123,12 @@ void main() {
       expect(find.text('الفصل 3'), findsOneWidget);
       expect(find.text('12%'), findsOneWidget);
       expect(find.text('4%'), findsOneWidget);
-      expect(find.byTooltip('القراءة الصوتية'), findsOneWidget);
+      expect(find.byTooltip('أدوات الرواية'), findsOneWidget);
+      expect(find.byTooltip('القراءة الصوتية'), findsNothing);
     });
 
-    testWidgets('invokes back, TTS, bookmark and tools', (tester) async {
+    testWidgets('invokes back, bookmark and tools', (tester) async {
       var back = 0;
-      var tts = 0;
       var bookmark = 0;
       var tools = 0;
       await tester.pumpWidget(
@@ -139,9 +138,7 @@ void main() {
             chapterTitle: 'الفصل',
             pageLabel: '0%',
             progress: 0,
-            speaking: true,
             onBack: () => back++,
-            onTts: () => tts++,
             onBookmark: () => bookmark++,
             onTools: () => tools++,
           ),
@@ -149,17 +146,16 @@ void main() {
       );
 
       await tester.tap(find.byTooltip('رجوع'));
-      await tester.tap(find.byTooltip('إيقاف القراءة الصوتية مؤقتاً'));
       await tester.tap(find.byTooltip('حفظ موضع القراءة'));
       await tester.tap(find.byTooltip('أدوات الرواية'));
-      expect([back, tts, bookmark, tools], [1, 1, 1, 1]);
+      expect([back, bookmark, tools], [1, 1, 1]);
     });
   });
 
   group('NovelReaderBottomBar', () {
-    testWidgets('exposes auto-scroll, settings and chapter actions',
+    testWidgets('exposes listen, settings and chapter actions',
         (tester) async {
-      var auto = 0;
+      var listen = 0;
       var chapters = 0;
       var settings = 0;
       await tester.pumpWidget(
@@ -168,8 +164,7 @@ void main() {
             chapterTitle: 'الفصل 3',
             pageLabel: '40%',
             progress: .4,
-            autoScroll: false,
-            onToggleAutoScroll: () => auto++,
+            onListen: () => listen++,
             onSeek: (_) {},
             onSeekEnd: () {},
             onChapters: () => chapters++,
@@ -179,10 +174,10 @@ void main() {
       );
 
       expect(find.text('40% • 40%'), findsOneWidget);
-      await tester.tap(find.byTooltip('التمرير التلقائي'));
+      await tester.tap(find.byTooltip('الاستماع للفصل'));
       await tester.tap(find.byTooltip('قائمة الفصول'));
       await tester.tap(find.byTooltip('إعدادات القراءة'));
-      expect([auto, chapters, settings], [1, 1, 1]);
+      expect([listen, chapters, settings], [1, 1, 1]);
 
       final previous = tester.widget<IconButton>(
         find.ancestor(
@@ -193,15 +188,15 @@ void main() {
       expect(previous.onPressed, isNull);
     });
 
-    testWidgets('reflects running auto-scroll', (tester) async {
+    testWidgets('reflects a running listening session', (tester) async {
       await tester.pumpWidget(
         _host(
           NovelReaderBottomBar(
             chapterTitle: 'الفصل',
             pageLabel: '1%',
             progress: .01,
-            autoScroll: true,
-            onToggleAutoScroll: () {},
+            listening: true,
+            onListen: () {},
             onSeek: (_) {},
             onSeekEnd: () {},
             onChapters: () {},
@@ -209,7 +204,7 @@ void main() {
           ),
         ),
       );
-      expect(find.byTooltip('إيقاف التمرير التلقائي'), findsOneWidget);
+      expect(find.byTooltip('الاستماع للفصل'), findsOneWidget);
     });
   });
 }

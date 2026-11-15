@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/reader/reader_image_source.dart';
 import 'package:mangaplus/app/modules/chapter/controllers/chapter_controller.dart';
+import 'package:mangaplus/app/modules/chapter/widgets/reader_sheet.dart';
 
 /// How long the reader chrome stays visible after the last interaction.
 const Duration kReaderChromeAutoHideDelay = Duration(milliseconds: 4200);
@@ -487,104 +488,61 @@ class _ChromeIcon extends StatelessWidget {
 ///
 /// Thumbnails decode at a small width instead of reusing full page bitmaps, so
 /// opening the navigator cannot inflate the image cache or drop page quality.
+/// An empty chapter explains itself instead of returning without a surface.
 Future<void> showReaderPageNavigator(
   BuildContext context,
   ChapterController controller, {
   required Future<void> Function(int page) onJumpToPage,
 }) {
   final pages = controller.chapterData.value.chapter.images;
-  if (pages.isEmpty) return Future<void>.value();
-  return Get.bottomSheet(
-    SafeArea(
-      child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * .82,
-        child: Column(
-          children: [
-            const SizedBox(height: 10),
-            Container(
-              width: 42,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.divider,
-                borderRadius: BorderRadius.circular(4),
-              ),
+  return showReaderSheet<void>(
+    context,
+    heightFactor: .85,
+    child: Column(
+      children: [
+        ReaderSheetHeader(
+          title: 'الصفحات'.tr,
+          subtitle: Obx(
+            () => Text(
+              '${controller.currentChapterTitle} • '
+              '${controller.currentPage.value + 1} / ${pages.length}',
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 12, 10, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'الصفحات',
-                          style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 19,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Obx(
-                          () => Text(
-                            '${controller.currentChapterTitle} • '
-                            '${controller.currentPage.value + 1} / ${pages.length}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 11.5,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'إغلاق',
-                    onPressed: Get.back,
-                    icon: Icon(Icons.close_rounded, color: AppColors.icon),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Obx(
-                () => GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 18),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4,
-                    mainAxisSpacing: 6,
-                    crossAxisSpacing: 6,
-                    childAspectRatio: .62,
-                  ),
-                  itemCount: pages.length,
-                  itemBuilder: (context, index) {
-                    final current = index == controller.currentPage.value;
-                    return _PageThumb(
-                      reference: pages[index],
-                      index: index,
-                      current: current,
-                      onTap: () {
-                        Get.back();
-                        onJumpToPage(index);
-                      },
-                    );
-                  },
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
-    ),
-    backgroundColor: AppColors.card,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        Expanded(
+          child: pages.isEmpty
+              ? const ReaderSheetNotice(
+                  icon: Icons.grid_view_rounded,
+                  title: 'لا توجد صفحات في هذا الفصل',
+                  message: 'قد يكون الفصل نصيًا أو لم تُجهَّز صفحاته بعد.',
+                )
+              : Obx(
+                  () => GridView.builder(
+                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 18),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 4,
+                      mainAxisSpacing: 6,
+                      crossAxisSpacing: 6,
+                      childAspectRatio: .62,
+                    ),
+                    itemCount: pages.length,
+                    itemBuilder: (context, index) {
+                      final current = index == controller.currentPage.value;
+                      return _PageThumb(
+                        reference: pages[index],
+                        index: index,
+                        current: current,
+                        onTap: () {
+                          Get.back();
+                          onJumpToPage(index);
+                        },
+                      );
+                    },
+                  ),
+                ),
+        ),
+      ],
     ),
   );
 }
@@ -674,121 +632,170 @@ class _PageThumb extends StatelessWidget {
   }
 }
 
-/// Chapter list sheet used by the reader chrome.
+/// Chapter list sheet used by both reader chrome variants.
+///
+/// The list is prepared inside a stateful sheet with explicit loading, error and
+/// empty states. Previously the sheet could appear as a grey surface when the
+/// chapter metadata was not ready, because the content was only rendered after
+/// an await without any visible state.
 Future<void> showReaderChapterList(
   BuildContext context,
   ChapterController controller,
-) async {
-  await controller.ensureChapterNavigation();
-  if (!context.mounted) return;
-  final chapters = controller.availableChapters;
-  if (chapters.isEmpty) return;
-  await Get.bottomSheet(
-    SafeArea(
-      child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * .8,
-        child: Column(
-          children: [
-            const SizedBox(height: 10),
-            Container(
-              width: 42,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.divider,
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 12, 10, 6),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'الفصول',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 19,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    '${chapters.length}',
-                    style: TextStyle(color: AppColors.textSecondary),
-                  ),
-                  IconButton(
-                    tooltip: 'إغلاق',
-                    onPressed: Get.back,
-                    icon: Icon(Icons.close_rounded, color: AppColors.icon),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Obx(
-                () => ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 18),
-                  itemCount: chapters.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 4),
-                  itemBuilder: (context, index) {
-                    final item = chapters[index];
-                    final current = controller.isCurrentChapter(item);
-                    final read = controller.isChapterRead(item.chapterId);
-                    return ListTile(
-                      dense: true,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      tileColor: current
-                          ? AppColors.primary.withValues(alpha: .13)
-                          : AppColors.searchBar,
-                      leading: Icon(
-                        current
-                            ? Icons.play_circle_fill_rounded
-                            : Icons.menu_book_rounded,
-                        color: current ? AppColors.primary : AppColors.icon,
-                        size: 21,
-                      ),
-                      title: Text(
-                        item.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 13,
-                          fontWeight:
-                              current ? FontWeight.w800 : FontWeight.w500,
-                        ),
-                      ),
-                      trailing: read
-                          ? Text(
-                              'مقروء',
-                              style: TextStyle(
-                                color: AppColors.primary,
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            )
-                          : null,
-                      onTap: current
-                          ? null
-                          : () {
-                              Get.back();
-                              controller.navigateToChapter(item.chapterId);
-                            },
-                    );
-                  },
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-    backgroundColor: AppColors.card,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-    ),
+) {
+  return showReaderSheet<void>(
+    context,
+    heightFactor: .82,
+    child: _ReaderChapterSheet(controller: controller),
   );
+}
+
+class _ReaderChapterSheet extends StatefulWidget {
+  const _ReaderChapterSheet({required this.controller});
+
+  final ChapterController controller;
+
+  @override
+  State<_ReaderChapterSheet> createState() => _ReaderChapterSheetState();
+}
+
+class _ReaderChapterSheetState extends State<_ReaderChapterSheet> {
+  bool _loading = true;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _failed = false;
+      });
+    }
+    try {
+      await widget.controller.ensureChapterNavigation();
+      if (mounted) setState(() => _loading = false);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _failed = true;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final chapters = widget.controller.availableChapters;
+    return Column(
+      children: [
+        ReaderSheetHeader(
+          title: 'الفصول'.tr,
+          subtitle: Obx(
+            () => Text(
+              '${widget.controller.currentChapterTitle} • '
+              '${(widget.controller.readerProgress.value * 100).round()}%',
+            ),
+          ),
+          trailing: Text(
+            '${chapters.length}',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+            ),
+          ),
+        ),
+        Expanded(
+          child: _loading
+              ? const ReaderSheetNotice(
+                  icon: Icons.format_list_numbered_rounded,
+                  title: 'جارٍ تجهيز قائمة الفصول',
+                  loading: true,
+                )
+              : _failed
+                  ? ReaderSheetNotice(
+                      icon: Icons.cloud_off_rounded,
+                      title: 'تعذر تحميل قائمة الفصول',
+                      message: 'تحقق من الاتصال ثم أعد المحاولة.',
+                      actionLabel: 'إعادة المحاولة'.tr,
+                      onAction: _load,
+                    )
+                  : chapters.isEmpty
+                      ? ReaderSheetNotice(
+                          icon: Icons.list_alt_rounded,
+                          title: 'لا تتوفر قائمة فصول لهذا العمل',
+                          message: 'يمكنك التنقل عبر أزرار الفصل السابق والتالي.',
+                          actionLabel: 'تحديث'.tr,
+                          onAction: _load,
+                        )
+                      : Obx(
+                          () => ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(12, 4, 12, 18),
+                            itemCount: chapters.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 4),
+                            itemBuilder: (context, index) {
+                              final item = chapters[index];
+                              final current =
+                                  widget.controller.isCurrentChapter(item);
+                              final read = widget.controller
+                                  .isChapterRead(item.chapterId);
+                              return ListTile(
+                                dense: true,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                tileColor: current
+                                    ? AppColors.primary.withValues(alpha: .13)
+                                    : AppColors.searchBar,
+                                leading: Icon(
+                                  current
+                                      ? Icons.play_circle_fill_rounded
+                                      : Icons.menu_book_rounded,
+                                  color: current
+                                      ? AppColors.primary
+                                      : AppColors.icon,
+                                  size: 21,
+                                ),
+                                title: Text(
+                                  item.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontSize: 13,
+                                    fontWeight: current
+                                        ? FontWeight.w800
+                                        : FontWeight.w500,
+                                  ),
+                                ),
+                                trailing: read
+                                    ? Text(
+                                        'مقروء',
+                                        style: TextStyle(
+                                          color: AppColors.primary,
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      )
+                                    : null,
+                                onTap: current
+                                    ? null
+                                    : () {
+                                        Get.back();
+                                        widget.controller
+                                            .navigateToChapter(item.chapterId);
+                                      },
+                              );
+                            },
+                          ),
+                        ),
+        ),
+      ],
+    );
+  }
 }
