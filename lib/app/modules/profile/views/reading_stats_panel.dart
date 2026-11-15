@@ -41,12 +41,14 @@ class _ReadingStatsPanelState extends State<ReadingStatsPanel> {
             ? 'ابدأ القراءة لبناء إحصاءاتك'.tr
             : '${_duration(report.totalSeconds)} • ${report.completedChapters} ${'فصل مكتمل'.tr}',
         icon: Icons.auto_graph_rounded,
+        // Build the heavy dashboard lazily so a runtime issue inside it cannot
+        // blank the whole profile screen while the panel is collapsed.
         child: controller.isLoading.value
             ? const Padding(
                 padding: EdgeInsets.all(22),
                 child: MangaPlusLoader(size: 38),
               )
-            : _dashboard(controller),
+            : Builder(builder: (_) => _dashboard(controller)),
       );
     });
   }

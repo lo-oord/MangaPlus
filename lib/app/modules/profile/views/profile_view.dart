@@ -48,7 +48,7 @@ class ProfileView extends GetView<ProfileController> {
                 AppSection(
                   title: 'إجراءات سريعة'.tr,
                   children: [
-                    Obx(() => ProfileQuickActions(controller: controller)),
+                    ProfileQuickActions(controller: controller),
                   ],
                 ),
                 AppSection(
