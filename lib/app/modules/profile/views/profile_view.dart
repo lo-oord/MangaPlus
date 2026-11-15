@@ -35,15 +35,23 @@ class ProfileView extends GetView<ProfileController> {
             () => ListView(
               padding: AppSpacing.pageInsets,
               children: [
-                ProfileIdentityCard(
-                  controller: controller,
-                  onEdit: () => AppNavigation.toNamed(Routes.PROFILE_EDIT),
-                  onOpenAuth: () => AppNavigation.toNamed(Routes.AUTH),
-                  onManageAccount: () =>
-                      AppNavigation.toNamed(Routes.ACCOUNT_SETTINGS),
+                _safeSection(
+                  context,
+                  'identity',
+                  () => ProfileIdentityCard(
+                    controller: controller,
+                    onEdit: () => AppNavigation.toNamed(Routes.PROFILE_EDIT),
+                    onOpenAuth: () => AppNavigation.toNamed(Routes.AUTH),
+                    onManageAccount: () =>
+                        AppNavigation.toNamed(Routes.ACCOUNT_SETTINGS),
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.md),
-                const ReadingStatsPanel(),
+                _safeSection(
+                  context,
+                  'stats',
+                  () => const ReadingStatsPanel(),
+                ),
                 const SizedBox(height: AppSpacing.section),
                 AppSection(
                   title: 'إجراءات سريعة'.tr,
@@ -83,92 +91,7 @@ class ProfileView extends GetView<ProfileController> {
                     ),
                   ],
                 ),
-                AppSection(
-                  title: 'القارئ'.tr,
-                  subtitle: 'تُحفظ الإعدادات على هذا الجهاز'.tr,
-                  children: [
-                    _readerTile(
-                      context,
-                      icon: Icons.fit_screen_rounded,
-                      title: 'شكل العرض'.tr,
-                      value: Get.find<ReaderPreferencesController>().fit.value,
-                      options: const {
-                        'width': 'حسب العرض',
-                        'height': 'حسب الارتفاع',
-                        'screen': 'حسب الشاشة',
-                        'natural': 'طبيعي',
-                      },
-                      onSelect: Get.find<ReaderPreferencesController>().setFit,
-                    ),
-                    _readerTile(
-                      context,
-                      icon: Icons.read_more_rounded,
-                      title: 'وضع القراءة'.tr,
-                      value:
-                          Get.find<ReaderPreferencesController>().readingMode.value,
-                      options: const {
-                        'scroll': 'تمرير',
-                        'paged': 'صفحات',
-                      },
-                      onSelect:
-                          Get.find<ReaderPreferencesController>().setReadingMode,
-                    ),
-                    _readerTile(
-                      context,
-                      icon: Icons.swap_horiz_rounded,
-                      title: 'اتجاه الصفحات'.tr,
-                      value:
-                          Get.find<ReaderPreferencesController>().direction.value,
-                      options: const {
-                        'rtl': 'من اليمين إلى اليسار',
-                        'ltr': 'من اليسار إلى اليمين',
-                      },
-                      onSelect:
-                          Get.find<ReaderPreferencesController>().setDirection,
-                    ),
-                    _readerTile(
-                      context,
-                      icon: Icons.contrast_rounded,
-                      title: 'خلفية الصفحات'.tr,
-                      value:
-                          Get.find<ReaderPreferencesController>().background.value,
-                      options: const {
-                        'black': 'أسود',
-                        'white': 'أبيض',
-                        'gray': 'رمادي',
-                        'app': 'تطبيقي',
-                      },
-                      onSelect:
-                          Get.find<ReaderPreferencesController>().setBackground,
-                    ),
-                    _readerTile(
-                      context,
-                      icon: Icons.image_rounded,
-                      title: 'جودة الصور'.tr,
-                      value: Get.find<ReaderPreferencesController>().imageQuality
-                          .value,
-                      options: const {
-                        'low': 'منخفضة',
-                        'medium': 'متوسطة',
-                        'high': 'عالية',
-                      },
-                      onSelect: Get.find<ReaderPreferencesController>().setImageQuality,
-                    ),
-                    _readerTile(
-                      context,
-                      icon: Icons.screen_rotation_rounded,
-                      title: 'اتجاه الشاشة'.tr,
-                      value: Get.find<ReaderPreferencesController>().orientation
-                          .value,
-                      options: const {
-                        'auto': 'تلقائي',
-                        'portrait': 'عمودي',
-                        'landscape': 'أفقي',
-                      },
-                      onSelect: Get.find<ReaderPreferencesController>().setOrientation,
-                    ),
-                  ],
-                ),
+                ..._readerSection(context),
                 AppSection(
                   title: 'المكتبة والتزامن'.tr,
                   subtitle: 'حالة مزامنة البيانات'.tr,
@@ -239,7 +162,7 @@ class ProfileView extends GetView<ProfileController> {
                 AppSection(
                   title: 'التحميلات والتخزين'.tr,
                   children: [
-                    _storageSection(context),
+                    _safeSection(context, 'storage', () => _storageSection(context)),
                     AppSettingsTile(
                       icon: Icons.storage_rounded,
                       title: 'إدارة التنزيلات'.tr,
@@ -480,4 +403,118 @@ class ProfileView extends GetView<ProfileController> {
           ],
         ),
       );
+
+  Widget _safeSection(BuildContext context, String name, Widget Function() build) {
+    try {
+      return build();
+    } catch (_) {
+      return AppCard(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          child: Text(
+            'تعذر تحميل هذا القسم'.tr,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+      );
+    }
+  }
+
+  List<Widget> _readerSection(BuildContext context) {
+    if (!Get.isRegistered<ReaderPreferencesController>()) {
+      return [
+        AppSection(
+          title: 'القارئ'.tr,
+          subtitle: 'تُحفظ الإعدادات على هذا الجهاز'.tr,
+          children: [
+            AppSettingsTile(
+              icon: Icons.tune_rounded,
+              title: 'إعدادات القارئ غير متاحة حاليًا'.tr,
+            ),
+          ],
+        ),
+      ];
+    }
+    final reader = Get.find<ReaderPreferencesController>();
+    return [
+      AppSection(
+        title: 'القارئ'.tr,
+        subtitle: 'تُحفظ الإعدادات على هذا الجهاز'.tr,
+        children: [
+          _readerTile(
+            context,
+            icon: Icons.fit_screen_rounded,
+            title: 'شكل العرض'.tr,
+            value: reader.fit.value,
+            options: const {
+              'width': 'حسب العرض',
+              'height': 'حسب الارتفاع',
+              'screen': 'حسب الشاشة',
+              'natural': 'طبيعي',
+            },
+            onSelect: reader.setFit,
+          ),
+          _readerTile(
+            context,
+            icon: Icons.read_more_rounded,
+            title: 'وضع القراءة'.tr,
+            value: reader.readingMode.value,
+            options: const {
+              'scroll': 'تمرير',
+              'paged': 'صفحات',
+            },
+            onSelect: reader.setReadingMode,
+          ),
+          _readerTile(
+            context,
+            icon: Icons.swap_horiz_rounded,
+            title: 'اتجاه الصفحات'.tr,
+            value: reader.direction.value,
+            options: const {
+              'rtl': 'من اليمين إلى اليسار',
+              'ltr': 'من اليسار إلى اليمين',
+            },
+            onSelect: reader.setDirection,
+          ),
+          _readerTile(
+            context,
+            icon: Icons.contrast_rounded,
+            title: 'خلفية الصفحات'.tr,
+            value: reader.background.value,
+            options: const {
+              'black': 'أسود',
+              'white': 'أبيض',
+              'gray': 'رمادي',
+              'app': 'تطبيقي',
+            },
+            onSelect: reader.setBackground,
+          ),
+          _readerTile(
+            context,
+            icon: Icons.image_rounded,
+            title: 'جودة الصور'.tr,
+            value: reader.imageQuality.value,
+            options: const {
+              'low': 'منخفضة',
+              'medium': 'متوسطة',
+              'high': 'عالية',
+            },
+            onSelect: reader.setImageQuality,
+          ),
+          _readerTile(
+            context,
+            icon: Icons.screen_rotation_rounded,
+            title: 'اتجاه الشاشة'.tr,
+            value: reader.orientation.value,
+            options: const {
+              'auto': 'تلقائي',
+              'portrait': 'عمودي',
+              'landscape': 'أفقي',
+            },
+            onSelect: reader.setOrientation,
+          ),
+        ],
+      ),
+    ];
+  }
 }
