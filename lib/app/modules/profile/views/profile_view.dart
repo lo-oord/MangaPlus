@@ -89,7 +89,7 @@ class ProfileView extends GetView<ProfileController> {
                   children: [
                     _readerTile(
                       context,
-                      icon: Icons.pinch_zoom_out_rounded,
+                      icon: Icons.fit_screen_rounded,
                       title: 'شكل العرض'.tr,
                       value: Get.find<ReaderPreferencesController>().fit.value,
                       options: const {
@@ -401,14 +401,14 @@ class ProfileView extends GetView<ProfileController> {
   }) async {
     final selected = await AppDialogs.show<String>(
       title: title,
-      icon: Icons.settings_adjustable_rounded,
+      icon: Icons.tune_rounded,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (final entry in options.entries)
             AppSettingsTile(
-              icon: Icons.circle_outline_rounded,
+              icon: Icons.radio_button_unchecked_rounded,
               title: entry.value,
               value: entry.key,
               onTap: () => Get.back<String>(result: entry.key),
@@ -471,7 +471,7 @@ class ProfileView extends GetView<ProfileController> {
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              '${'قارئ مانجا ومانهوا'.tr}\n${'الإصدار'.tr}: 1.1,
+              '${'قارئ مانجا ومانهوا'.tr}\n${'الإصدار'.tr}: 1.1',
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium

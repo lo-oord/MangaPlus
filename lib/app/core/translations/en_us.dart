@@ -649,7 +649,8 @@ const Map<String, String> enUS = {
   'استهلاك التخزين': 'Storage usage',
   'افتح الرسالة المرسلة إلى العنوان الجديد لتأكيد التغيير.': 'Open the message sent to the new address to confirm the change.',
   'افتح بريدك وأكّد العنوان لإكمال التوثيق.': 'Open your email and confirm the address to complete verification.',
-  'اكتب «$_confirmationPhrase» بالضبط لتأكيد الحذف': 'Type the confirmation phrase exactly to delete the account.',
+  'اكتب العبارة بالضبط لتأكيد الحذف': 'Type the confirmation phrase exactly to delete the account.',
+  'حذف حسابي': 'Delete my account',
   'اكتب اسمًا يظهر للآخرين': 'Write the name others will see.',
   'الأمان': 'Security',
   'الإصدار 1.1': 'Version 1.1',
@@ -738,5 +739,6 @@ const Map<String, String> enUS = {
   'نص التأكيد': 'Confirmation text',
   'هذا الحساب لا يملك كلمة مرور محلية': 'This account has no local password',
   'وضع الضيف: بياناتك محفوظة على هذا الجهاز فقط': 'Guest mode: your data is stored on this device only',
-  'يمكنك الإرسال مجددًا بعد $cooldown ثانية': 'You can send again after $cooldown seconds',
+  'يمكنك الإرسال مجددًا بعد': 'You can send again after',
+  'ثانية': 'seconds',
 };

@@ -32,6 +32,8 @@ class StorageUsageController extends GetxController {
     unawaited(refresh());
   }
 
+  /// Recomputes the real storage breakdown.
+  @override
   Future<void> refresh() async {
     isLoading.value = true;
     try {

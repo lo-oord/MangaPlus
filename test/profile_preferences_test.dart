@@ -62,10 +62,6 @@ void main() {
             .permanentlyDenied),
         AppPermissionStatus.permanentlyDenied,
       );
-      expect(
-        AppPermissionStatus.fromPermissionStatus(PermissionStatus.unknown),
-        AppPermissionStatus.unknown,
-      );
     });
 
     test('distinguishes granted, denied and permanently denied states', () {

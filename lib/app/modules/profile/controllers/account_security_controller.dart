@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/data/services/account_deletion_service.dart';
 import 'package:mangaplus/app/data/services/auth_service.dart';

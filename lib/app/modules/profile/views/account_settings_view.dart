@@ -127,7 +127,7 @@ class AccountSettingsView extends StatelessWidget {
                       icon: Icons.mark_email_read_outlined,
                       title: 'إعادة إرسال رابط التحقق'.tr,
                       subtitle: cooldown > 0
-                          ? 'يمكنك الإرسال مجددًا بعد $cooldown ثانية'.tr
+                          ? '${'يمكنك الإرسال مجددًا بعد'.tr} $cooldown ${'ثانية'.tr}'
                           : 'أرسل رابطًا جديدًا إلى بريدك'.tr,
                       onTap: (security.busy.value || cooldown > 0)
                           ? null
@@ -211,7 +211,7 @@ class AccountSettingsView extends StatelessWidget {
     AccountSecurityController security,
   ) async {
     await Get.bottomSheet<void>(
-      (_) => const _ChangeEmailSheet(),
+      const _ChangeEmailSheet(),
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
     );
@@ -232,7 +232,7 @@ class AccountSettingsView extends StatelessWidget {
 
   Future<void> _signOut(BuildContext context, ProfileController profile) async {
     final confirmed = await Get.dialog<bool>(
-          (_) => const _SignOutDialog(),
+          const _SignOutDialog(),
         ) ??
         false;
     if (!confirmed) return;

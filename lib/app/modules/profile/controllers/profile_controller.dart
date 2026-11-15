@@ -140,7 +140,6 @@ class ProfileController extends GetxController {
       onError: (_) => null,
     );
 
-    final currentUser = _auth?.currentUser;
     unawaited(_loadAccount());
 
     unawaited(_loadSyncStatus());

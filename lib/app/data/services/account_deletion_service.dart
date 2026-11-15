@@ -131,10 +131,12 @@ class AccountDeletionService {
     // failure. Guests and verified accounts are always cleaned.
     if (!isVerified) return;
 
+    // `private` is a document; its subcollections are the collections the
+    // rules allow the account owner to read and write.
     final private = _firestore
         .collection('userProfiles')
         .doc(uid)
-        .collection('private');
+        .doc('private');
 
     for (final name in _privateDocuments) {
       await private.doc(name).delete();

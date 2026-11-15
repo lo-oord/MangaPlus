@@ -171,7 +171,7 @@ class _DeleteAccountViewState extends State<DeleteAccountView> {
               ),
               AppSection(
                 title: 'التأكيد النهائي'.tr,
-                subtitle: 'اكتب «$_confirmationPhrase» بالضبط لتأكيد الحذف'.tr,
+                subtitle: 'اكتب العبارة بالضبط لتأكيد الحذف'.tr,
                 children: [
                   Padding(
                     padding: const EdgeInsets.all(AppSpacing.md),
