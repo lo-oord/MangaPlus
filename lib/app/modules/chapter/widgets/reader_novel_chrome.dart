@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
-import 'package:mangaplus/app/core/theme/app_motion.dart';
 import 'package:mangaplus/app/modules/chapter/controllers/chapter_controller.dart';
 
 /// Top bar of the novel reader.
@@ -294,18 +293,14 @@ Future<void> showNovelTtsPanel(
   BuildContext context,
   ChapterController controller,
 ) {
-  return Get.bottomSheet(
-    _NovelTtsPanel(controller: controller),
+  return showModalBottomSheet<void>(
+    context: context,
     isScrollControlled: true,
+    useSafeArea: false,
     backgroundColor: Colors.transparent,
-    enterBottomSheetDuration: _duration(AppMotion.page),
-    exitBottomSheetDuration: _duration(AppMotion.fast),
+    barrierColor: Colors.black.withValues(alpha: .55),
+    builder: (_) => _NovelTtsPanel(controller: controller),
   );
-}
-
-Duration _duration(Duration duration) {
-  final context = Get.context;
-  return context == null ? duration : AppMotion.effective(context, duration);
 }
 
 class _NovelTtsPanel extends StatelessWidget {
@@ -487,8 +482,7 @@ class _NovelTtsPanel extends StatelessWidget {
                         min: .25,
                         max: .75,
                         divisions: 10,
-                        label:
-                            '${(c.novelSpeechRate.value * 100).round()}%',
+                        label: '${(c.novelSpeechRate.value * 100).round()}%',
                         onChanged: c.setNovelSpeechRate,
                       ),
                     ),

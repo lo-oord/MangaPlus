@@ -15,14 +15,17 @@ Future<void> openReaderTools(
   required Future<void> Function(int paragraph) onJumpToParagraph,
   required int Function() currentNovelParagraph,
 }) {
-  return Get.bottomSheet(
-    _ReaderToolsSheet(
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: false,
+    backgroundColor: Colors.transparent,
+    barrierColor: Colors.black.withValues(alpha: .55),
+    builder: (_) => _ReaderToolsSheet(
       onJumpToPage: onJumpToPage,
       onJumpToParagraph: onJumpToParagraph,
       currentNovelParagraph: currentNovelParagraph,
     ),
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
   );
 }
 
@@ -153,7 +156,7 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
                         ]
                       : [
                           _displayTab(),
-                          _navigationTab(),
+                          _navigationTab(context),
                           _appearanceTab(),
                           _performanceTab(),
                           _moreTab(),
@@ -178,7 +181,9 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
         _hint('قارئ الروايات يعرض النص في وضع تمرير مستمر مع تنسيق مستقل.')
       else ...[
         _choices([
-          _chip('تمرير مستمر', c.readerMode.value == 'scroll' && !c.isWebtoonPreset,
+          _chip(
+              'تمرير مستمر',
+              c.readerMode.value == 'scroll' && !c.isWebtoonPreset,
               () => c.setReaderMode('scroll')),
           _chip('صفحة بصفحة', c.readerMode.value == 'paged',
               () => c.setReaderMode('paged')),
@@ -263,7 +268,7 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
     ]);
   }
 
-  Widget _navigationTab() {
+  Widget _navigationTab(BuildContext context) {
     final ranges = c.readerChapterPageRanges;
     return _tabList([
       _section('داخل الفصل', Icons.swap_vert_rounded),
@@ -307,7 +312,7 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
             child: _actionCard(
               icon: Icons.pin_rounded,
               label: 'صفحة محددة',
-              onTap: _openPagePicker,
+              onTap: () => _openPagePicker(context),
             ),
           ),
         ],
@@ -725,12 +730,14 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
   Future<void> _openPageGrid(BuildContext context) =>
       showReaderPageNavigator(context, c, onJumpToPage: widget.onJumpToPage);
 
-  Future<void> _openPagePicker() async {
+  Future<void> _openPagePicker(BuildContext context) async {
     final controller =
         TextEditingController(text: '${c.currentPage.value + 1}');
     final total = c.chapterData.value.chapter.images.length;
-    final page = await Get.dialog<int>(
-      AlertDialog(
+    final page = await showDialog<int>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: .55),
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.card,
         title: Text('الانتقال إلى صفحة',
             style: TextStyle(color: AppColors.textPrimary)),
@@ -739,13 +746,17 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
           keyboardType: TextInputType.number,
           autofocus: true,
           decoration: InputDecoration(hintText: '1 - $total'),
-          onSubmitted: (value) => Get.back(result: int.tryParse(value.trim())),
+          onSubmitted: (value) =>
+              Navigator.of(dialogContext).pop(int.tryParse(value.trim())),
         ),
         actions: [
-          TextButton(onPressed: Get.back, child: Text('إلغاء'.tr)),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text('إلغاء'.tr),
+          ),
           FilledButton(
-            onPressed: () =>
-                Get.back(result: int.tryParse(controller.text.trim())),
+            onPressed: () => Navigator.of(dialogContext)
+                .pop(int.tryParse(controller.text.trim())),
             child: Text('انتقال'.tr),
           ),
         ],
@@ -761,8 +772,16 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
       showReaderChapterList(context, c);
 
   Future<void> _openBookmarks(BuildContext context) async {
-    await Get.bottomSheet(
-      SafeArea(
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: false,
+      backgroundColor: AppColors.card,
+      barrierColor: Colors.black.withValues(alpha: .55),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (_) => SafeArea(
         child: SizedBox(
           height: MediaQuery.sizeOf(context).height * .72,
           child: Column(
@@ -846,11 +865,6 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
           ),
         ),
       ),
-      backgroundColor: AppColors.card,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-      ),
     );
   }
 
@@ -866,8 +880,10 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
     );
     final noteController = TextEditingController();
     String color = '#ffd54f';
-    final saved = await Get.dialog<bool>(
-      AlertDialog(
+    final saved = await showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: .55),
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.card,
         title: Text('إضافة ملاحظة',
             style: TextStyle(color: AppColors.textPrimary)),
@@ -913,9 +929,12 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
           ),
         ),
         actions: [
-          TextButton(onPressed: Get.back, child: Text('إلغاء'.tr)),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text('إلغاء'.tr),
+          ),
           FilledButton(
-            onPressed: () => Get.back(result: true),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
             child: Text('حفظ'.tr),
           ),
         ],
@@ -939,8 +958,16 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
   }
 
   Future<void> _openNovelNotes(BuildContext context) async {
-    await Get.bottomSheet(
-      SafeArea(
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: false,
+      backgroundColor: AppColors.card,
+      barrierColor: Colors.black.withValues(alpha: .55),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (_) => SafeArea(
         child: SizedBox(
           height: MediaQuery.sizeOf(context).height * .65,
           child: Column(
@@ -1021,19 +1048,22 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
           ),
         ),
       ),
-      backgroundColor: AppColors.card,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-      ),
     );
   }
 
   Future<void> _openNovelSearch(BuildContext context) async {
     final searchController =
         TextEditingController(text: c.novelSearchQuery.value);
-    await Get.bottomSheet(
-      SafeArea(
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: false,
+      backgroundColor: AppColors.card,
+      barrierColor: Colors.black.withValues(alpha: .55),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (_) => SafeArea(
         child: SizedBox(
           height: MediaQuery.sizeOf(context).height * .72,
           child: Column(
@@ -1106,11 +1136,6 @@ class _ReaderToolsSheetState extends State<_ReaderToolsSheet>
             ],
           ),
         ),
-      ),
-      backgroundColor: AppColors.card,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
       ),
     );
     searchController.dispose();
