@@ -595,11 +595,7 @@ class _ChapterViewState extends State<ChapterView>
           return ColoredBox(
             color: _readerBackground(),
             child: const Center(
-              child: SizedBox(
-                width: 30,
-                height: 30,
-                child: CircularProgressIndicator(strokeWidth: 2.4),
-              ),
+              child: AppLoadingIndicator.medium(),
             ),
           );
         }

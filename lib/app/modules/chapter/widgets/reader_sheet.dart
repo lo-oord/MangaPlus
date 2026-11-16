@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mangaplus/app/core/constants/colors.dart';
 import 'package:mangaplus/app/core/theme/design_tokens.dart';
+import 'package:mangaplus/app/widgets/app_loading_indicator.dart';
 
 /// Presents a reader surface on Flutter's own modal bottom sheet.
 ///
@@ -147,11 +148,7 @@ class ReaderSheetNotice extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (loading)
-              const SizedBox(
-                width: 30,
-                height: 30,
-                child: CircularProgressIndicator(strokeWidth: 2.4),
-              )
+              const AppLoadingIndicator.medium()
             else
               Icon(icon, size: 42, color: AppColors.icon),
             const SizedBox(height: AppSpacing.sm),

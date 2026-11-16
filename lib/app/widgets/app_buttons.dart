@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mangaplus/app/core/theme/app_palette.dart';
 import 'package:mangaplus/app/core/theme/design_tokens.dart';
+import 'package:mangaplus/app/widgets/app_loading_indicator.dart';
 import 'package:mangaplus/app/widgets/app_motion_widgets.dart';
 
 /// The visual weight of an action in MangaPlus.
@@ -81,12 +82,10 @@ class AppButton extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         if (loading)
-          SizedBox.square(
-            dimension: compact ? 14 : 16,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(iconColor),
-            ),
+          AppLoadingIndicator(
+            size: compact ? 14 : 16,
+            strokeWidth: compact ? 2 : 2.2,
+            color: iconColor,
           )
         else if (icon != null)
           Icon(icon, size: compact ? AppSizes.iconSm : 18, color: iconColor),

@@ -4,6 +4,7 @@ import 'package:mangaplus/app/core/theme/app_palette.dart';
 import 'package:mangaplus/app/core/theme/design_tokens.dart';
 import 'package:mangaplus/app/core/theme/theme.dart';
 import 'package:mangaplus/app/widgets/app_buttons.dart';
+import 'package:mangaplus/app/widgets/app_loading_indicator.dart';
 import 'package:mangaplus/app/widgets/app_surfaces.dart';
 import 'package:mangaplus/app/widgets/brand_state.dart';
 
@@ -79,7 +80,7 @@ void main() {
 
       await tester
           .pumpWidget(_host(const AppButton(label: 'قراءة', loading: true)));
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(AppLoadingIndicator), findsOneWidget);
     });
 
     testWidgets('BrandState.loading uses the branded loader', (tester) async {
