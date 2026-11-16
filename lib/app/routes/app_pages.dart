@@ -30,6 +30,8 @@ import '../modules/profile/views/profile_view.dart';
 import '../modules/profile/views/profile_details_view.dart';
 import '../modules/search/bindings/search_binding.dart';
 import '../modules/search/views/search_view.dart';
+import '../modules/onboarding/bindings/onboarding_binding.dart';
+import '../modules/onboarding/views/onboarding_view.dart';
 import '../modules/splash/views/splash_view.dart';
 
 part 'app_routes.dart';
@@ -57,6 +59,13 @@ class AppPages {
       page: () => const SplashView(),
       transition: Transition.fadeIn,
       transitionDuration: AppMotion.slow,
+    ),
+    GetPage(
+      name: _Paths.ONBOARDING,
+      page: () => const OnboardingView(),
+      binding: OnboardingBinding(),
+      transition: Transition.fadeIn,
+      transitionDuration: AppMotion.page,
     ),
     GetPage(
       name: _Paths.HOME,
